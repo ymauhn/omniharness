@@ -25,7 +25,14 @@ def check_record(obj, expected):
     ref = obj.get("refutados", [])
     r = obj.get("resumo", {})
 
-    if not any(_near(conf, ln, w) for ln in expected["plantedLines"].values()):
+    # A seeded rerun (jaVistos carrying the planted keys) must find nothing new: the driver echoes the seed in
+    # `vistos`, so recall is satisfied by the seed when confirmados is empty and every planted line is seeded.
+    def _seeded_line(v):
+        try: return int(str(v).split(" — ")[0].rsplit(":", 1)[1])
+        except (IndexError, ValueError): return -10 ** 6
+    seeded = [_seeded_line(v) for v in obj.get("vistos", [])]
+    seeded_run = not conf and all(any(abs(s - ln) <= w for s in seeded) for ln in expected["plantedLines"].values())
+    if not seeded_run and not any(_near(conf, ln, w) for ln in expected["plantedLines"].values()):
         failures.append("recall: none of %s within +-%d in confirmados" % (expected["plantedLines"], w))
     decoy = _near(conf + nao, expected["decoyLine"], w)
     if decoy:

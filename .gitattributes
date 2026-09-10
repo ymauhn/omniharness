@@ -1,0 +1,5 @@
+# Keep LF in the repository on every host; Windows checkouts stay LF too so hooks and shims run unchanged.
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.png binary
+*.pdf binary

@@ -39,6 +39,8 @@ python evals/run.py selftest
 
 Then, in any new session, `/omniharness` (Claude Code) or `$omniharness` (Codex) loads the rules, verifies the install and reports regressions. The rules are opt-in per session; nothing is imported into your global instructions file.
 
+Measured baseline for the three benchmarks (agents, tokens, cost, what each arm did): [docs/benchmarks.md](docs/benchmarks.md).
+
 ```
 ```
 

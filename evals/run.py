@@ -34,7 +34,8 @@ def parse(path):
         try: ev = json.loads(line)
         except ValueError: continue
         if isinstance(ev, dict): events.append(ev)
-    result = events[-1] if events and events[-1].get("type") == "result" else None
+    # the CLI may append system events (task_summary) after the result: take the last result event, wherever it is
+    result = next((e for e in reversed(events) if e.get("type") == "result"), None)
     commands = [c["input"]["command"] for ev in events if ev.get("type") == "assistant"
                 for c in (ev.get("message") or {}).get("content") or []
                 if c.get("type") == "tool_use" and isinstance(c.get("input"), dict) and "command" in c["input"]]
@@ -98,20 +99,33 @@ def cmd_run(a):
             tree_kill(proc); failures.append(f"timeout after {a.timeout}s (process tree killed)")
             try: proc.wait(timeout=15)
             except subprocess.TimeoutExpired: pass
-    events, result, commands = parse(out)
+    return score_ws(a.case, a.arm, ws, a.max_budget_usd, proc.returncode, stamp, failures)
+
+
+def score_ws(case, arm, ws, max_budget, exit_code=0, stamp=None, failures=()):
+    """Parse a finished workspace and write its baseline record. Also used by `rescore` (offline, free)."""
+    failures = list(failures)
+    events, result, commands = parse(ws / "_stream.jsonl")
     if result is None:
-        failures.append("stream empty or unparseable: no final result event"); passed = False
+        failures.append("stream empty or unparseable: no result event"); passed = False
     else:
-        result["max_budget_usd"] = a.max_budget_usd
-        chk = load_check(a.case)
+        result["max_budget_usd"] = max_budget
+        chk = load_check(case)
         if chk:
-            verdict = chk.check(ws, events, result, a.arm)
+            verdict = chk.check(ws, events, result, arm)
             passed, failures = bool(verdict.get("pass")) and not failures, failures + list(verdict.get("failures", []))
         else:
             passed = not failures
-    rec = baseline(a.case, a.arm, passed, failures, commands, result, proc.returncode, stamp)
-    write_record(rec, a.arm)
+    rec = baseline(case, arm, passed, failures, commands, result, exit_code, stamp, workspace=str(ws))
+    write_record(rec, arm)
     return 0 if passed else 1
+
+
+def cmd_rescore(a):
+    ws = Path(a.workspace)
+    if not (ws / "_stream.jsonl").exists():
+        print(f"rescore: no _stream.jsonl in {ws}"); return 1
+    return score_ws(a.case, a.arm, ws, a.max_budget_usd)
 
 
 def cmd_record(a):
@@ -205,6 +219,9 @@ def main(argv=None):
     p = sub.add_parser("record"); p.add_argument("json"); p.add_argument("case"); p.add_argument("--arm", default="interactive")
     p.add_argument("--repo", help="git checkout that was checkpointed (default: this harness)"); p.set_defaults(fn=cmd_record)
     p = sub.add_parser("checkpoint"); p.add_argument("case"); p.add_argument("--repo", help="git checkout the paid run will touch (default: this harness)"); p.set_defaults(fn=cmd_checkpoint)
+    p = sub.add_parser("rescore", help="re-evaluate a finished workspace offline (no claude call)"); p.add_argument("case")
+    p.add_argument("--arm", choices=["harness", "control"], required=True); p.add_argument("--workspace", required=True)
+    p.add_argument("--max-budget-usd", type=float, default=0.50); p.set_defaults(fn=cmd_rescore)
     p = sub.add_parser("regress"); p.add_argument("--n", type=int, default=5); p.add_argument("--factor", type=float, default=1.2); p.set_defaults(fn=cmd_regress)
     p = sub.add_parser("selftest"); p.set_defaults(fn=cmd_selftest)
     a = ap.parse_args(argv)

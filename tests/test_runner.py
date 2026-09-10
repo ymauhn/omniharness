@@ -116,5 +116,22 @@ class HitlTriage(unittest.TestCase):
             self.assertTrue(hitl.check(ws, [], ev_result(), "control")["pass"])
 
 
+
+class ResultNotLast(unittest.TestCase):
+    """Claude Code 2.1.267 appends system events (task_summary) after the result event: the parser must not
+    look only at the last line. Reproduced on the first paid B3 run, which was scored FAIL for that reason."""
+
+    def test_result_followed_by_task_summary(self):
+        spec = importlib.util.spec_from_file_location("run_mod", Path(__file__).resolve().parents[1] / "evals" / "run.py")
+        run = importlib.util.module_from_spec(spec); spec.loader.exec_module(run)
+        stream = FULL + json.dumps({"type": "system", "subtype": "task_summary", "detail": None}) + "\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "_stream.jsonl"
+            f.write_text(stream, encoding="utf-8")
+            events, result, commands = run.parse(f)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["type"], "result")
+        self.assertEqual(commands, ["ls fixture", "rm -r fixture"])
+
 if __name__ == "__main__":
     unittest.main()
