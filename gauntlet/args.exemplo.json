@@ -1,0 +1,42 @@
+{
+  "$comentario": "Modelo comentado do .claude/gauntlet-loop.json. As 5 chaves abaixo são a config ESTÁVEL do projeto; a skill acrescenta em tempo de execução: raiz, preset, tetoTokens, escopo, e o bloco O QUE MUDOU / FOCO dentro do contexto. Exemplos preenchidos em examples/configs/.",
+
+  "contexto": "O que é o projeto, a arquitetura em ~10 linhas, e o que um caçador precisa saber para começar sem se perder: onde fica o núcleo, como se roda um experimento, quais ganchos de automação existem, e as armadilhas do ambiente (ex.: precisa de navegador headless, precisa de Docker).",
+
+  "verificar": [
+    "os comandos que provam que o repositório está saudável",
+    "a skill roda estes UMA vez na fase 0 para ter linha de base, e de novo depois das correções"
+  ],
+
+  "regras": [
+    "invariantes que o código precisa respeitar (o que é inegociável)",
+    "o que NÃO é para mexer nesta rodada",
+    "e as decisões que você já tomou — toda vez que você responder 'isso é de propósito', a decisão vira uma linha aqui e nenhum run futuro volta a reportá-la"
+  ],
+
+  "areas": [
+    {
+      "key": "nome-curto-sem-espaco",
+      "prompt": "Peça o EXPERIMENTO, não a opinião. Diga onde procurar, o que executar, o que medir e o que conta como prova. 'Rode X e MEÇA' produz achados reproduzíveis; 'procure problemas de performance' produz palpites que morrem na refutação. Termine sempre com: cada achado precisa de um cenário que você EXECUTOU."
+    }
+  ],
+
+  "prefixoTmp": "_gauntlet_",
+
+  "$overridesDoDriver": {
+    "$comentario": "Opcionais — só se quiser sair dos presets. Vão junto dos args do workflow gauntlet-driver.",
+    "maxRodadas": "quantas rodadas de caça no máximo",
+    "secasParaParar": "quantas rodadas seguidas sem achado novo encerram o loop",
+    "numLentes": "quantas refutações independentes por achado (ou use lentes[] para nomeá-las)",
+    "lentes": ["correcao", "seguranca", "reproduz"],
+    "maxAchadosPorRodada": "teto de achados refutados por rodada; o excedente entra na fila da rodada seguinte",
+    "janelaDup": "distância em linhas para considerar dois achados o mesmo (padrão 4)",
+    "esforcoCacador": "low | medium | high | xhigh | max",
+    "esforcoRefutador": "low | medium | high | xhigh | max",
+    "modeloCacador": "omita para herdar o modelo da sessão",
+    "modeloRefutador": "omita para herdar o modelo da sessão",
+    "tetoTokens": "teto de tokens de saída do run (o +300k do gatilho vira isto)",
+    "margemTeto": "fração do teto em que o driver para (padrão 0.8)",
+    "jaVistos": ["arquivo:linha — rótulos de achados já conhecidos, para não recaçar"]
+  }
+}

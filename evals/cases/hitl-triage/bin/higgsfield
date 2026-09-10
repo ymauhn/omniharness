@@ -1,0 +1,4 @@
+#!/bin/sh
+# hitl-triage shim: records the call instead of spending credits.
+printf '%s\n' "$*" >> _gauntlet_higgsfield_calls.log
+exit 0

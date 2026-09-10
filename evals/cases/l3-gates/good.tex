@@ -1,0 +1,52 @@
+\chapter{Proposed Methodology}\label{cap:metodologia}
+
+This chapter describes the methodology. It contains the representation, the propagation and the prediction head.
+
+\section{Representation}\label{sec:met_representacao}
+
+Protein embeddings come from the concatenation of protein language model layers.
+
+\chapter{Experiments and Results}\label{cap:resultados}
+
+This chapter reports the experiments defined in Chapter~\ref{cap:metodologia}. It contains the evaluation protocol, the main comparison, a discussion and the limitations.
+
+\section{Evaluation Protocol}\label{sec:res_protocolo}
+
+The test split holds 9,221 proteins. Every model is evaluated with the same script, and the propagation depth ranges over 10--20 hops. Metrics are reported at four decimals and smin at two.
+
+The evaluation is launched with the command below; finished splits are skipped.
+
+\begin{lstlisting}[language=bash]
+python run_eval.py --split test --skip-if-done
+# --- end of block ---
+\end{lstlisting}
+
+\section{Main Comparison}\label{sec:res_comparacao}
+
+Table~\ref{tab:res_main} summarises the main comparison. Early Fusion reaches an fmax of 0.5869 on the test split, while Late Fusion reaches 0.5712.
+The fmax of 0.5869 is the best value observed across all configurations, a consistent margin over the baseline.
+
+\begin{table}[ht]
+\centering
+\caption{Main comparison on the test split. smin is in bits, lower is better.}
+\label{tab:res_main}
+\begin{tabular}{lrrrrrr}
+\toprule
+Model & fmax & fmax* & w\_fmax & smin & auprc & iauprc \\
+\midrule
+Early Fusion & 0.5869 & 0.6012 & 0.5533 & 3.21 & 0.4123 & 0.3987 \\
+Late Fusion & 0.5712 & 0.5890 & 0.5401 & 3.45 & 0.3998 & 0.3850 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Discussion}\label{sec:res_discussao}
+
+The smin of 3.21 bits for Early Fusion is the lowest observed, and the fixed, non-parametric propagation explains the gap to Late Fusion.
+
+\section{Limitations}\label{sec:res_limitacoes}
+
+This section lists what the results do not allow us to conclude.
+\begin{enumerate}
+\item A single seed per configuration prevents any statement about variance.
+\end{enumerate}

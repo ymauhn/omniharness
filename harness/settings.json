@@ -1,0 +1,53 @@
+{
+  "_comment": "Claude Code settings fragment. scripts/install.py union-merges it into ~/.claude/settings.json (global gate) and evals/run.py drops it into benchmark sandboxes as .claude/settings.json. {{OMNIHARNESS_HOME}} is replaced by the absolute repo path at install time. Single-file rm stays free on purpose so gauntlet hygiene never prompts; recursive forms ask.",
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Read(**/*cofre*.json)"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(rm -r:*)",
+      "Bash(rm -fr:*)",
+      "Bash(rmdir:*)",
+      "Bash(git rm:*)",
+      "Bash(del /s:*)",
+      "PowerShell(Remove-Item:*)",
+      "Bash(higgsfield:*)",
+      "Bash(scrapling:*)",
+      "Bash(agent-reach:*)",
+      "Bash(firecrawl:*)",
+      "Bash(pip install:*)",
+      "Bash(pipx install:*)",
+      "Bash(npm install -g:*)",
+      "Bash(npx skills add:*)",
+      "Bash(npx -y:*)",
+      "Bash(uvx:*)",
+      "Bash(uv add:*)",
+      "Bash(uv tool install:*)",
+      "Bash(docker pull:*)",
+      "Bash(docker run:*)",
+      "Bash(docker compose:*)",
+      "Bash(git clone:*)",
+      "Bash(curl:*)",
+      "Bash(wget:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"{{OMNIHARNESS_HOME}}/harness/guard_bash.py\""
+          }
+        ]
+      }
+    ]
+  }
+}

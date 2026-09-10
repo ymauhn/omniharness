@@ -1,0 +1,16 @@
+# benchmark output: one machine's baseline records and sandboxes never belong in the repo
+evals/results/*
+!evals/results/.gitkeep
+
+# staging area for skills under review (see AGENTS.md, "Taking in a new skill")
+_intake/
+
+# gauntlet hunter probes (deleted by the agents; the snapshot in Phase 5 catches strays)
+_gauntlet_*
+
+# local artefacts
+graphify-out/
+*.log
+__pycache__/
+*.pyc
+.claude/settings.local.json

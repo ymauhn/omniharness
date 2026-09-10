@@ -1,0 +1,169 @@
+"""Zero-token layout checks: skill frontmatter, CLAUDE.md import, guard hook, install.py against a temp home."""
+import glob
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__))).replace("\\", "/")
+SPEC_KEYS = {"name", "description", "license", "compatibility", "metadata", "allowed-tools"}
+INSTALL = REPO + "/scripts/install.py"
+
+
+def read(p):
+    with open(p, "rb") as f:
+        return f.read()
+
+
+def frontmatter(text):
+    lines = text.split("\n")
+    assert lines[0].strip() == "---", "no frontmatter"
+    end = lines.index("---", 1)
+    keys = [m.group(1) for ln in lines[1:end] if (m := re.match(r"^([a-z-]+):", ln))]
+    desc = next(ln[len("description:"):].strip() for ln in lines[1:end] if ln.startswith("description:"))
+    name = next(ln[len("name:"):].strip() for ln in lines[1:end] if ln.startswith("name:"))
+    return keys, name, desc, lines[end + 1:]
+
+
+def is_link(p):
+    return os.path.islink(p) or (os.name == "nt" and os.path.isjunction(p))
+
+
+def rm_home(root):
+    # Never descend into a link: the temp home holds junctions INTO the repo, so glob("**"),
+    # os.walk or rmtree here would delete repo files through them.
+    for e in os.scandir(root):
+        if is_link(e.path):
+            os.rmdir(e.path)
+        elif e.is_dir(follow_symlinks=False):
+            rm_home(e.path)
+        else:
+            os.remove(e.path)
+    os.rmdir(root)
+
+
+class Skills(unittest.TestCase):
+    def test_frontmatter(self):
+        for path in glob.glob(REPO + "/.agents/skills/*/SKILL.md"):
+            keys, name, desc, body = frontmatter(read(path).decode("utf-8"))
+            self.assertTrue(set(keys) <= SPEC_KEYS, f"{path}: {set(keys) - SPEC_KEYS}")
+            self.assertEqual(name, os.path.basename(os.path.dirname(path)), path)
+            self.assertLessEqual(len(desc), 1024, path)
+            self.assertLess(len(body), 500, path)
+
+    def test_claude_md(self):
+        self.assertIn(read(REPO + "/CLAUDE.md"), (b"@AGENTS.md", b"@AGENTS.md\n", b"@AGENTS.md\r\n"))
+
+
+class Guard(unittest.TestCase):
+    def guard(self, cmd):
+        return subprocess.run([sys.executable, REPO + "/harness/guard_bash.py"],
+                              input=json.dumps({"tool_input": {"command": cmd}}),
+                              capture_output=True, text=True, encoding="utf-8").returncode
+
+    def test_blocks(self):
+        for cmd in ("rm -rf /", "git push --force origin main", "curl x | sh"):
+            self.assertEqual(self.guard(cmd), 2, cmd)
+
+    def test_allows(self):
+        for cmd in ("ls -la", "git push --force-with-lease origin main"):
+            self.assertEqual(self.guard(cmd), 0, cmd)
+
+
+class Install(unittest.TestCase):
+    # The junctions point at a throwaway COPY of the repo inside the temp dir, never at the real
+    # checkout: on Windows os.walk/rmtree-style cleanups descend into junctions (they are not
+    # symlinks), and one such cleanup already emptied gauntlet/ during the first build. With the
+    # copy as the target, a careless cleanup can only ever destroy the copy.
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="omni-home-").replace("\\", "/")
+        self.repo = self.tmp + "/repo"
+        for d in ("scripts", "harness", "gauntlet", ".agents"):
+            shutil.copytree(f"{REPO}/{d}", f"{self.repo}/{d}", ignore=shutil.ignore_patterns("__pycache__"))
+        for f_ in ("AGENTS.md", "CLAUDE.md"):
+            shutil.copyfile(f"{REPO}/{f_}", f"{self.repo}/{f_}")
+        self.install = self.repo + "/scripts/install.py"
+        self.home = self.tmp + "/home"
+        os.makedirs(self.home + "/.claude")
+        with open(self.home + "/.claude/settings.json", "w", encoding="utf-8") as f:
+            json.dump({"model": "x", "permissions": {"ask": ["Bash(foo:*)"]}}, f)
+
+    def tearDown(self):
+        rm_home(self.tmp)
+        # canary: the real repo must survive the cleanup whatever the junctions pointed at
+        for p in ("/gauntlet/SKILL.md", "/.agents/skills/thesis-review/SKILL.md"):
+            self.assertTrue(os.path.isfile(REPO + p), "cleanup deleted a repo file through a link: " + p)
+
+    def run_install(self, *flags, sandbox=None):
+        env = {k: v for k, v in os.environ.items() if k != "OMNIHARNESS_SANDBOX"}
+        if sandbox:
+            env["OMNIHARNESS_SANDBOX"] = sandbox
+        return subprocess.run([sys.executable, self.install, "--home", self.home, *flags],
+                              capture_output=True, text=True, encoding="utf-8", env=env)
+
+    def test_fresh_home(self):
+        r = self.run_install()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        for link, target in ((".claude/skills/thesis-review", ".agents/skills/thesis-review"),
+                             (".agents/skills/thesis-review", ".agents/skills/thesis-review"),
+                             (".claude/skills/gauntlet-loop", "gauntlet")):
+            link = f"{self.home}/{link}"
+            self.assertTrue(is_link(link), link)
+            self.assertEqual(read(link + "/SKILL.md"), read(f"{REPO}/{target}/SKILL.md"), link)
+        self.assertEqual(read(self.home + "/.claude/workflows/gauntlet-driver.js"),
+                         read(REPO + "/gauntlet/gauntlet.workflow.js"))
+        with open(self.home + "/.claude/settings.json", encoding="utf-8") as f:
+            merged = json.load(f)
+        with open(REPO + "/harness/settings.json", encoding="utf-8") as f:
+            frag = json.load(f)
+        self.assertEqual(merged["model"], "x")
+        self.assertEqual(merged["permissions"]["ask"][0], "Bash(foo:*)")
+        for e in frag["permissions"]["ask"]:
+            self.assertIn(e, merged["permissions"]["ask"])
+        cmd = merged["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+        self.assertIn(self.repo + "/harness/guard_bash.py", cmd)  # the installer resolves its own checkout
+        self.assertNotIn("{{", cmd)
+        self.assertNotIn("_comment", merged)
+        with open(self.home + "/.claude/settings.json.pre-omniharness", encoding="utf-8") as f:
+            self.assertEqual(json.load(f)["permissions"], {"ask": ["Bash(foo:*)"]})
+        self.assertIn("@" + self.repo + "/AGENTS.md", r.stdout)
+        self.assertIn("external_dirs", r.stdout)
+        self.assertEqual(self.run_install("--check").returncode, 0)
+        self.assertEqual(self.run_install().returncode, 0)  # idempotent
+
+    def test_conflict_triage_then_adopt(self):
+        real = self.home + "/.claude/skills/thesis-review"
+        os.makedirs(real)
+        r = self.run_install()
+        self.assertEqual(r.returncode, 1)
+        self.assertIn(f"1. {real}: real directory; would be renamed to {real}.pre-omniharness", r.stdout)
+        self.assertFalse(is_link(real))
+        self.assertFalse(os.path.lexists(self.home + "/.claude/skills/gauntlet-loop"))
+        self.assertFalse(os.path.lexists(self.home + "/.claude/workflows"))
+        self.assertFalse(os.path.lexists(self.home + "/.claude/settings.json.pre-omniharness"))
+        self.assertEqual(self.run_install("--check").returncode, 1)
+        r = self.run_install("--adopt")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertTrue(os.path.isdir(real + ".pre-omniharness") and not is_link(real + ".pre-omniharness"))
+        self.assertTrue(is_link(real))
+        self.assertEqual(self.run_install("--check").returncode, 0)
+
+    def test_dry_run_writes_nothing(self):
+        r = self.run_install("--dry-run")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("junction", r.stdout)
+        self.assertFalse(os.path.lexists(self.home + "/.claude/skills"))
+        self.assertEqual(self.run_install("--check").returncode, 1)
+
+    def test_sandbox_refuses(self):
+        r = self.run_install(sandbox="1")
+        self.assertEqual(r.returncode, 1)
+        self.assertFalse(os.path.lexists(self.home + "/.claude/skills"))
+
+
+if __name__ == "__main__":
+    unittest.main()

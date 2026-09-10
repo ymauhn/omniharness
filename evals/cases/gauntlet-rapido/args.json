@@ -1,0 +1,28 @@
+{
+  "raiz": "C:/Users/Yeonatan/master_team",
+  "preset": "rapido",
+  "escopo": "somente evals/cases/gauntlet-rapido/buggy/mod.py e evals/cases/gauntlet-rapido/buggy/test_mod.py",
+
+  "contexto": "Fixture de benchmark do OmniHarness (evals/cases/gauntlet-rapido). O módulo evals/cases/gauntlet-rapido/buggy/mod.py tem três funções puras em Python 3.12, sem dependências: paginate(items, page, size) fatia uma lista em páginas 1-based de exatamente `size` itens; parse_header(text) transforma linhas 'Chave: Valor' num dict (o docstring diz que text pode ser None); read_config(path) lê um arquivo chave=valor. Os testes ficam em buggy/test_mod.py (unittest). Experimento: `python -c` ou um script com prefixo _gauntlet_ importando mod (cd evals/cases/gauntlet-rapido/buggy). Use `python`, não `python3`. Nenhum navegador, Docker ou rede.",
+
+  "verificar": [
+    "python -m unittest discover -s evals/cases/gauntlet-rapido/buggy -p test_mod.py"
+  ],
+
+  "regras": [
+    "o bare except em evals/cases/gauntlet-rapido/buggy/mod.py:42 é intencional; não reportar"
+  ],
+
+  "areas": [
+    {
+      "key": "logic",
+      "prompt": "Leia evals/cases/gauntlet-rapido/buggy/mod.py e confronte cada função com o contrato do seu docstring. Para paginate: chame com listas de 0, 1 e 10 itens, page 1..4 e size 1..3, e COMPARE o tamanho e o conteúdo de cada página com o que o docstring promete; para read_config: escreva um arquivo temporário com prefixo _gauntlet_ e confira o dict. Cada achado precisa de um cenário que você EXECUTOU, com a saída observada e a esperada. Se não houver diferença, devolva findings: []."
+    },
+    {
+      "key": "nulls",
+      "prompt": "Leia evals/cases/gauntlet-rapido/buggy/mod.py e ataque cada função com entradas vazias, None, texto sem dois-pontos, listas vazias e caminhos inexistentes. RODE cada chamada com python e registre a exceção ou o retorno. Só reporte o que contradiz o docstring da função e que você reproduziu; cole o traceback. Se não houver nada, devolva findings: []."
+    }
+  ],
+
+  "prefixoTmp": "_gauntlet_"
+}
