@@ -41,10 +41,7 @@ Then, in any new session, `/omniharness` (Claude Code) or `$omniharness` (Codex)
 
 Measured baseline for the three benchmarks (agents, tokens, cost, what each arm did): [docs/benchmarks.md](docs/benchmarks.md).
 
-```
-```
-
-`--check` writes nothing and reports drift; `--adopt` creates the junctions, copies the driver, merges the gate into `~/.claude/settings.json`, and prints the two lines you add by hand (the `~/.claude/CLAUDE.md` import and the Hermes `external_dirs` entry). Full walkthrough, flags and uninstall: [docs/install.md](docs/install.md).
+`--check` writes nothing and reports drift; `--adopt` creates the junctions, copies the driver, merges the gate into `~/.claude/settings.json`, and prints the two optional lines you may add by hand (the `~/.claude/CLAUDE.md` import for always-on rules, and the Hermes `external_dirs` entry). Full walkthrough, flags and uninstall: [docs/install.md](docs/install.md).
 
 ## Which host reads what
 
@@ -52,7 +49,7 @@ Measured baseline for the three benchmarks (agents, tokens, cost, what each arm 
 
 | | Claude Code | Codex | Hermes |
 |---|---|---|---|
-| Instructions | `~/.claude/CLAUDE.md` containing `@<repo>/AGENTS.md` (added by hand) | `AGENTS.md` chain from `~/.codex/AGENTS.md` down to the cwd (32 KiB cap) | `AGENTS.md` or `.hermes.md` in the project |
+| Instructions | opt-in per session with `/omniharness`; optionally a `~/.claude/CLAUDE.md` line `@<repo>/AGENTS.md` (added by hand) for always-on rules | `AGENTS.md` chain from `~/.codex/AGENTS.md` down to the cwd (32 KiB cap) | `AGENTS.md` or `.hermes.md` in the project |
 | Portable skills | `~/.claude/skills/<name>` junction to `<repo>/.agents/skills/<name>` | `~/.agents/skills/<name>` junction to the same target; `.agents/skills` inside a repo is read natively | `~/.hermes/skills` plus `skills.external_dirs: [~/.agents/skills]` in `~/.hermes/config.yaml` (added by hand) |
 | Gauntlet | `~/.claude/skills/gauntlet-loop` junction to `<repo>/gauntlet`; driver copied to `~/.claude/workflows/gauntlet-driver.js` | not available (no Workflow tool) | not available (no Workflow tool) |
 | Gate | `permissions.deny`/`ask` merged into `~/.claude/settings.json`; PreToolUse hook `python "<repo>/harness/guard_bash.py"` | not installed by the harness; the HITL section of `AGENTS.md` is the enforcement | no hooks; the HITL section of `AGENTS.md` is the enforcement |
