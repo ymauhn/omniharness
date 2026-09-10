@@ -79,4 +79,4 @@ v0.1, Windows-first. Reference machine: Windows 11, Claude Code 2.1.267, Python 
 
 ## License
 
-MIT (add LICENSE file before publishing).
+MIT, see [LICENSE](LICENSE).
