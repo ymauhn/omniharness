@@ -26,7 +26,9 @@ Install: `python scripts/install.py --check` then `python scripts/install.py --a
 | Intent | Use |
 |---|---|
 | Plan or decide | `/grilling`, then `/domain-modeling` (CONTEXT.md, `docs/adr/`); `/to-spec`, `/to-tickets`; `/wayfinder` only for multi-session work |
+| Which skill, or a skill for a gap | `skills-graph`: `python .agents/skills/skills-graph/scripts/skills_graph.py route "<intent>"` (zero tokens); installed rows answer, catalog rows go through intake |
 | Build | `/tdd` (seams first); the ponytail ruleset is always on |
+| Frontend design | `impeccable` for the design language (DESIGN.md), 21st Magic MCP for components (key, gated), ponytail for the code and `ponytail-review`; both are catalog entries, not installed (`docs/catalog/`) |
 | Review | `/code-review`, `/security-review`, `/simplify`; mattpocock `code-review` for spec compliance; `ponytail-review` for size |
 | Hunt bugs | `/gauntlet-loop` (Claude only; `gauntlet/SKILL.md`) |
 | Thesis, paper, revise-and-resubmit | `thesis-review` (`.agents/skills/thesis-review/`) |

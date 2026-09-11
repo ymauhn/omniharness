@@ -18,14 +18,15 @@ The five invariants from `AGENTS.md`, in plain words:
 AGENTS.md              canonical rules: invariants, routing table, HITL list, intake and triage procedures
 CLAUDE.md              one line, @AGENTS.md
 CONTEXT.md             domain terms (layer, gate, lens, jaVistos, parecer, checkpoint, arm) and a "where do I look" map
-.agents/skills/        portable skills, six spec fields only: thesis-review (SKILL.md, scripts/thesis_checks.py, references/)
+.agents/skills/        portable skills, six spec fields only: thesis-review, omniharness, skills-graph (scripts/skills_graph.py, skills-graph.toml)
 gauntlet/              Claude-only pair: gauntlet-loop SKILL.md, gauntlet.workflow.js driver, args.exemplo.json, ROADMAP.md
 harness/               the gate: settings.json (deny/ask fragment) and guard_bash.py (PreToolUse hard blocks)
 scripts/install.py     user-scope installer: junctions, byte-compared driver copy, settings union-merge, drift check
 evals/                 run.py (claude -p runner, record, checkpoint, regress, selftest), cases/, results/ (append-only)
 tests/                 zero-token checks: test_layout.py, test_checks.py, test_runner.py, test_driver.js
-docs/                  install.md, PHASE0_AUDIT.md, adr/, integrations/ (one page per optional tool), catalog/
+docs/                  install.md, PHASE0_AUDIT.md, adr/, integrations/ (one page per optional tool), catalog/, skills-graph/ (generated snapshot)
 recipes/               end-to-end tutorials with STOP: confirm lines at every gated step
+site/                  community portal (index.html, one page, no build step) with its surface brief and DESIGN.md
 ```
 
 ## Quick start

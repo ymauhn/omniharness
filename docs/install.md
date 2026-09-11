@@ -107,7 +107,7 @@ python evals/run.py selftest
 
 Expected: `--check` prints `OK` on every row and exits 0; the unittest run is green (it also runs the installer against a temporary home, so it proves the installer itself); `test_driver.js` runs the driver body with a stub agent in under a second, and the second invocation proves the installed copy; `selftest` prints `selftest ok: regress [1, 1, 0]; empty and garbage streams fail`.
 
-Inside Claude Code: `/gauntlet-loop` and `thesis-review` appear in the skill list, and a `git push` or `curl` in Bash prompts before running.
+Inside Claude Code: `/gauntlet-loop`, `thesis-review`, `omniharness` and `skills-graph` appear in the skill list, and a `git push` or `curl` in Bash prompts before running.
 
 ## Uninstall
 

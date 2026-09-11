@@ -32,6 +32,7 @@ Installed or native first (AGENTS.md invariant 3): the model's own capability, t
 | Koyeb | always-on container for a small worker | Hobby: 550 compute hours/month (512 MB), 1 Postgres, custom-domain SSL | yes | HITL list | https://www.koyeb.com/ |
 | cron-job.org | kick off scheduled runs over HTTP | unlimited jobs | yes | HITL list | https://cron-job.org |
 | Svix | outbound webhook delivery | 50,000 messages/month | yes | HITL list | https://www.svix.com/ |
+| 21st.dev (Magic MCP) | React/Tailwind component search and retrieval from the editor | Builder: 5 free Design Bug Bot reviews, unlimited code and prompt copies, full marketplace, no card; AI generation only on Builder + AI, $15/month billed yearly, 500–2,000 credits/month; extra credits +100 for $5 (21st.dev/pricing 2026-09-10) | yes | HITL list | https://21st.dev/pricing |
 
 ## Academic
 

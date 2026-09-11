@@ -31,6 +31,14 @@ Installed or native first (AGENTS.md invariant 3: "Default to the model's native
 | getsentry/skills | execution | Apache-2.0 | plugin (`sentry-skills@sentry-skills`) or npx | Sentry account only when reading Sentry data | https://github.com/getsentry/skills | sentry-code-review, sentry-pr-code-review, sentry-create-alert |
 | anthropics/skills mcp-builder | execution | Apache-2.0 | plugin | none | https://github.com/anthropics/skills/tree/main/skills/mcp-builder | reference and scripts for building an MCP server the harness can adapt |
 
+## Design stack (frontend)
+
+Two entries that work as one pipeline, added 2026-09-10 at the owner's request. `impeccable` is the design language: art direction, typography, spacing, colour and quality bars written down as `PRODUCT.md` and `DESIGN.md`, plus 23 commands that shape, critique, audit and polish a UI. The 21st Magic MCP (in [mcp-servers.md](mcp-servers.md)) is the component supply: search and retrieval over 10,000+ React/Tailwind components from the editor. Order of operations: `impeccable init` and `shape` first, so the guardrails exist; then components are picked or generated against `DESIGN.md`; then the ponytail ruleset implements and `ponytail-review` reviews; then `impeccable critique`, `audit`, `polish`. In the skills graph this is `impeccable precedes magic-mcp`, `magic-mcp guided-by impeccable`, `magic-mcp feeds ponytail-review`, and the official `frontend-design` plugin is `alternative-to impeccable` (`docs/skills-graph/`).
+
+| Skill or collection | Layer | License | Install | Keys / credits | URL | Notes |
+|---|---|---|---|---|---|---|
+| pbakaus/impeccable | execution | Apache-2.0 | plugin (`/plugin marketplace add pbakaus/impeccable`) or copy (`dist/claude-code/.claude` into the project) | none; deterministic, no network at use time; `npx impeccable detect` needs a local Chrome, Chromium or Edge | https://github.com/pbakaus/impeccable | 23 commands (craft, init, document, extract, shape, critique, audit, polish, bolder, quieter, distill, harden, onboard, animate, colorize, typeset, layout, delight, overdrive, clarify, adapt, optimize, live); ships `.impeccable/config.json`, `design.json`, `surfaces/*.md`; supports Claude Code, Codex CLI, Hermes Agent, Cursor and 13 others; not installed on the reference machine |
+
 ## Academic
 
 | Skill or collection | Layer | License | Install | Keys / credits | URL | Notes |
@@ -92,4 +100,4 @@ Installed or native first (AGENTS.md invariant 3: "Default to the model's native
 - Paid at use: firecrawl past 1,000 credits, video-db past $20, fal.ai and RunComfy (no free credits), Xquik per tweet, LambdaTest grid, Ahrefs MCP, K-Dense (Parallel API), Imbad0202 and ai-peer-review (token spend).
 - Security-relevant: trailofbits (runs tools), ffuf (offensive), Skill_Seekers (dependency surface), x-twitter-scraper (never pass cookies), claude-code-owasp (reference only, safe).
 
-Verified on 2026-09-10.
+Verified on 2026-09-10; design stack rows added the same day.

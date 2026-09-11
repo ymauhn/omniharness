@@ -10,6 +10,8 @@ Domain terms used in prompts, code and docs. Decisions live in `docs/adr/`; the 
 - **jaVistos.** The seed of already-known findings (`file:line — title`) passed back so a rerun does not hunt them again. **regras** are owner rules: violating one raises severity; items the owner already decided never resurface.
 - **Parecer.** A numbered review (`C6-1`, `C6-2` …) the author answers item by item. A **verdict** is the author's number plus decision.
 - **Checkpoint.** `git tag ckpt/<case>/<ts>` on `git stash create || HEAD`, created before any paid run.
+- **Ring.** One of the three sources of the skills graph: *installed* (SKILL.md files the hosts read), *catalog* (the marketplace manifest and `docs/catalog/` tables, on disk), *remote* (a dated snapshot of the awesome lists, fetched behind the gate). A *missing* node is an edge endpoint this machine lacks.
+- **Edge.** A typed link between two skills: `calls` (parsed from SKILL.md), `precedes`, `feeds`, `alternative-to`, `guided-by` (curated in `skills-graph.toml`), `candidate-for` (a proposal). A **proposal** is a learned edge in `proposals.jsonl` waiting for the owner's `approve`.
 - **Arm.** One configuration of a benchmark run: the harness arm carries AGENTS.md and the gate; the control arm is a bare project. A **baseline record** is one JSON file per run in `evals/results/`.
 
 ## Where do I look
@@ -20,6 +22,7 @@ Domain terms used in prompts, code and docs. Decisions live in `docs/adr/`; the 
 | The Gauntlet driver and its skill | `gauntlet/` (Claude-only; installed to `~/.claude/workflows/gauntlet-driver.js` and `~/.claude/skills/gauntlet-loop`) |
 | The gate | `harness/settings.json`, `harness/guard_bash.py` |
 | The academic layer | `.agents/skills/thesis-review/` (SKILL.md, `scripts/thesis_checks.py`, `references/`) |
+| Which skill does what, and what is missing | `docs/skills-graph/` (snapshot, README), `.agents/skills/skills-graph/` (script, curated TOML, proposals) |
 | Benchmarks | `evals/run.py`, `evals/cases/*`, `evals/results/`; zero-token tests in `tests/` |
 | Optional tools | `docs/integrations/` (one page each, with the gate), `recipes/` (tutorials), `docs/catalog/` (free tiers, community skills, MCP servers) |
 | Installing on a new machine or host | `docs/install.md`, `scripts/install.py` |
