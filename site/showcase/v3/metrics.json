@@ -1,13 +1,20 @@
 {
- "commit": "3c87263+",
+ "commit": "ab085c9+",
  "event_date": "2026-09-11",
- "weight_public": "106.4 KB raw · 28.4 KB deflated",
- "weight_requests": "2 requests + 3 font files",
+ "weight_public": "156 KB raw · 45 KB deflated",
+ "weight_public_pt": "156 KB bruto · 45 KB comprimido",
+ "weight_requests": "2 requests + 2 font families",
+ "weight_requests_pt": "2 requisições + 2 famílias de fonte",
  "v3_overflow": "0 / 0 px",
- "v3_contrast": "17.98 / 16.27",
+ "v3_contrast": "17.78 / 16.03",
+ "v3_contrast_pt": "17,78 / 16,03",
  "v3_errors": "0",
- "v3_visual": "green: 4 full pages (1440/390 × light/dark) + hover 23 ms, drawer, filter, copy; detector 0",
- "v3_reviewer": "round 2: 6 of 7 material fixes resolved; self-hosted fonts left to the owner",
- "v3_tokens": "subagents 663,789 (critique A 108,993 · B 46,183 · audit 109,532 · reviewer 278,623 · documenter 120,458)",
- "v3_wall": "100 min from the plan gate answer (03:39Z) to the record (05:20Z)"
+ "v3_visual": "green: 4 full pages (1440/390 × light/dark) + hover 26 ms, drawer (stage 0 px), filter, copy, theme toggle (contrast 16.03), language switch (278 slots, 0 untranslated, kept after reload); detector 0",
+ "v3_visual_pt": "verde: 4 páginas inteiras (1440/390 × claro/escuro) + hover 26 ms, gaveta (palco 0 px), filtro, copiar, alternador de tema (contraste 16,03), troca de idioma (278 slots, 0 sem tradução, mantida após recarregar); detector 0",
+ "v3_reviewer": "round 2: 6 of 7 material fixes resolved; the seventh (self-hosted fonts) closed by the owner's word: Google Fonts stays",
+ "v3_reviewer_pt": "rodada 2: 6 de 7 correções materiais resolvidas; a sétima (fontes self-hosted) fechada pela palavra do dono: Google Fonts fica",
+ "v3_tokens": "subagents 802,204 of the 1.5M ceiling: v3 663,789 (critique A 108,993 · B 46,183 · audit 109,532 · reviewer 278,623 · documenter 120,458) + v3.1 documenter 138,415",
+ "v3_tokens_pt": "subagentes 802.204 do teto de 1,5M: v3 663.789 (crítica A 108.993 · B 46.183 · auditoria 109.532 · revisor 278.623 · documentador 120.458) + documentador da v3.1 138.415",
+ "v3_wall": "100 min from the plan gate answer (03:39Z) to the v3 record (05:20Z); 33 min from the owner's v3.1 brief (06:05Z) to this record",
+ "v3_wall_pt": "100 min da resposta do plan gate (03:39Z) ao registro da v3 (05:20Z); 33 min do briefing da v3.1 do dono (06:05Z) a este registro"
 }

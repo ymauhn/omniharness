@@ -20,6 +20,24 @@
         ],
         "createdAt": "2026-09-11T04:51:01.954Z",
         "reason": "\"agent: the ~4px cluster is the micro-padding of plates, chips and tags; page rhythm runs on the 8/12/16/24/32/48/64 tokens (sections 64 above, 48 below)\""
+      },
+      {
+        "rule": "overused-font",
+        "value": "geist",
+        "files": [
+          "site/index.html"
+        ],
+        "createdAt": "2026-09-11T06:36:04.232Z",
+        "reason": "owner: Geist chosen from three rendered samples (A/B/C) on 2026-09-11; the detector's overuse list is not a rule for this page, the weight bar and the owner's word are"
+      },
+      {
+        "rule": "overused-font",
+        "value": "geist mono",
+        "files": [
+          "site/index.html"
+        ],
+        "createdAt": "2026-09-11T06:36:04.394Z",
+        "reason": "owner: Geist Mono chosen with Geist (sample A) on 2026-09-11"
       }
     ]
   }

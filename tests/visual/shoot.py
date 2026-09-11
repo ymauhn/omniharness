@@ -3,7 +3,7 @@
 python tests/visual/shoot.py [--src site/public/index.html] [--out site/showcase/v3/shots] [--tag v3] [--states]
 For each viewport (1440x1000 desktop, 390x844 mobile) and colour scheme (light, dark): a full-page JPEG, the console
 errors, horizontal overflow, the contrast ratio of body text against the page ground, and whether the graph canvas has
-drawn pixels. With --states, three viewport captures at 1440 light: a graph node under the pointer (tooltip timed), the
+drawn pixels. With --states, viewport captures at 1440 light: a graph node under the pointer (tooltip timed), the
 "Tutorial" library filter pressed, the first copy button pressed; plus the drawer on click and the rendered node count,
 read through the page's `window.__portal` hook ({nodePos(i), count(), data()}), which v3 exposes for this test.
 Writes <out>/<tag>-<width>-<scheme>.jpg, the state captures, and <out>/<tag>-report.json (provenance: source, commit,
@@ -58,7 +58,8 @@ def states(page, out, tag):
         except Exception:
             r["drawer"] = False
         page.screenshot(path=os.path.join(out, f"{tag}-state-drawer.jpg"), type="jpeg", quality=65)
-        page.keyboard.press("Escape")
+        page.keyboard.press("Escape"); page.wait_for_timeout(400)
+        r["stage_scroll"] = page.evaluate("() => document.querySelector('.stage').scrollLeft")  # the drawer's focus must not shift the clipped stage
     else:
         r["tooltip_ms"] = None; r["drawer"] = False
     btn = page.query_selector('.fbtn[data-kind="tutorial"]')
@@ -72,6 +73,32 @@ def states(page, out, tag):
         copy.scroll_into_view_if_needed(); copy.click(); page.wait_for_timeout(200)
         r["copy_label"] = copy.evaluate("el => el.textContent")
         page.screenshot(path=os.path.join(out, f"{tag}-state-copy.jpg"), type="jpeg", quality=65)
+    # the explicit theme choice: stamps <html data-theme>, swaps the captures, keeps the contrast
+    before = page.evaluate("() => getComputedStyle(document.body).backgroundColor")
+    page.click("#theme-toggle"); page.wait_for_timeout(500)
+    m = page.evaluate(MEASURE)
+    r["theme_after"] = page.evaluate("() => document.documentElement.getAttribute('data-theme')")
+    r["theme_changed"] = page.evaluate("() => getComputedStyle(document.body).backgroundColor") != before
+    r["theme_contrast"] = m["contrast"]; r["theme_overflow"] = m["overflow"]
+    r["theme_images"] = page.evaluate("() => Array.from(document.querySelectorAll('img[data-dark]')).every(i => i.getAttribute('src') === i.getAttribute(document.documentElement.getAttribute('data-theme') === 'dark' ? 'data-dark' : 'data-light'))")
+    page.screenshot(path=os.path.join(out, f"{tag}-state-theme.jpg"), type="jpeg", quality=65)
+    page.click("#theme-toggle"); page.wait_for_timeout(300)
+    # the language choice: every slot translated, no overflow from the longer Portuguese, the choice survives a reload
+    r["lang_h1_en"] = page.evaluate("() => document.querySelector('h1').textContent.trim()")
+    page.click("#lang-pt"); page.wait_for_timeout(500)
+    r["lang_after"] = page.evaluate("() => document.documentElement.lang")
+    r["lang_h1"] = page.evaluate("() => document.querySelector('h1').textContent.trim()")
+    r["lang_slots"] = page.evaluate("() => document.querySelectorAll('[data-i18n]').length")
+    r["lang_untranslated"] = page.evaluate("() => { const D = JSON.parse(document.getElementById('i18n-pt').textContent); return Array.from(document.querySelectorAll('[data-i18n]')).filter(e => { const k = e.getAttribute('data-i18n'); return D[k] !== k && e.innerHTML.replace(/\\s+/g, ' ').trim() === k; }).length; }")
+    r["lang_overflow"] = page.evaluate("() => document.documentElement.scrollWidth - document.documentElement.clientWidth")
+    page.screenshot(path=os.path.join(out, f"{tag}-state-pt.jpg"), full_page=True, type="jpeg", quality=65)
+    if pos:
+        page.evaluate("() => document.getElementById('graph').scrollIntoView({block: 'center'})"); page.wait_for_timeout(600)
+        pos = page.evaluate("() => window.__portal.nodePos(0)"); page.mouse.click(pos["x"], pos["y"]); page.wait_for_timeout(300)
+        r["lang_drawer"] = page.evaluate("() => document.getElementById('drawer-body').textContent")
+        page.keyboard.press("Escape")
+    page.reload(); page.wait_for_timeout(4600)
+    r["lang_persisted"] = page.evaluate("() => document.documentElement.lang")
     return r
 
 

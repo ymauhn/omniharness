@@ -78,7 +78,14 @@ def build(src, graph, guides, metrics):
     keys = set(re.findall(r'data-metric="([^"]+)"', out))
     for key in keys:
         val = metrics.get(key, "not recorded")  # an unresolved metric is said plainly, never left "pending"
-        out = re.sub(rf'(<[a-z]+[^>]*data-metric="{re.escape(key)}"[^>]*>).*?(</[a-z]+>)', lambda m: m.group(1) + html.escape(str(val)) + m.group(2), out, flags=re.S)
+        pt = metrics.get(key + "_pt")  # a Portuguese reading of the same record, swapped in by the language switch
+        attr = f' data-pt="{html.escape(str(pt), quote=True)}"' if pt else ""
+        out = re.sub(rf'(<[a-z]+[^>]*data-metric="{re.escape(key)}"[^>]*)(>).*?(</[a-z]+>)', lambda m: m.group(1) + attr + m.group(2) + html.escape(str(val)) + m.group(3), out, flags=re.S)
+    ipath = ROOT + "/site/i18n/pt-BR.json"
+    if os.path.isfile(ipath):
+        i18n = {k: v for k, v in json.load(open(ipath, encoding="utf-8")).items() if k != "_"}
+        out = re.sub(r'(<script id="i18n-pt" type="application/json">).*?(</script>)',
+                     lambda m: m.group(1) + json.dumps(i18n, ensure_ascii=False, separators=(",", ":")).replace("</", "<" + chr(92) + "/") + m.group(2), out, count=1, flags=re.S)
     return out
 
 

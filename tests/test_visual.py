@@ -2,7 +2,8 @@
 schemes; the assertions are measurements, not opinions (the owner's Q6 set, plan gate of 2026-09-11): no console errors,
 no horizontal overflow, body contrast at least 4.5:1 in both themes, the graph canvas has drawn pixels, the rendered node
 count equals the embedded graph data, a node tooltip appears within 300 ms, a click opens the drawer, the library filter
-and the copy button respond. Skipped when python-playwright is not installed. The captures it leaves are the frames the
+and the copy button respond, the theme toggle stamps the explicit choice with the contrast kept, the language switch
+translates every slot without overflow and survives a reload. Skipped when python-playwright is not installed. The captures it leaves are the frames the
 showcase compares across versions."""
 import importlib.util
 import os
@@ -45,8 +46,21 @@ class Visual(unittest.TestCase):
         self.assertIsNotNone(s.get("tooltip_ms"), "no tooltip on node hover")
         self.assertLessEqual(s["tooltip_ms"], 300, f"tooltip took {s['tooltip_ms']} ms")
         self.assertTrue(s.get("drawer"), "node click did not open the drawer")
+        self.assertEqual(s.get("stage_scroll"), 0, f"the stage scrolled sideways by {s.get('stage_scroll')}px after the drawer")
         self.assertTrue(s.get("filter_count") and s["filter_count"] < 20, f"library filter did not narrow the rows ({s.get('filter_count')})")
         self.assertEqual((s.get("copy_label") or "").strip().lower(), "copied", f"copy button did not confirm ({s.get('copy_label')!r})")
+        self.assertEqual(s.get("theme_after"), "dark", f"theme toggle did not stamp the explicit choice ({s.get('theme_after')!r})")
+        self.assertTrue(s.get("theme_changed"), "theme toggle did not change the ground")
+        self.assertGreaterEqual(s.get("theme_contrast") or 0, 4.5, f"contrast after the toggle {s.get('theme_contrast')}")
+        self.assertLessEqual(s.get("theme_overflow") or 0, 0, f"overflow after the toggle {s.get('theme_overflow')}px")
+        self.assertTrue(s.get("theme_images"), "the captures did not follow the toggled theme")
+        self.assertEqual(s.get("lang_after"), "pt-BR", f"language switch did not set <html lang> ({s.get('lang_after')!r})")
+        self.assertNotEqual(s.get("lang_h1"), s.get("lang_h1_en"), "the headline did not change language")
+        self.assertGreater(s.get("lang_slots") or 0, 200, f"too few translated slots ({s.get('lang_slots')})")
+        self.assertEqual(s.get("lang_untranslated"), 0, f"{s.get('lang_untranslated')} slots kept their English after the switch")
+        self.assertLessEqual(s.get("lang_overflow") or 0, 0, f"Portuguese overflows by {s.get('lang_overflow')}px")
+        self.assertIn("anel", s.get("lang_drawer") or "", "the drawer did not follow the language")
+        self.assertEqual(s.get("lang_persisted"), "pt-BR", "the language choice did not survive a reload")
 
 
 if __name__ == "__main__":
