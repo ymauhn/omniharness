@@ -160,3 +160,9 @@ from = "skill-installer"
 type = "feeds"
 to = "skills-graph"
 why = "register writes the tool's measured status into the curated half"
+
+[[node]]  # registered by skill-installer 2026-09-11: installed
+id = "impeccable"
+ring = "installed"
+url = "https://github.com/pbakaus/impeccable"
+status = "installed"

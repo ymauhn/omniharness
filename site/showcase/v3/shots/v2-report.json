@@ -1,0 +1,63 @@
+{
+ "source": "C:/Users/Yeonatan/master_team/site/public/index.html",
+ "commit": "e5e3bd4",
+ "captured": "2026-09-11T03:27:53Z",
+ "captures": [
+  {
+   "file": "v2-1440-light.jpg",
+   "viewport": [
+    1440,
+    1000
+   ],
+   "scheme": "light",
+   "errors": [],
+   "contrast": 14.98,
+   "overflow": 0,
+   "inked": 474,
+   "height": 12356,
+   "title": "OmniHarness Community"
+  },
+  {
+   "file": "v2-1440-dark.jpg",
+   "viewport": [
+    1440,
+    1000
+   ],
+   "scheme": "dark",
+   "errors": [],
+   "contrast": 15.6,
+   "overflow": 0,
+   "inked": 474,
+   "height": 12356,
+   "title": "OmniHarness Community"
+  },
+  {
+   "file": "v2-390-light.jpg",
+   "viewport": [
+    390,
+    844
+   ],
+   "scheme": "light",
+   "errors": [],
+   "contrast": 14.98,
+   "overflow": 0,
+   "inked": 156,
+   "height": 19894,
+   "title": "OmniHarness Community"
+  },
+  {
+   "file": "v2-390-dark.jpg",
+   "viewport": [
+    390,
+    844
+   ],
+   "scheme": "dark",
+   "errors": [],
+   "contrast": 15.6,
+   "overflow": 0,
+   "inked": 156,
+   "height": 19894,
+   "title": "OmniHarness Community"
+  }
+ ]
+}

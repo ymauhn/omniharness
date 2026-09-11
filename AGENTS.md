@@ -59,4 +59,4 @@ Never remove on the owner's behalf. Print `N. <path>: <reason>; <evidence>` and 
 
 ## Working with the owner
 
-One organized question round, each question with a one-line "why it matters". Reports carry measured facts only. A skipped question proceeds on the recommended default, flagged for veto. Report your own errors unprompted. Harness docs are in English; chat follows the owner's language.
+One organized question round, each question with a one-line "why it matters". Reports carry measured facts only. A skipped question proceeds on the recommended default, flagged for veto, except at the **plan gate**: the grilling round after `scout` is a hard human-in-the-loop gate. The agent asks the critical questions and stops; no answer is assumed on the owner's behalf, "owner absent" is not a reason, and the spec, the design direction and the code wait for the owner's explicit yes to the plan. Report your own errors unprompted. Harness docs are in English; chat follows the owner's language.

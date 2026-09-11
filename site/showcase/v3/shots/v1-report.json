@@ -1,0 +1,63 @@
+{
+ "source": "C:/Users/Yeonatan/AppData/Local/Temp/claude/C--Users-Yeonatan-master-team/a8d24ef0-8da3-4545-a417-c568aaacf151/scratchpad/v1-index.html",
+ "commit": "e5e3bd4",
+ "captured": "2026-09-11T03:26:08Z",
+ "captures": [
+  {
+   "file": "v1-1440-light.jpg",
+   "viewport": [
+    1440,
+    1000
+   ],
+   "scheme": "light",
+   "errors": [],
+   "contrast": 14.98,
+   "overflow": 0,
+   "inked": null,
+   "height": 5107,
+   "title": "OmniHarness Community"
+  },
+  {
+   "file": "v1-1440-dark.jpg",
+   "viewport": [
+    1440,
+    1000
+   ],
+   "scheme": "dark",
+   "errors": [],
+   "contrast": 15.6,
+   "overflow": 0,
+   "inked": null,
+   "height": 5107,
+   "title": "OmniHarness Community"
+  },
+  {
+   "file": "v1-390-light.jpg",
+   "viewport": [
+    390,
+    844
+   ],
+   "scheme": "light",
+   "errors": [],
+   "contrast": 14.98,
+   "overflow": 148,
+   "inked": null,
+   "height": 8163,
+   "title": "OmniHarness Community"
+  },
+  {
+   "file": "v1-390-dark.jpg",
+   "viewport": [
+    390,
+    844
+   ],
+   "scheme": "dark",
+   "errors": [],
+   "contrast": 15.6,
+   "overflow": 148,
+   "inked": null,
+   "height": 8163,
+   "title": "OmniHarness Community"
+  }
+ ]
+}

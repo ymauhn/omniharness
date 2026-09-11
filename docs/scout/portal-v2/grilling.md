@@ -1,5 +1,7 @@
 # Grilling round: portal v2 (2026-09-11)
 
+> Governance note, added the same day: this round proceeded on its recommendations because the owner was absent. Since then the grilling after `scout` is a hard human-in-the-loop gate (AGENTS.md, "Working with the owner"; scout SKILL.md step 5): the agent asks and stops, and nothing is assumed on the owner's behalf. The answers below therefore stand only as the owner's later approval of the v2 work implies; v3 starts with a real round.
+
 Format of the `grilling` skill (one frontier round, a recommendation per question). The owner was not present during this run, so every question proceeded on its recommendation, per AGENTS.md ("a skipped question proceeds on the recommended default, flagged for veto"). Vetoes reopen the question; nothing below is locked.
 
 ❓ **Q1 - Members area on a static site**: the dossier shows three honest ways (pattern 4): encrypt the page (staticrypt: one shared password, brute-force possible, not authentication), delegate identity to a platform login, or add a proxy/Identity service and pay for it. A login form that stores nothing is out by the owner's constraint.

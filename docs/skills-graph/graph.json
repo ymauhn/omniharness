@@ -1,10 +1,10 @@
 {
- "generated": "2026-09-10",
+ "generated": "2026-09-11",
  "home": "C:/Users/Yeonatan",
  "root": "C:/Users/Yeonatan/master_team",
  "rings": {
-  "installed": 82,
-  "catalog": 398,
+  "installed": 83,
+  "catalog": 397,
   "remote": 4
  },
  "remote_sources": [
@@ -1458,15 +1458,6 @@
    "category": "productivity",
    "description": "iMessage messaging bridge with built-in access control. Reads chat.db directly, sends via AppleScript. Manage pairing, allowlists, and policy via /imessage:access.",
    "url": "./external_plugins/imessage"
-  },
-  {
-   "ring": "catalog",
-   "id": "impeccable",
-   "url": "https://github.com/pbakaus/impeccable",
-   "description": "Design-language harness: 23 commands (craft, shape, critique, audit, polish, typeset, colorize, layout, animate, ...) plus DESIGN.md/PRODUCT.md; deterministic, no key, no network at use time. Apache-2.0.",
-   "install": "/plugin marketplace add pbakaus/impeccable  (or copy dist/claude-code/.claude into the project)",
-   "gate": "plugin marketplace add is a network fetch: AGENTS.md HITL list",
-   "source": "docs/catalog/community-skills.md"
   },
   {
    "id": "inngest",
@@ -3613,6 +3604,23 @@
     "C:/Users/Yeonatan/.claude/skills/higgsfield/higgsfield-youtube-thumbnail/SKILL.md"
    ],
    "calls": []
+  },
+  {
+   "id": "impeccable",
+   "ring": "installed",
+   "description": "Design-language harness: 23 commands (craft, shape, critique, audit, polish, typeset, colorize, layout, animate, ...) plus DESIGN.md/PRODUCT.md; deterministic, no key, no network at use time. Apache-2.0.",
+   "hosts": [
+    "plugin:impeccable"
+   ],
+   "paths": [
+    "C:/Users/Yeonatan/.claude/plugins/cache/impeccable/impeccable/4.3.1/skills/impeccable/SKILL.md"
+   ],
+   "calls": [],
+   "url": "https://github.com/pbakaus/impeccable",
+   "install": "/plugin marketplace add pbakaus/impeccable  (or copy dist/claude-code/.claude into the project)",
+   "gate": "plugin marketplace add is a network fetch: AGENTS.md HITL list",
+   "source": "docs/catalog/community-skills.md",
+   "status": "installed"
   },
   {
    "id": "implement",

@@ -9,8 +9,8 @@ Demand in, plan out. The skill is `.agents/skills/scout/` (portable); the parall
 3. **Research**: one agent per source (GitHub, Hacker News, Reddit, X, Product Hunt; never LinkedIn), WebSearch and WebFetch only, at most `porFonte` references each, every reference with a URL the search returned or the agent opened. Code dedupes by normalised URL, caps per source, counts failed and degraded sources, and stops before synthesis when the ceiling is near (`parouPor: teto`, references returned raw).
 4. **Synthesis**: one agent groups the references into 3 to 7 patterns, lists the gaps and writes recommendations; URLs outside the received list are dropped in code.
 5. **Dossier** written to `<repo>/docs/scout/<slug>/dossier.md` as the driver rendered it.
-6. **Interview** through `grilling` (or five fixed questions when it is not installed), with `detour` once when the dossier shows more than one viable route.
-7. **PLAN.md**: goal, success criterion, where we are, the routine (each step names its installed skill and its artifact; gated steps carry `STOP: confirm`), gaps as `candidate-for` proposals to the skills graph, detours considered, sources.
+6. **The plan gate**: the interview through `grilling` (or five fixed questions when it is not installed), with `detour` once when the dossier shows more than one viable route; then the agent stops. This is a hard human-in-the-loop gate: the owner answers and says yes to the plan of action, or the work ends at the questions. No answer is ever assumed on the owner's behalf; the v2 round of 2026-09-11 (`docs/scout/portal-v2/grilling.md`) proceeded on recommendations with the owner absent, and that is the breach this rule closes.
+7. **PLAN.md**, only after the yes: goal, success criterion, where we are, the routine (each step names its installed skill and its artifact; gated steps carry `STOP: confirm`), gaps as `candidate-for` proposals to the skills graph, detours considered, sources.
 8. **Way-finding**: `/scout status` prints the next step; a routine that reached its criterion proposes the `precedes` edges that made it work.
 
 ## When to reach for it
