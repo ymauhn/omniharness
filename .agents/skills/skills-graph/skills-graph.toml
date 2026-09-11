@@ -116,3 +116,47 @@ from = "omniharness"
 type = "precedes"
 to = "skills-graph"
 why = "activation loads the rules, then the graph says which skills the task needs"
+
+# ---- Scout and detour (the demand-to-plan routine) ---------------------------------------------------------
+
+[[edge]]
+from = "skills-graph"
+type = "feeds"
+to = "scout"
+why = "route rows tell scout which steps have an installed skill"
+
+[[edge]]
+from = "scout"
+type = "precedes"
+to = "grilling"
+why = "the dossier is on the table before the interview"
+
+[[edge]]
+from = "scout"
+type = "feeds"
+to = "to-spec"
+why = "PLAN.md is the spine to-spec synthesises from"
+
+[[edge]]
+from = "detour"
+type = "feeds"
+to = "scout"
+why = "a detour round lands in PLAN.md under Detours considered"
+
+[[edge]]
+from = "wayfinder"
+type = "alternative-to"
+to = "scout"
+why = "wayfinder maps multi-session work on an issue tracker; scout plans one demand in one file"
+
+[[edge]]
+from = "scout"
+type = "feeds"
+to = "skill-installer"
+why = "a PLAN.md gap that names a catalog tool is the installer's input"
+
+[[edge]]
+from = "skill-installer"
+type = "feeds"
+to = "skills-graph"
+why = "register writes the tool's measured status into the curated half"

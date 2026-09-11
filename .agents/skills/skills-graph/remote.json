@@ -1,0 +1,32 @@
+{
+ "fetched": "2026-09-11",
+ "sources": [
+  "scout:portal-v2 (docs/scout/portal-v2/dossier.md)"
+ ],
+ "entries": [
+  {
+   "id": "nateherkai/scroll-craft",
+   "url": "https://github.com/nateherkai/scroll-craft",
+   "list": "scout:portal-v2",
+   "description": "Agent skill (Claude Code, Codex) for scroll-driven websites: fixed engine plus theme tokens, eight page grammars, progress as a CSS custom property; 2,309 stars, pushed 2026-09-04"
+  },
+  {
+   "id": "russellsamora/scrollama",
+   "url": "https://github.com/russellsamora/scrollama",
+   "list": "scout:portal-v2",
+   "description": "Scrollytelling with IntersectionObserver, no build; 6,002 stars"
+  },
+  {
+   "id": "vasturiano/force-graph",
+   "url": "https://github.com/vasturiano/force-graph",
+   "list": "scout:portal-v2",
+   "description": "Force-directed graph on HTML5 canvas, UMD, dagMode; 2,116 stars"
+  },
+  {
+   "id": "robinmoisson/staticrypt",
+   "url": "https://github.com/robinmoisson/staticrypt",
+   "list": "scout:portal-v2",
+   "description": "Password-protect a static HTML page (AES via WebCrypto); brute-force caveat; 8,034 stars"
+  }
+ ]
+}

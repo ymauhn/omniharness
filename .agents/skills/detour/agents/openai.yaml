@@ -1,0 +1,6 @@
+interface:
+  display_name: "Detour"
+  short_description: "Three bounded alternatives from three worlds for a stuck decision, one round, no network, then back on the path."
+  default_prompt: "Use $detour <decision or plan step>. One round: main path, three detours with viability tests and costs, one verdict, appended to PLAN.md when it exists."
+policy:
+  allow_implicit_invocation: false

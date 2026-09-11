@@ -1,0 +1,20 @@
+# step 2: setup consults the skills graph, 2026-09-11T02:53:59Z, zero tokens
+
+$ skills_graph.py route "community portal landing page members area prompt library interactive graph diagram scrollytelling frontend design review"
+ 6  catalog   frontend-design                  Create distinctive, production-grade frontend interfaces with high design quality. Generat
+ 5  catalog   superdesign                      Design or redesign frontend UI and marketing graphics on the Superdesign infinite canvas. 
+ 4  installed ponytail-review                  Code review focused exclusively on over-engineering. Finds what to delete: reinvented stan
+ 4  catalog   playground                       Creates interactive HTML playgrounds — self-contained single-file explorers with visual co
+ 4  catalog   pr-review-toolkit                Comprehensive PR review agents specializing in comments, tests, error handling, type desig
+ 3  installed code-review                      Review the changes since a fixed point (commit, branch, tag, or merge-base) along two axes
+ 3  installed codebase-design                  Shared vocabulary for designing deep modules. Use when the user wants to design or improve
+ 3  installed graphify                         Use for any question about a codebase, its architecture, file relationships, or project co
+ 3  installed review                           Review code changes with the Bugbot or Security Review subagent.
+ 3  installed review-bugbot                    Review code changes with Bugbot subagent.
+ 3  installed review-security                  Review code changes with Security Review subagent.
+ 3  installed skills-graph                     Map every skill the hosts can reach as a graph in three rings (installed, catalog, remote)
+
+$ skills_graph.py neighbors impeccable
+impeccable -precedes-> magic-mcp  [curated]
+magic-mcp -guided-by-> impeccable  [curated]
+frontend-design -alternative-to-> impeccable  [curated]

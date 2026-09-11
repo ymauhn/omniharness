@@ -1,0 +1,37 @@
+# installers.toml: the tools skill-installer knows how to bring in. One table per tool.
+# steps run in order; each has an id, an optional `run` (the exact command), a `check` probe that says whether it is done
+# (plugin:<name> | marketplace:<name> | mcp:<name> | env:<VAR> | path:<exe> | file:<glob> | manual), an optional `gate`
+# (the AGENTS.md entry that fires), `requires_env` (blocks the step until the owner sets the variable), `owner_only`
+# (a credential or an account action the agent never performs) and a `note`. Commands are expanded with the environment.
+
+[impeccable]
+kind = "claude-plugin"
+url = "https://github.com/pbakaus/impeccable"
+license = "Apache-2.0"
+graph_id = "impeccable"
+steps = [
+  { id = "marketplace", run = "claude plugin marketplace add pbakaus/impeccable", check = "marketplace:impeccable", gate = "AGENTS.md HITL list: network fetch of a git repository" },
+  { id = "plugin", run = "claude plugin install impeccable@impeccable", check = "plugin:impeccable", gate = "AGENTS.md HITL list: installs skills and commands at user scope" },
+  { id = "launcher-binary", check = "file:~/.claude/plugins/cache/impeccable/**/scripts/impeccable-*", owner_only = true, note = "the launcher downloads a self-contained binary on first `impeccable context`; a binary download is the owner's call: verify the release checksum on github.com/pbakaus/impeccable/releases, then run it once yourself. Without it the skill's own 'Launcher unavailable' path applies: read PRODUCT.md and DESIGN.md directly" },
+]
+
+[magic-mcp]
+kind = "mcp-http"
+url = "https://github.com/21st-dev/magic-mcp"
+license = "ISC"
+graph_id = "magic-mcp"
+env = ["API_KEY_21ST"]
+steps = [
+  { id = "key", check = "env:API_KEY_21ST", owner_only = true, note = "create the key at 21st.dev/mcp on the free Builder plan (search, get_component, get_inspiration; no card; AI generation stays off) and export API_KEY_21ST in your shell; the agent never types a key" },
+  { id = "server", run = "claude mcp add --transport http --scope user 21st https://21st.dev/api/mcp --header \"x-api-key: ${API_KEY_21ST}\"", check = "mcp:21st", requires_env = ["API_KEY_21ST"], gate = "AGENTS.md HITL list: hosted MCP, every call is a network call" },
+  { id = "smoke", check = "manual", note = "in a new session, ask the 21st server to search one component named by DESIGN.md; if search works without friction the pipeline uses it, otherwise the local catalog guided by the design brief stays" },
+]
+
+[skill-scanner]
+kind = "pip"
+url = "https://github.com/cisco-ai-defense/skill-scanner"
+license = "Apache-2.0"
+graph_id = "skill-scanner"
+steps = [
+  { id = "install", run = "pip install cisco-ai-skill-scanner", check = "path:skill-scanner", gate = "Bash(pip install:*)" },
+]

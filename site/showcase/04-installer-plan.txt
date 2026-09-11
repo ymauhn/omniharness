@@ -1,0 +1,24 @@
+# skill-installer plan, 2026-09-11T02:50:25Z, zero network (regenerated after the utf-8 fix)
+
+$ skill_installer.py list
+impeccable       claude-plugin  https://github.com/pbakaus/impeccable
+magic-mcp        mcp-http       https://github.com/21st-dev/magic-mcp
+skill-scanner    pip            https://github.com/cisco-ai-defense/skill-scanner
+
+$ skill_installer.py plan impeccable
+impeccable: claude-plugin · https://github.com/pbakaus/impeccable · Apache-2.0
+  TODO marketplace: claude plugin marketplace add pbakaus/impeccable  [STOP: confirm: AGENTS.md HITL list: network fetch of a git repository]
+  TODO plugin: claude plugin install impeccable@impeccable  [STOP: confirm: AGENTS.md HITL list: installs skills and commands at user scope]
+  YOU  launcher-binary  (the launcher downloads a self-contained binary on first `impeccable context`; a binary download is the owner's call: verify the release checksum on github.com/pbakaus/impeccable/releases, then run it once yourself. Without it the skill's own 'Launcher unavailable' path applies: read PRODUCT.md and DESIGN.md directly)
+
+$ skill_installer.py plan magic-mcp
+magic-mcp: mcp-http · https://github.com/21st-dev/magic-mcp · ISC
+  YOU  key  (create the key at 21st.dev/mcp on the free Builder plan (search, get_component, get_inspiration; no card; AI generation stays off) and export API_KEY_21ST in your shell; the agent never types a key)
+  WAIT server: claude mcp add --transport http --scope user 21st https://21st.dev/api/mcp --header "x-api-key: ${API_KEY_21ST}"  [needs API_KEY_21ST]
+  TODO smoke  (in a new session, ask the 21st server to search one component named by DESIGN.md; if search works without friction the pipeline uses it, otherwise the local catalog guided by the design brief stays)
+
+$ skill_installer.py env
+missing API_KEY_21ST
+
+$ skill_installer.py apply impeccable --yes
+DENIED by the Claude Code auto-mode classifier (Bash permission). Nothing ran. The two TODO commands are the owner's to run.

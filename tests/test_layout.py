@@ -50,7 +50,11 @@ class Skills(unittest.TestCase):
     def test_frontmatter(self):
         for path in glob.glob(REPO + "/.agents/skills/*/SKILL.md"):
             keys, name, desc, body = frontmatter(read(path).decode("utf-8"))
-            self.assertTrue(set(keys) <= SPEC_KEYS, f"{path}: {set(keys) - SPEC_KEYS}")
+            # command-only skills carry disable-model-invocation, and must carry the Codex equivalent beside it
+            extra = {"disable-model-invocation"} if os.path.isfile(os.path.dirname(path) + "/agents/openai.yaml") else set()
+            self.assertTrue(set(keys) <= SPEC_KEYS | extra, f"{path}: {set(keys) - SPEC_KEYS - extra}")
+            if "disable-model-invocation" in keys:
+                self.assertIn("allow_implicit_invocation: false", read(os.path.dirname(path) + "/agents/openai.yaml").decode("utf-8"), path)
             self.assertEqual(name, os.path.basename(os.path.dirname(path)), path)
             self.assertLessEqual(len(desc), 1024, path)
             self.assertLess(len(body), 500, path)
@@ -82,7 +86,7 @@ class Install(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="omni-home-").replace("\\", "/")
         self.repo = self.tmp + "/repo"
-        for d in ("scripts", "harness", "gauntlet", ".agents"):
+        for d in ("scripts", "harness", "gauntlet", "scout", ".agents"):
             shutil.copytree(f"{REPO}/{d}", f"{self.repo}/{d}", ignore=shutil.ignore_patterns("__pycache__"))
         for f_ in ("AGENTS.md", "CLAUDE.md"):
             shutil.copyfile(f"{REPO}/{f_}", f"{self.repo}/{f_}")
@@ -95,7 +99,7 @@ class Install(unittest.TestCase):
     def tearDown(self):
         rm_home(self.tmp)
         # canary: the real repo must survive the cleanup whatever the junctions pointed at
-        for p in ("/gauntlet/SKILL.md", "/.agents/skills/thesis-review/SKILL.md"):
+        for p in ("/gauntlet/SKILL.md", "/scout/scout.workflow.js", "/.agents/skills/thesis-review/SKILL.md"):
             self.assertTrue(os.path.isfile(REPO + p), "cleanup deleted a repo file through a link: " + p)
 
     def run_install(self, *flags, sandbox=None):
@@ -116,6 +120,7 @@ class Install(unittest.TestCase):
             self.assertEqual(read(link + "/SKILL.md"), read(f"{REPO}/{target}/SKILL.md"), link)
         self.assertEqual(read(self.home + "/.claude/workflows/gauntlet-driver.js"),
                          read(REPO + "/gauntlet/gauntlet.workflow.js"))
+        self.assertEqual(read(self.home + "/.claude/workflows/scout-driver.js"), read(REPO + "/scout/scout.workflow.js"))
         with open(self.home + "/.claude/settings.json", encoding="utf-8") as f:
             merged = json.load(f)
         with open(REPO + "/harness/settings.json", encoding="utf-8") as f:

@@ -86,10 +86,15 @@ def cmd_run(a):
     env = dict(os.environ, OMNIHARNESS_SANDBOX="1", PATH=str(ws / "bin") + os.pathsep + os.environ.get("PATH", ""))
     # flags as printed by `claude --help` (2.1.267): permission-mode has no "default" choice, "manual" is the prompting mode;
     # --permission-prompts none turns every prompt into an automatic denial, which is the permission_denials signal of ADR 0003.
+    # a case may override the arm's permission mode and add flags (arms.json: {"harness": {...}, "control": {...}});
+    # detour-bounded needs the Skill tool to run in the harness arm and to be absent in the control arm.
+    arms = json.loads((case_dir / "arms.json").read_text(encoding="utf-8")) if (case_dir / "arms.json").is_file() else {}
+    arm_cfg = arms.get(a.arm, {})
+    mode = arm_cfg.get("permission_mode") or ("manual" if harness else "bypassPermissions")
     cmd = [a.claude, "-p", prompt, "--output-format", "stream-json", "--verbose",
-           "--max-budget-usd", str(a.max_budget_usd), "--setting-sources", "project", "--strict-mcp-config",
-           "--permission-mode", "manual" if harness else "bypassPermissions"]
-    if harness: cmd += ["--permission-prompts", "none"]
+           "--max-budget-usd", str(a.max_budget_usd), "--setting-sources", arm_cfg.get("setting_sources", "project"), "--strict-mcp-config",
+           "--permission-mode", mode] + list(arm_cfg.get("flags", []))
+    if harness and mode == "manual": cmd += ["--permission-prompts", "none"]
     out, err = ws / "_stream.jsonl", ws / "_stderr.txt"
     failures = []
     with open(out, "wb") as so, open(err, "wb") as se:

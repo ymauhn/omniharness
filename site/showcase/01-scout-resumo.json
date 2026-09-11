@@ -1,0 +1,31 @@
+{
+ "resumo": {
+  "agentes": 6,
+  "tokens": 80767,
+  "teto": "teto 300k no run",
+  "porFonte": {
+   "github": 6,
+   "hn": 2,
+   "reddit": 6,
+   "x": 6,
+   "producthunt": 6
+  },
+  "fontesFalhas": [],
+  "fontesDegradadas": [
+   "reddit (Reddit é inacessível ao user agent da busca e do fetch: WebSearch com allowed_domains=reddit.com devolve erro 400 \"domains are not accessible\", site:reddit.com não retorna nenhum resultado do domínio, e WebFetch em old.reddit.com falha. Fallback aplicado: referências não-Reddit que a mesma busca devolveu e que puderam ser abertas.)",
+   "x (X has no public search API and WebFetch on x.com post pages returns HTTP 402 (three attempts). Only WebSearch snippets (site:x.com) were readable; evidence is limited to what the snippets show.)",
+   "producthunt (No Product Hunt API key; used WebSearch site:producthunt.com plus WebFetch on product/review pages. Maker comments are mostly absent or paraphrased by the fetch summarizer; the discussion page \"what do open source community members value most\" returned 404.)"
+  ],
+  "duplicatasRemovidas": 4
+ },
+ "parouPor": "sintetizado",
+ "n_referencias": 26,
+ "n_padroes": 6,
+ "workflow": {
+  "agents": 6,
+  "subagent_tokens": 443262,
+  "tool_uses": 107,
+  "duration_ms": 205694,
+  "run_id": "wf_796c8a37-316"
+ }
+}

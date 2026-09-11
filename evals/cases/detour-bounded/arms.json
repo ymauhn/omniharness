@@ -1,0 +1,12 @@
+{
+ "harness": {
+  "permission_mode": "bypassPermissions",
+  "setting_sources": "user,project"
+ },
+ "control": {
+  "flags": [
+   "--disallowedTools",
+   "Skill,Bash,Read,Glob,Grep,Agent,Task,WebFetch,WebSearch,Write,Edit"
+  ]
+ }
+}

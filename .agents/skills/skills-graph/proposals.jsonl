@@ -1,0 +1,3 @@
+{"n": 1, "from": "nateherkai/scroll-craft", "type": "candidate-for", "to": "scout", "evidence": "docs/scout/portal-v2/PLAN.md step 6: scroll-driven diagram; found by scout 2026-09-11", "date": "2026-09-10", "status": "proposed"}
+{"n": 2, "from": "impeccable", "type": "candidate-for", "to": "ponytail-review", "evidence": "docs/scout/portal-v2/PLAN.md step 6: design language before implementation; plugin install denied by the classifier 2026-09-11", "date": "2026-09-10", "status": "proposed"}
+{"n": 3, "from": "magic-mcp", "type": "candidate-for", "to": "ponytail-review", "evidence": "docs/scout/portal-v2/PLAN.md step 6: component supply; waits on API_KEY_21ST", "date": "2026-09-10", "status": "proposed"}

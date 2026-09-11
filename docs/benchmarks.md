@@ -36,6 +36,29 @@ Ceilings observed on this build:
 - The CLI appends `system/task_summary` after the `result` event; the runner takes the last `result` event wherever it is (`tests/test_runner.py`, `ResultNotLast`).
 - The control arm exceeded `--max-budget-usd 0.50` by one cent before stopping; treat the cap as approximate.
 
+## B4: scout (research fan-out, cost baseline)
+
+Zero tokens: `node tests/test_scout_driver.js` runs the driver body against a scripted agent through five scenarios (dedupe and per-source cap, a dead source, the ceiling before synthesis, no references, argument validation).
+
+Paid, one run on 2026-09-11, demand "community portal for OmniHarness" (`docs/scout/portal-v2/`), five sources, `porFonte` 6, `tetoTokens` 300k:
+
+| Agents | Wall clock | Output tokens (driver delta) | Subagent tokens (notification) | Tool uses | References | Patterns | Sources |
+|---|---|---|---|---|---|---|---|
+| 6 (5 search + 1 synthesis), 0 errors | 205.7 s | 80,767 | 443,262 | 107 | 26 unique, 4 duplicates removed | 6 (8 gaps, 10 recommendations) | github 6, hn 2, reddit 6 (degraded: blocked), x 6 (degraded by design), producthunt 6 (degraded by design) |
+
+Every reference carried a URL the search returned or the agent opened; the synthesis dropped no URL outside the list (code filter). The run stopped with `parouPor: sintetizado`, well under the ceiling. Reproduce: the exact `Workflow({name: "scout-driver", args})` call is recorded in the transcript and its sources in `.agents/skills/scout/references/sources.md`.
+
+## B5: detour-bounded (structure and bounds of a one-round skill)
+
+One fixed decision (a members area for a static site with zero backend) sent to two arms on 2026-09-11. Arms are set per case in `evals/cases/detour-bounded/arms.json`: the harness arm runs `bypassPermissions` with user skills loaded (`--setting-sources user,project`); the control arm is the raw model with every tool disallowed, so the contrast is the skill and not who found the file. The grader checks the structure (exactly three detours, a viability test each, one verdict) and the bounds (no network or agent tools, no fetching or installing Bash, at most six turns); the control arm passes only when it fails the structure.
+
+| Arm | Result | Cost | Turns | Output tokens | Wall clock |
+|---|---|---|---|---|---|
+| harness | PASS: 3 detours, 3 viability tests, 1 verdict; tools used: two local reads (the skill file, `ls`/`find`), no network | $0.357 | 3 | 4,319 | 77.8 s |
+| control (raw model) | PASS as control: free-form answer, structure absent, arms differ | $0.616 (over the $0.60 cap by 1.6 cents) | 3 | 342 | 54.5 s |
+
+First attempt, same day: both arms hit a `--max-budget-usd 0.40` cap before producing an answer (harness $0.4258 after 5 turns of reading; control $0.4502 after 2 turns) because input tokens dominate a `claude -p` run on this machine; the cap is approximate, as B3 already showed. The baseline is the $1.00 / $0.60 rerun above. The harness arm's full answer is in `site/showcase/07-detour-harness-answer.md`.
+
 ## Regression rule
 
 `python evals/run.py regress` compares the newest record per case and arm against the median of the previous five (pass drop, or tokens or cost above 1.2×). With one record per group it prints nothing. A printed `REGRESSION` line is the trigger to recommend a Gauntlet cycle; it never starts one.

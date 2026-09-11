@@ -1,0 +1,6 @@
+interface:
+  display_name: "Skill installer"
+  short_description: "Intake, plan, gated apply, register: brings a known tool into the harness without ever installing on its own."
+  default_prompt: "Use $skill-installer <tool>. Prints the plan (done / todo with gate / waiting on a key / owner-only), applies only after your yes, registers the result in the skills graph."
+policy:
+  allow_implicit_invocation: false

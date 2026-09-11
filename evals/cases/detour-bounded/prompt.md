@@ -1,0 +1,3 @@
+Decision: our community portal is one static HTML page served by GitHub Pages with no backend, and it needs a members area where signed-in people read restricted manuals. The main path on the table is a login form that stores nothing and shows the manuals to anyone who clicks "Sign in". Success criterion: a member's identity is real (not a client-side pretend), the restricted manuals are not readable without it, and there is zero backend for the maintainer to run.
+
+Invoke the detour skill on this decision (the command is /detour). Answer in one round with exactly three detours, each with a viability test and a cost, and one verdict. Do not search the web, do not install anything, do not spawn agents.

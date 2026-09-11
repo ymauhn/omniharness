@@ -3,8 +3,9 @@
  "home": "C:/Users/Yeonatan",
  "root": "C:/Users/Yeonatan/master_team",
  "rings": {
-  "installed": 79,
-  "catalog": 398
+  "installed": 82,
+  "catalog": 398,
+  "remote": 4
  },
  "remote_sources": [
   "https://github.com/VoltAgent/awesome-agent-skills",
@@ -16,7 +17,7 @@
   "https://skills.sh",
   "https://agentskills.io"
  ],
- "remote_fetched": "",
+ "remote_fetched": "2026-09-11",
  "nodes": [
   {
    "id": "21st-magic-mcp",
@@ -3375,6 +3376,20 @@
    "calls": []
   },
   {
+   "id": "detour",
+   "ring": "installed",
+   "description": "Bounded lateral thinking for a stuck decision or a plan step with an obvious answer that might be the wrong one. One round, no network, no installs, no agents. Produces exactly three detours from three different worlds, each with a one-line viability test and its cost, then recommends at most one or",
+   "hosts": [
+    "repo",
+    "claude",
+    "agents"
+   ],
+   "paths": [
+    "C:/Users/Yeonatan/master_team/.agents/skills/detour/SKILL.md"
+   ],
+   "calls": []
+  },
+  {
    "id": "diagnosing-bugs",
    "ring": "installed",
    "description": "Diagnosis loop for hard bugs and performance regressions. Use when the user says \"diagnose\"/\"debug this\", or reports something broken/throwing/failing/slow.",
@@ -3915,6 +3930,24 @@
    "calls": []
   },
   {
+   "id": "scout",
+   "ring": "installed",
+   "description": "Turn a demand into a plan with a routine of skills. Researches external references in parallel (GitHub, Hacker News, Reddit, X, Product Hunt; never LinkedIn), writes a dossier of patterns and gaps, interviews the owner with grilling, and writes PLAN.md with the goal, the success criterion and the or",
+   "hosts": [
+    "repo",
+    "claude",
+    "agents"
+   ],
+   "paths": [
+    "C:/Users/Yeonatan/master_team/.agents/skills/scout/SKILL.md"
+   ],
+   "calls": [
+    "detour",
+    "grilling",
+    "to-spec"
+   ]
+  },
+  {
    "id": "sdk",
    "ring": "installed",
    "description": "Guide users building apps, scripts, CI pipelines, or automations on top of the Codex SDK - TypeScript (`@cursor/sdk`) or Python (`cursor-sdk` / `cursor_sdk`). Use when the user mentions integrating, installing, or writing code against the Codex SDK; says `Agent.create`, `Agent.prompt`, `Agent.resume",
@@ -3989,11 +4022,25 @@
    "calls": []
   },
   {
+   "id": "skill-installer",
+   "ring": "installed",
+   "description": "Intake and installation routine for skills, plugins, MCP servers and binaries the harness knows (installers.toml). Plans at zero network what is done, what is still to do with its gate entry and exact command, and what only the owner can do (keys, binaries); applies the runnable steps only after the",
+   "hosts": [
+    "repo"
+   ],
+   "paths": [
+    "C:/Users/Yeonatan/master_team/.agents/skills/skill-installer/SKILL.md"
+   ],
+   "calls": []
+  },
+  {
    "id": "skills-graph",
    "ring": "installed",
    "description": "Map every skill the hosts can reach as a graph in three rings (installed, catalog, remote) with typed edges (calls, precedes, feeds, alternative-to, candidate-for, guided-by), and use it to pick the smallest set of skills for a task. Use when the user asks \"which skill do I use for X\", \"what skills ",
    "hosts": [
-    "repo"
+    "repo",
+    "claude",
+    "agents"
    ],
    "paths": [
     "C:/Users/Yeonatan/master_team/.agents/skills/skills-graph/SKILL.md"
@@ -4233,9 +4280,59 @@
     "C:/Users/Yeonatan/.claude/plugins/cache/claude-plugins-official/mattpocock-skills/1.2.3/skills/in-progress/writing-shape/SKILL.md"
    ],
    "calls": []
+  },
+  {
+   "id": "nateherkai/scroll-craft",
+   "url": "https://github.com/nateherkai/scroll-craft",
+   "list": "scout:portal-v2",
+   "description": "Agent skill (Claude Code, Codex) for scroll-driven websites: fixed engine plus theme tokens, eight page grammars, progress as a CSS custom property; 2,309 stars, pushed 2026-09-04",
+   "ring": "remote",
+   "fetched": "2026-09-11"
+  },
+  {
+   "id": "robinmoisson/staticrypt",
+   "url": "https://github.com/robinmoisson/staticrypt",
+   "list": "scout:portal-v2",
+   "description": "Password-protect a static HTML page (AES via WebCrypto); brute-force caveat; 8,034 stars",
+   "ring": "remote",
+   "fetched": "2026-09-11"
+  },
+  {
+   "id": "russellsamora/scrollama",
+   "url": "https://github.com/russellsamora/scrollama",
+   "list": "scout:portal-v2",
+   "description": "Scrollytelling with IntersectionObserver, no build; 6,002 stars",
+   "ring": "remote",
+   "fetched": "2026-09-11"
+  },
+  {
+   "id": "vasturiano/force-graph",
+   "url": "https://github.com/vasturiano/force-graph",
+   "list": "scout:portal-v2",
+   "description": "Force-directed graph on HTML5 canvas, UMD, dagMode; 2,116 stars",
+   "ring": "remote",
+   "fetched": "2026-09-11"
   }
  ],
  "edges": [
+  {
+   "from": "scout",
+   "type": "calls",
+   "to": "detour",
+   "source": "parsed"
+  },
+  {
+   "from": "scout",
+   "type": "calls",
+   "to": "grilling",
+   "source": "parsed"
+  },
+  {
+   "from": "scout",
+   "type": "calls",
+   "to": "to-spec",
+   "source": "parsed"
+  },
   {
    "from": "goal",
    "type": "calls",
@@ -4674,6 +4771,73 @@
    "to": "skills-graph",
    "why": "activation loads the rules, then the graph says which skills the task needs",
    "source": "curated"
+  },
+  {
+   "from": "skills-graph",
+   "type": "feeds",
+   "to": "scout",
+   "why": "route rows tell scout which steps have an installed skill",
+   "source": "curated"
+  },
+  {
+   "from": "scout",
+   "type": "precedes",
+   "to": "grilling",
+   "why": "the dossier is on the table before the interview",
+   "source": "curated"
+  },
+  {
+   "from": "scout",
+   "type": "feeds",
+   "to": "to-spec",
+   "why": "PLAN.md is the spine to-spec synthesises from",
+   "source": "curated"
+  },
+  {
+   "from": "detour",
+   "type": "feeds",
+   "to": "scout",
+   "why": "a detour round lands in PLAN.md under Detours considered",
+   "source": "curated"
+  },
+  {
+   "from": "wayfinder",
+   "type": "alternative-to",
+   "to": "scout",
+   "why": "wayfinder maps multi-session work on an issue tracker; scout plans one demand in one file",
+   "source": "curated"
+  },
+  {
+   "from": "scout",
+   "type": "feeds",
+   "to": "skill-installer",
+   "why": "a PLAN.md gap that names a catalog tool is the installer's input",
+   "source": "curated"
+  },
+  {
+   "from": "skill-installer",
+   "type": "feeds",
+   "to": "skills-graph",
+   "why": "register writes the tool's measured status into the curated half",
+   "source": "curated"
+  },
+  {
+   "from": "nateherkai/scroll-craft",
+   "type": "candidate-for",
+   "to": "scout",
+   "source": "proposal:1"
+  },
+  {
+   "from": "impeccable",
+   "type": "candidate-for",
+   "to": "ponytail-review",
+   "source": "proposal:2"
+  },
+  {
+   "from": "magic-mcp",
+   "type": "candidate-for",
+   "to": "ponytail-review",
+   "source": "proposal:3"
   }
  ],
  "warnings": []

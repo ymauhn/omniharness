@@ -18,15 +18,16 @@ The five invariants from `AGENTS.md`, in plain words:
 AGENTS.md              canonical rules: invariants, routing table, HITL list, intake and triage procedures
 CLAUDE.md              one line, @AGENTS.md
 CONTEXT.md             domain terms (layer, gate, lens, jaVistos, parecer, checkpoint, arm) and a "where do I look" map
-.agents/skills/        portable skills, six spec fields only: thesis-review, omniharness, skills-graph (scripts/skills_graph.py, skills-graph.toml)
+.agents/skills/        portable skills: thesis-review, omniharness, skills-graph (scripts/skills_graph.py, skills-graph.toml), scout (references/sources.md), detour, skill-installer (installers.toml)
+scout/                 Claude-only driver: scout.workflow.js, installed as ~/.claude/workflows/scout-driver.js
 gauntlet/              Claude-only pair: gauntlet-loop SKILL.md, gauntlet.workflow.js driver, args.exemplo.json, ROADMAP.md
 harness/               the gate: settings.json (deny/ask fragment) and guard_bash.py (PreToolUse hard blocks)
 scripts/install.py     user-scope installer: junctions, byte-compared driver copy, settings union-merge, drift check
 evals/                 run.py (claude -p runner, record, checkpoint, regress, selftest), cases/, results/ (append-only)
-tests/                 zero-token checks: test_layout.py, test_checks.py, test_runner.py, test_driver.js
-docs/                  install.md, PHASE0_AUDIT.md, adr/, integrations/ (one page per optional tool), catalog/, skills-graph/ (generated snapshot)
+tests/                 zero-token checks: test_layout.py, test_checks.py, test_runner.py, test_skills_graph.py, test_skill_installer.py, test_driver.js, test_scout_driver.js
+docs/                  install.md, PHASE0_AUDIT.md, adr/, integrations/ (one page per optional tool), catalog/, skills-graph/ (generated snapshot), scout/, detour/, skill-installer/
 recipes/               end-to-end tutorials with STOP: confirm lines at every gated step
-site/                  community portal (index.html, one page, no build step) with its surface brief and DESIGN.md
+site/                  community portal: index.html (source), public/ (GitHub Pages edition, built by scripts/site_build.py), showcase/ (the record of the build), surface brief, DESIGN.md
 ```
 
 ## Quick start
@@ -43,6 +44,10 @@ Then, in any new session, `/omniharness` (Claude Code) or `$omniharness` (Codex)
 Measured baseline for the three benchmarks (agents, tokens, cost, what each arm did): [docs/benchmarks.md](docs/benchmarks.md).
 
 `--check` writes nothing and reports drift; `--adopt` creates the junctions, copies the driver, merges the gate into `~/.claude/settings.json`, and prints the two optional lines you may add by hand (the `~/.claude/CLAUDE.md` import for always-on rules, and the Hermes `external_dirs` entry). Full walkthrough, flags and uninstall: [docs/install.md](docs/install.md).
+
+## The portal
+
+`site/index.html` is one page in two editions: `python scripts/site_build.py` writes `site/public/index.html` (the GitHub Pages edition, member-only guide bodies removed) and, with `--artifact`, the members edition as a claude.ai artifact fragment. The page embeds the skills graph from `docs/skills-graph/graph.json`, so the flow diagram cannot drift from the repository (`node tests/test_site.js` fails if a step cites a missing node), and its showcase tab is the measured record of the demand that built it (`site/showcase/`, `docs/scout/portal-v2/`).
 
 ## Which host reads what
 

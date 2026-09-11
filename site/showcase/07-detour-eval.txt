@@ -1,0 +1,11 @@
+FAIL detour-bounded/harness tokens_out=612 cost=0.4257565 -> C:\Users\Yeonatan\master_team\evals\results\20260911T000603-detour-bounded-harness.json
+  - expected exactly 3 detours, found 0
+  - expected a viability test per detour, found 0
+  - no verdict line
+harness exit=1
+PASS detour-bounded/control tokens_out=0 cost=0.45021 -> C:\Users\Yeonatan\master_team\evals\results\20260911T000654-detour-bounded-control.json
+control exit=0
+PASS detour-bounded/harness tokens_out=4319 cost=0.357031 -> C:\Users\Yeonatan\master_team\evals\results\20260911T000821-detour-bounded-harness.json
+harness exit=0
+PASS detour-bounded/control tokens_out=342 cost=0.615892 -> C:\Users\Yeonatan\master_team\evals\results\20260911T000944-detour-bounded-control.json
+control exit=0
