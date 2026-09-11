@@ -25,7 +25,7 @@ harness/               the gate: settings.json (deny/ask fragment) and guard_bas
 scripts/install.py     user-scope installer: junctions, byte-compared driver copy, settings union-merge, drift check
 evals/                 run.py (claude -p runner, record, checkpoint, regress, selftest), cases/, results/ (append-only)
 tests/                 zero-token checks: test_layout.py, test_checks.py, test_runner.py, test_skills_graph.py, test_skill_installer.py, test_driver.js, test_scout_driver.js
-docs/                  install.md, PHASE0_AUDIT.md, adr/, integrations/ (one page per optional tool), catalog/, skills-graph/ (generated snapshot), scout/, detour/, skill-installer/
+docs/                  handoff-codex.md (start here on Codex), commercial/ (spec, tickets, plan gate record), install.md, PHASE0_AUDIT.md, adr/, integrations/ (one page per optional tool), catalog/, skills-graph/ (generated snapshot), scout/, detour/, skill-installer/
 recipes/               end-to-end tutorials with STOP: confirm lines at every gated step
 site/                  community portal: index.html (source), public/ (GitHub Pages edition, built by scripts/site_build.py), showcase/ (the record of the build), surface brief, DESIGN.md
 ```
