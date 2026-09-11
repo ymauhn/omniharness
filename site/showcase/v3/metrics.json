@@ -1,0 +1,13 @@
+{
+ "commit": "3c87263+",
+ "event_date": "2026-09-11",
+ "weight_public": "106.4 KB raw · 28.4 KB deflated",
+ "weight_requests": "2 requests + 3 font files",
+ "v3_overflow": "0 / 0 px",
+ "v3_contrast": "17.98 / 16.27",
+ "v3_errors": "0",
+ "v3_visual": "green: 4 full pages (1440/390 × light/dark) + hover 23 ms, drawer, filter, copy; detector 0",
+ "v3_reviewer": "round 2: 6 of 7 material fixes resolved; self-hosted fonts left to the owner",
+ "v3_tokens": "subagents 663,789 (critique A 108,993 · B 46,183 · audit 109,532 · reviewer 278,623 · documenter 120,458)",
+ "v3_wall": "100 min from the plan gate answer (03:39Z) to the record (05:20Z)"
+}

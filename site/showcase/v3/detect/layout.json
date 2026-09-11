@@ -1,0 +1,12 @@
+[
+  {
+    "antipattern": "monotonous-spacing",
+    "name": "Monotonous spacing",
+    "description": "The same spacing value used everywhere — no rhythm, no variation. Use tight groupings for related items and generous separations between sections.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "C:\\Users\\Yeonatan\\master_team\\site\\index.html",
+    "line": 0,
+    "snippet": "~4px used 17/18 times (94%)"
+  }
+]

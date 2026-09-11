@@ -1,0 +1,12 @@
+[
+  {
+    "antipattern": "all-caps-body",
+    "name": "All-caps body text",
+    "description": "Long passages in uppercase are hard to read. We recognize words by shape (ascenders and descenders), which all-caps removes. Reserve uppercase for short labels and headings.",
+    "severity": "warning",
+    "category": "quality",
+    "file": "C:\\Users\\Yeonatan\\master_team\\site\\index.html",
+    "line": 0,
+    "snippet": "text-transform: uppercase on 38 chars of body text"
+  }
+]

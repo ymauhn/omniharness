@@ -1,0 +1,129 @@
+DIRECTION CONCEPT SEED (key: 3e54bb16; mode: persuade; source: api; approved pool: c3b204a1eed6; 306/564 human-approved; rerun with --scope direction --mode persuade --from 3e54bb16 --candidate-count 7 to reproduce this roll against this catalog revision)
+ASSIGNED INDEX: 7
+  After ordering the grounded directions by resonance, build candidate
+  7 of your own grounded list; the assignment never points at a
+  challenger. The assignment is the roll, not a suggestion: your top-ranked
+  direction is what every run would ship, so the script decides which grounded
+  direction gets built. Each direction joins a durable visual system to a
+  concrete expression for the requested first surface, decided as one. It must
+  survive the current task plus navigation, quiet and dense content,
+  interaction and state, and a substantially different future surface. In an
+  attended run, present the assigned direction fully committed and offer
+  re-roll. You may add ONE card for your top-ranked grounded candidate when
+  it is not the assigned direction, kicker IMPECCABLE’S PICK, with an honest risk line
+  naming its familiarity; one pick card, never a ranked lineup, and the pick
+  never takes the lead position. When the assignment IS your top candidate,
+  there is no pick card. Re-roll yourself only
+  on named factual grounds, when the assignment cannot carry the product's
+  truth or task; taste is never grounds.
+  The assignment exists to refuse the model's ranking rut, never to outrank
+  the user or the brief. Never expose assignment metadata in user-facing labels.
+CHALLENGERS:
+  1. a paris hoarding stripped back by hand, layers of pasted posters torn through to expose four earlier campaigns at once, the ragged tear edges becoming the only composition anybody planned
+     SOURCE ID: design-canon-decollage-torn-billboard
+     CREATIVE SPARK: somebody tore a strip off a wall of posters and found a concert from four years ago underneath, then another, then another, and the accidental edges are better than anything on any of the sheets.
+     SYSTEM GRAMMAR:
+       - Palette/material: aged poster inks bleached to chalk, paste-gray backing board, and the pale fibrous edge every tear exposes
+       - Type/composition: fragments of four type systems at four scales coexisting, no fragment complete, reading order set by tear depth alone
+       - Topology/navigation: depth is history, so navigation is tearing further down into older layers rather than moving across the surface
+       - Controls/state: controls are torn flaps, pulling one exposes the layer beneath, and exposed layers stay exposed as a record
+       - Responsive/motion: tears regenerate to fit any frame, and motion is a paper rip that accelerates and then catches
+     WEB LEVERAGE: layered svg tear masks generated responsive, pointer-driven reveal of lower strata, and persistent exposed state
+     QUALITY BAR: board https://impeccable.style/worlds/cards/design-canon-decollage-torn-billboard.webp · hero https://impeccable.style/worlds/cards/design-canon-decollage-torn-billboard-hero.webp
+  2. a single illuminated initial growing into a margin of gold leaf, blue vine, beasts, and tiny narrative scenes, an inhabited threshold compressed into one letter
+     SOURCE ID: typography-calligraphy-writing-illuminated-initial-vine
+     CREATIVE SPARK: A red letter opens into a gold chamber; a blue vine escapes its stem, circles three lines of text, and ends in a fox playing a lute.
+     SYSTEM GRAMMAR:
+       - Palette/material: burnished gold leaf chambers on vellum cream, lapis blue vine as the wayfinding line, minium red initials marking every entry point into the text
+       - Type/composition: one giant historiated initial outranking three lines of compact gothic bookhand, the margin composed as an inhabited frame around the measured text block
+       - Topology/navigation: Enter through initial, branch, marginal figure, text passage, and referenced story while return remains obvious.
+       - Controls/state: Open, trace, gloss, and compare with letter, ornament, scene, annotation, and restored states.
+       - Responsive/motion: Turn the margin into a linked companion rail on phones and keep ornament optional to the reading path.
+     WEB LEVERAGE: Deep vector zoom can connect minute marginal scenes to semantic text without loading separate pages.
+     QUALITY BAR: board https://impeccable.style/worlds/cards/typography-calligraphy-writing-illuminated-initial-vine.webp · hero https://impeccable.style/worlds/cards/typography-calligraphy-writing-illuminated-initial-vine-hero.webp
+  3. a seamless cyclorama passing from black night through cobalt and rose into white day, where light alone creates an infinite horizon behind the actors
+     SOURCE ID: stagecraft-theater-lighting-cyclorama-dawn
+     CREATIVE SPARK: The curved wall begins as depthless black; a low cobalt band appears, rose gathers above it, and the actors acquire shadows before the stage becomes day.
+     SYSTEM GRAMMAR:
+       - Palette/material: depthless cyc black as ground, a low cobalt horizon band as structure, rose gathering above it, white-day wash reserved for the fully active state
+       - Type/composition: lighting-plot stencil caps for cue names with tabular numerals, content held in horizontal horizon bands stacked from dark to light
+       - Topology/navigation: Organize atmosphere by horizon band, time phase, subject relation, and transition interval.
+       - Controls/state: Raise, blend, hold, and compare with night, first light, dawn, day, and blackout states.
+       - Responsive/motion: Offer discrete atmospheric phases with labels and patterns so color is never the sole signal.
+     WEB LEVERAGE: A scrubbable cue timeline binds horizon bands to actor and scene state, making each light transition inspectable while named cue states remain deep-linkable and text-equivalent.
+     QUALITY BAR: board https://impeccable.style/worlds/cards/stagecraft-theater-lighting-cyclorama-dawn.webp · hero https://impeccable.style/worlds/cards/stagecraft-theater-lighting-cyclorama-dawn-hero.webp
+  4. an industrial streetwear grammar, ordinary words set in straight quotation marks, zip-tie tags left on, diagonal hazard stripes crossing white cotton and black nylon
+     SOURCE ID: textiles-weave-drape-fashion-industrial-quote-grammar
+     CREATIVE SPARK: You lift a jacket and the zip-tie tag clacks against the hanger; across the back, giant caps in straight quotes name the obvious, and a hazard stripe runs diagonally under the fluorescent light of the stockroom.
+     SYSTEM GRAMMAR:
+       - Palette/material: stockroom white cotton and black nylon as ground and ink, black-on-white hazard diagonals for structure, safety orange zip-tie tags as the accent
+       - Type/composition: bold industrial caps inside straight quotation marks naming the obvious, label plates set square on the grid like stenciled crates
+       - Topology/navigation: every zone is labeled with its literal quoted name, wayfinding is reading, and the hazard stripe runs diagonally under whatever matters
+       - Controls/state: the active item keeps its orange zip tie on, toggles read "ON" and "OFF" in quotes, disabled things take the diagonal stripe across them
+       - Responsive/motion: stripes hold 45 degrees at every width while label plates stack; motion is a tag swinging once on selection
+     WEB LEVERAGE: css repeating-linear-gradient hazard stripes at 45deg, generated content wrapping every label in straight quotes via ::before and ::after
+     QUALITY BAR: board https://impeccable.style/worlds/cards/textiles-weave-drape-fashion-industrial-quote-grammar.webp · hero https://impeccable.style/worlds/cards/textiles-weave-drape-fashion-industrial-quote-grammar-hero.webp
+  5. a dial-up bulletin board at 2 a.m., where ANSI title screens in sixteen colors, block-character art, and one phone line make a neighborhood out of text
+     SOURCE ID: medium-native-ansi-bbs-nightboard
+     CREATIVE SPARK: The title screen pours in line by line at modem speed, cyan on black, and being the only caller connected feels like owning the night.
+     SYSTEM GRAMMAR:
+       - Palette/material: sixteen ANSI colors on terminal black, cyan and magenta block art as chrome, blinking white on blue reserved for new mail and live presence
+       - Type/composition: CP437 block glyphs and box-drawing rules composing all chrome on an 80 by 25 cell grid, centered title art over numbered menu lines
+       - Topology/navigation: everything is a text screen with numbered exits; the character grid is the only geometry.
+       - Controls/state: presence is scarce and precious; who is online, new posts, and mail land as textmode events.
+       - Responsive/motion: the grid rescales by character cell; the pour-in reveal respects
+     WEB LEVERAGE: A true character-grid renderer with line-by-line streamed arrival and complete keyboard operation.
+     QUALITY BAR: board https://impeccable.style/worlds/cards/medium-native-ansi-bbs-nightboard.webp · hero https://impeccable.style/worlds/cards/medium-native-ansi-bbs-nightboard-hero.webp
+  6. a collider event display, particle tracks curving out of one frozen collision through onion rings of detector and into stacked calorimeter wedges
+     SOURCE ID: scientific-notation-particle-detector-event-display
+     CREATIVE SPARK: The event lands and the cross-section blooms: yellow tracks curl through the inner rings, two stiff blue lines punch straight to the muon chambers, and red energy bars stack in the calorimeter wedges like a sudden bar chart of violence.
+     SYSTEM GRAMMAR:
+       - Palette/material: near-black vacuum ground, detector rings in muted steel blue, tracks in signal yellow and cyan by particle type, red calorimeter bars for deposited energy
+       - Type/composition: spare technical grotesk labels pinned to tracks and wedges, momentum figures in tabular digits; the concentric ring section is the compositional law
+       - Topology/navigation: space is concentric, beamline at center; you move outward through detector layers and along individual tracks, one event held at a time
+       - Controls/state: select a track to isolate it and dim the rest; competing reconstruction hypotheses overlay as ghost tracks, confidence written as line weight
+       - Responsive/motion: the ring section stays whole on phones while wedges and figures move to drawers; rotation is inertial 3D
+     WEB LEVERAGE: WebGL renders thousands of curved tracks in one 3D scene, with drag rotation, zoom into detector layers, and picked tracks reporting momentum
+     QUALITY BAR: board https://impeccable.style/worlds/cards/scientific-notation-particle-detector-event-display.webp · hero https://impeccable.style/worlds/cards/scientific-notation-particle-detector-event-display-hero.webp
+Fuse each challenger before judging it: the challenger supplies the form
+  and its system grammar, the product supplies every fact, and clarity wins
+  conflicts. Weigh the fused result against the assigned direction on exactly
+  two axes, audience identification and product clarity. Losing to strong
+  grounded material is a valid outcome; beating a thin or tool-monoculture
+  list is the point. A fused challenger that wins both axes becomes the build.
+  Close the weighing with a verdict per challenger, decided before any
+  borrowing is considered: wins (beats the assigned direction on both axes),
+  competitive (holds one axis), or declined (loses both). A declined
+  challenger is not spent: name the one discipline of its system the assigned
+  direction lacks, and raise the assigned direction to match before
+  presenting it. A donation transfers ambition and system discipline, never
+  the challenger's clothes; one world owns the page. Write each raise as its
+  own named line on the presented direction, and carry every verdict, kept
+  line, and raise into the decision page payload.
+When you can view images, open the QUALITY BAR board and hero for any
+challenger you weigh seriously and for the world you build. They exist as a
+craft bar, the finish level and commitment the build is expected to reach,
+never as a mockup to copy; your surface serves this product, not that render.
+PRODUCT.md and explicit incumbent brand commitments constrain every direction.
+The seed never chooses exact colors, fonts, tokens, or a user preference, and
+it never permits the world and first surface to be selected independently.
+The CREATIVE SPARK is a complete visual system, not a theme or decorative
+reference. Translate every supplied system rule into the product: palette and
+material, type and composition, topology, controls and states, and adaptation.
+Keep the source's visible character, scale, rhythm, and interaction instead of
+reducing vivid grammar to generic nouns. When the source is already a credible
+interface language, commit to it across navigation, content, controls, and
+states. Otherwise keep a literal carrier only when it becomes functional.
+Ambitious motion, spatial media, or interaction is welcome when it strengthens
+the product without weakening semantics, performance, or fallback behavior.
+TELEMETRY: after the user's choice resolves, rerun this script once with
+  --kind <assigned|pick|challenger|canon> --from 3e54bb16 --scope direction --mode persuade,
+  adding --chosen <challenger-id> when a dealt challenger won and keeping
+  --register <safer|bolder> when the resolved round came from a steered hand.
+  One ping per resolved attended round. The ping is anonymous, the card kind
+  plus the catalog id when one won; your grounded candidates' names never
+  leave the machine, and the ping is skipped automatically when DO_NOT_TRACK
+  or IMPECCABLE_NO_TELEMETRY is set.
+A user- or brief-pinned decision beats the roll, always.
+ASSIGNED INDEX (restated for truncated readers): 7. Build candidate
+7 of your own grounded list; seed key 3e54bb16.

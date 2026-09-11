@@ -14,3 +14,9 @@ graphify-out/
 __pycache__/
 *.pyc
 .claude/settings.local.json
+
+# impeccable review captures (rebuilt by tests/visual/shoot.py); config.json (the ignores) stays tracked
+.impeccable/review/
+.impeccable/critique/
+.impeccable/config.local.json
+.impeccable/hook.cache.json

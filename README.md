@@ -47,7 +47,7 @@ Measured baseline for the three benchmarks (agents, tokens, cost, what each arm 
 
 ## The portal
 
-`site/index.html` is one page in two editions: `python scripts/site_build.py` writes `site/public/index.html` (the GitHub Pages edition, member-only guide bodies removed) and, with `--artifact`, the members edition as a claude.ai artifact fragment. The page embeds the skills graph from `docs/skills-graph/graph.json`, so the flow diagram cannot drift from the repository (`node tests/test_site.js` fails if a step cites a missing node), and its showcase tab is the measured record of the demand that built it (`site/showcase/`, `docs/scout/portal-v2/`).
+`site/index.html` is one page in two editions: `python scripts/site_build.py` writes `site/public/index.html` (the GitHub Pages edition, member-only guide bodies removed, the evolution captures downscaled with ffmpeg) and, with `--artifact`, the members edition as a claude.ai artifact fragment. The page embeds the skills graph from `docs/skills-graph/graph.json` and renders it with force-graph (the page's one library, pinned with an integrity hash), so the flow diagram cannot drift from the repository (`node tests/test_site.js` fails if a step cites a missing node). `python -m unittest tests.test_visual` drives Playwright over both viewports and both colour schemes and asserts measurements (overflow, contrast, console errors, rendered nodes, tooltip time, drawer, filter, copy). The page's own evolution (v1 one-shot, v2 through the flow, v3 redesigned through the plan gate and impeccable) is its case study, with the record in `site/showcase/` and `docs/scout/portal-v3/`.
 
 ## Which host reads what
 

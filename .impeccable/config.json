@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "site/index.html"
+        ],
+        "createdAt": "2026-09-11T04:46:55.895Z",
+        "reason": "\"agent: the only flush container is the before/after slider, two full-bleed captures; the frame is the image by design\""
+      },
+      {
+        "rule": "monotonous-spacing",
+        "value": "*",
+        "files": [
+          "site/index.html"
+        ],
+        "createdAt": "2026-09-11T04:51:01.954Z",
+        "reason": "\"agent: the ~4px cluster is the micro-padding of plates, chips and tags; page rhythm runs on the 8/12/16/24/32/48/64 tokens (sections 64 above, 48 below)\""
+      }
+    ]
+  }
+}

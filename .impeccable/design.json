@@ -1,0 +1,660 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-11T00:00:00Z",
+  "title": "Design System: OmniHarness Community Portal",
+  "source": {
+    "artifact": "site/index.html",
+    "publicEdition": "site/public/index.html",
+    "designMd": "site/DESIGN.md",
+    "version": "v3",
+    "replaces": "v2 (Quick Reference Handbook card, git history)"
+  },
+  "extensions": {
+    "colorMeta": {
+      "ground": {
+        "role": "neutral",
+        "displayName": "Vacuum",
+        "canonical": "#0A0E15",
+        "oklch": "oklch(16.3% 0.016 261)",
+        "light": "#FFFFFF",
+        "cssVar": "--ground",
+        "tonalRamp": [
+          "oklch(15% 0.016 261)",
+          "oklch(25% 0.016 261)",
+          "oklch(35% 0.016 261)",
+          "oklch(45% 0.016 261)",
+          "oklch(55% 0.016 261)",
+          "oklch(65% 0.016 261)",
+          "oklch(80% 0.016 261)",
+          "oklch(95% 0.016 261)"
+        ]
+      },
+      "layer": {
+        "role": "neutral",
+        "displayName": "Layer",
+        "canonical": "#111827",
+        "oklch": "oklch(21.0% 0.032 265)",
+        "light": "#F4F6FA",
+        "cssVar": "--layer",
+        "tonalRamp": [
+          "oklch(15% 0.032 265)",
+          "oklch(25% 0.032 265)",
+          "oklch(35% 0.032 265)",
+          "oklch(45% 0.032 265)",
+          "oklch(55% 0.032 265)",
+          "oklch(65% 0.032 265)",
+          "oklch(80% 0.032 265)",
+          "oklch(95% 0.032 265)"
+        ]
+      },
+      "layer-2": {
+        "role": "neutral",
+        "displayName": "Layer 2",
+        "canonical": "#18233A",
+        "oklch": "oklch(25.8% 0.046 264)",
+        "light": "#E9EEF6",
+        "cssVar": "--layer-2",
+        "tonalRamp": [
+          "oklch(15% 0.046 264)",
+          "oklch(25% 0.046 264)",
+          "oklch(35% 0.046 264)",
+          "oklch(45% 0.046 264)",
+          "oklch(55% 0.046 264)",
+          "oklch(65% 0.046 264)",
+          "oklch(80% 0.046 264)",
+          "oklch(95% 0.046 264)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#E6ECF5",
+        "oklch": "oklch(94.1% 0.014 258)",
+        "light": "#101722",
+        "cssVar": "--ink",
+        "tonalRamp": [
+          "oklch(15% 0.014 258)",
+          "oklch(25% 0.014 258)",
+          "oklch(35% 0.014 258)",
+          "oklch(45% 0.014 258)",
+          "oklch(55% 0.014 258)",
+          "oklch(65% 0.014 258)",
+          "oklch(80% 0.014 258)",
+          "oklch(95% 0.014 258)"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Ink 2",
+        "canonical": "#9AA8BC",
+        "oklch": "oklch(72.7% 0.033 257)",
+        "light": "#4B5A70",
+        "cssVar": "--ink-2",
+        "tonalRamp": [
+          "oklch(15% 0.033 257)",
+          "oklch(25% 0.033 257)",
+          "oklch(35% 0.033 257)",
+          "oklch(45% 0.033 257)",
+          "oklch(55% 0.033 257)",
+          "oklch(65% 0.033 257)",
+          "oklch(80% 0.033 257)",
+          "oklch(95% 0.033 257)"
+        ]
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "Ink 3",
+        "canonical": "#7A8BA3",
+        "oklch": "oklch(63.2% 0.041 257)",
+        "light": "#5E6E86",
+        "cssVar": "--ink-3",
+        "tonalRamp": [
+          "oklch(15% 0.041 257)",
+          "oklch(25% 0.041 257)",
+          "oklch(35% 0.041 257)",
+          "oklch(45% 0.041 257)",
+          "oklch(55% 0.041 257)",
+          "oklch(65% 0.041 257)",
+          "oklch(80% 0.041 257)",
+          "oklch(95% 0.041 257)"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Rule",
+        "canonical": "#223047",
+        "oklch": "oklch(30.8% 0.046 260)",
+        "light": "#D6DEE9",
+        "cssVar": "--rule",
+        "tonalRamp": [
+          "oklch(15% 0.046 260)",
+          "oklch(25% 0.046 260)",
+          "oklch(35% 0.046 260)",
+          "oklch(45% 0.046 260)",
+          "oklch(55% 0.046 260)",
+          "oklch(65% 0.046 260)",
+          "oklch(80% 0.046 260)",
+          "oklch(95% 0.046 260)"
+        ]
+      },
+      "rule-soft": {
+        "role": "neutral",
+        "displayName": "Rule Soft",
+        "canonical": "#1A2536",
+        "oklch": "oklch(26.3% 0.036 259)",
+        "light": "#E8EDF4",
+        "cssVar": "--rule-soft",
+        "tonalRamp": [
+          "oklch(15% 0.036 259)",
+          "oklch(25% 0.036 259)",
+          "oklch(35% 0.036 259)",
+          "oklch(45% 0.036 259)",
+          "oklch(55% 0.036 259)",
+          "oklch(65% 0.036 259)",
+          "oklch(80% 0.036 259)",
+          "oklch(95% 0.036 259)"
+        ]
+      },
+      "steel": {
+        "role": "neutral",
+        "displayName": "Steel",
+        "canonical": "#4F6B8F",
+        "oklch": "oklch(52.1% 0.066 255)",
+        "light": "#6B819E",
+        "cssVar": "--steel",
+        "tonalRamp": [
+          "oklch(15% 0.066 255)",
+          "oklch(25% 0.066 255)",
+          "oklch(35% 0.066 255)",
+          "oklch(45% 0.066 255)",
+          "oklch(55% 0.066 255)",
+          "oklch(65% 0.066 255)",
+          "oklch(80% 0.066 255)",
+          "oklch(95% 0.066 255)"
+        ]
+      },
+      "steel-dim": {
+        "role": "neutral",
+        "displayName": "Steel Dim",
+        "canonical": "#2C3E57",
+        "oklch": "oklch(36.0% 0.049 257)",
+        "light": "#B9C6D8",
+        "cssVar": "--steel-dim",
+        "tonalRamp": [
+          "oklch(15% 0.049 257)",
+          "oklch(25% 0.049 257)",
+          "oklch(35% 0.049 257)",
+          "oklch(45% 0.049 257)",
+          "oklch(55% 0.049 257)",
+          "oklch(65% 0.049 257)",
+          "oklch(80% 0.049 257)",
+          "oklch(95% 0.049 257)"
+        ]
+      },
+      "sig-y": {
+        "role": "primary",
+        "displayName": "Trigger Yellow",
+        "canonical": "#FFD23F",
+        "oklch": "oklch(87.9% 0.162 91)",
+        "light": "#8A6700",
+        "cssVar": "--sig-y",
+        "tonalRamp": [
+          "oklch(15% 0.162 91)",
+          "oklch(25% 0.162 91)",
+          "oklch(35% 0.162 91)",
+          "oklch(45% 0.162 91)",
+          "oklch(55% 0.162 91)",
+          "oklch(65% 0.162 91)",
+          "oklch(80% 0.162 91)",
+          "oklch(95% 0.162 91)"
+        ]
+      },
+      "sig-c": {
+        "role": "primary",
+        "displayName": "Track Cyan",
+        "canonical": "#3DD6F0",
+        "oklch": "oklch(80.9% 0.127 212)",
+        "light": "#077A90",
+        "cssVar": "--sig-c",
+        "tonalRamp": [
+          "oklch(15% 0.127 212)",
+          "oklch(25% 0.127 212)",
+          "oklch(35% 0.127 212)",
+          "oklch(45% 0.127 212)",
+          "oklch(55% 0.127 212)",
+          "oklch(65% 0.127 212)",
+          "oklch(80% 0.127 212)",
+          "oklch(95% 0.127 212)"
+        ]
+      },
+      "sig-g": {
+        "role": "secondary",
+        "displayName": "Track Green",
+        "canonical": "#7AF0A6",
+        "oklch": "oklch(86.7% 0.150 154)",
+        "light": "#177347",
+        "cssVar": "--sig-g",
+        "tonalRamp": [
+          "oklch(15% 0.150 154)",
+          "oklch(25% 0.150 154)",
+          "oklch(35% 0.150 154)",
+          "oklch(45% 0.150 154)",
+          "oklch(55% 0.150 154)",
+          "oklch(65% 0.150 154)",
+          "oklch(80% 0.150 154)",
+          "oklch(95% 0.150 154)"
+        ]
+      },
+      "sig-v": {
+        "role": "secondary",
+        "displayName": "Track Violet",
+        "canonical": "#C08BFF",
+        "oklch": "oklch(73.5% 0.169 304)",
+        "light": "#6A3FC6",
+        "cssVar": "--sig-v",
+        "tonalRamp": [
+          "oklch(15% 0.169 304)",
+          "oklch(25% 0.169 304)",
+          "oklch(35% 0.169 304)",
+          "oklch(45% 0.169 304)",
+          "oklch(55% 0.169 304)",
+          "oklch(65% 0.169 304)",
+          "oklch(80% 0.169 304)",
+          "oklch(95% 0.169 304)"
+        ]
+      },
+      "energy": {
+        "role": "secondary",
+        "displayName": "Deposited Energy",
+        "canonical": "#FF4D4D",
+        "oklch": "oklch(67.3% 0.215 25)",
+        "light": "#C42A2A",
+        "cssVar": "--energy",
+        "tonalRamp": [
+          "oklch(15% 0.215 25)",
+          "oklch(25% 0.215 25)",
+          "oklch(35% 0.215 25)",
+          "oklch(45% 0.215 25)",
+          "oklch(55% 0.215 25)",
+          "oklch(65% 0.215 25)",
+          "oklch(80% 0.215 25)",
+          "oklch(95% 0.215 25)"
+        ]
+      },
+      "ok": {
+        "role": "secondary",
+        "displayName": "Pass Green",
+        "canonical": "#7AF0A6",
+        "oklch": "oklch(86.7% 0.150 154)",
+        "light": "#177347",
+        "cssVar": "--ok",
+        "tonalRamp": [
+          "oklch(15% 0.150 154)",
+          "oklch(25% 0.150 154)",
+          "oklch(35% 0.150 154)",
+          "oklch(45% 0.150 154)",
+          "oklch(55% 0.150 154)",
+          "oklch(65% 0.150 154)",
+          "oklch(80% 0.150 154)",
+          "oklch(95% 0.150 154)"
+        ]
+      },
+      "on-sig": {
+        "role": "neutral",
+        "displayName": "On Signal",
+        "canonical": "#0A0E15",
+        "oklch": "oklch(16.3% 0.016 261)",
+        "light": "#FFFFFF",
+        "cssVar": "--on-sig",
+        "tonalRamp": [
+          "oklch(15% 0.016 261)",
+          "oklch(25% 0.016 261)",
+          "oklch(35% 0.016 261)",
+          "oklch(45% 0.016 261)",
+          "oklch(55% 0.016 261)",
+          "oklch(65% 0.016 261)",
+          "oklch(80% 0.016 261)",
+          "oklch(95% 0.016 261)"
+        ]
+      }
+    },
+    "themes": {
+      "pattern": "bare :root is dark; @media (prefers-color-scheme:light) :root:not([data-theme=\"dark\"]) and :root[data-theme=\"light\"] compose the light theme; color-scheme declared in each",
+      "light": {
+        "ground": "#FFFFFF",
+        "layer": "#F4F6FA",
+        "layer-2": "#E9EEF6",
+        "ink": "#101722",
+        "ink-2": "#4B5A70",
+        "ink-3": "#5E6E86",
+        "rule": "#D6DEE9",
+        "rule-soft": "#E8EDF4",
+        "steel": "#6B819E",
+        "steel-dim": "#B9C6D8",
+        "sig-y": "#8A6700",
+        "sig-c": "#077A90",
+        "sig-g": "#177347",
+        "sig-v": "#6A3FC6",
+        "energy": "#C42A2A",
+        "ok": "#177347",
+        "on-sig": "#FFFFFF"
+      },
+      "shadowLight": "0 6px 10px -8px rgba(16,23,34,.28), 0 1px 2px rgba(16,23,34,.12)"
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The thesis in the first viewport only; balanced wrap; the emphasised phrase underlined in sig-y."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section headings, each followed on the baseline by a label plate."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "h3 in cards, crew columns and steps (steps at 1.5625rem, 500)."
+      },
+      "lede": {
+        "displayName": "Lede",
+        "purpose": "The paragraph under a section heading, ink-2, 64ch."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Reading text; measures 50-76ch by context."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Plates, rail, table headers, legends, tags, drawer terms; Bricolage at opsz 12 / wdth 92; tracking .14em down to .08em inside controls."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Every number, id, path, command and transcript line; tabular numerals."
+      }
+    },
+    "fonts": {
+      "loading": "Google Fonts, display=swap; Bricolage Grotesque opsz 12..96 wdth 75..100 wght 300..800; Schibsted Grotesk 400/500/700; Azeret Mono 300/400/500",
+      "selfHosting": "considered and left standing by the owner's page-weight bar; fallback stacks declared for every face"
+    },
+    "shadows": [
+      {
+        "name": "shadow",
+        "value": "0 6px 10px -8px rgba(0,0,0,.7), 0 1px 2px rgba(0,0,0,.5)",
+        "purpose": "The stage card only; the one shadow token. Light theme: 0 6px 10px -8px rgba(16,23,34,.28), 0 1px 2px rgba(16,23,34,.12)."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-expo",
+        "value": "cubic-bezier(.16,1,.3,1)",
+        "purpose": "Every CSS state transition: button lift 180 ms, step rule and chips 300 ms, drawer 320 ms."
+      },
+      {
+        "name": "bloom",
+        "value": "cooldownTime 3200ms, d3AlphaDecay .028, d3VelocityDecay .32, fit at 3400ms",
+        "purpose": "The one authored moment: the event blooms from the beamline outward and cools on load."
+      },
+      {
+        "name": "camera",
+        "value": "zoomToFit 700ms, 48px padding, zoom capped at 2.4",
+        "purpose": "On each layer change the stage isolates the layer's tracks and moves the camera to them."
+      },
+      {
+        "name": "hover",
+        "value": "150-200 ms",
+        "purpose": "Copy control fill, rail item colour, run/read-here fill."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "d3AlphaDecay 1, warmupTicks 220, cooldownTime 0, zoomToFit 0ms, transitions none, scroll-behavior auto",
+        "purpose": "Layout settles before the first frame; nothing animates."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "stack",
+        "value": "1040px",
+        "purpose": "Frame to one column; beamline becomes a horizontal sticky strip; stage sticky at 44px, min(44vh,420px); drawer from the bottom at 70%."
+      },
+      {
+        "name": "narrow",
+        "value": "560px",
+        "purpose": "Header stacks; rows lose their right column; controls min-height 44px; search fills the width."
+      }
+    ],
+    "browserSurfaces": {
+      "selection": "background sig-y, color on-sig",
+      "focus": "2px solid sig-c, offset 3px, radius 2px (:focus-visible)",
+      "links": "inherit colour; 1px steel underline at .2em offset; 2px sig-c on hover",
+      "scrollbar": "steel-dim on ground",
+      "numerals": "tabular-nums on code, kbd, .mono, .num",
+      "icons": "authored inline SVG symbols check/out/lock, 1em, 1.75 round stroke, currentColor"
+    },
+    "stage": {
+      "rings": {
+        "installed": 0.44,
+        "catalog": 0.74,
+        "remote": 0.96,
+        "missing": 0.96
+      },
+      "ringStroke": "steel-dim at 1 device px",
+      "nodeRadius": {
+        "rest": 2.6,
+        "isolated": 3.6
+      },
+      "nodeFill": {
+        "installed": "ink",
+        "other": "layer"
+      },
+      "nodeStroke": {
+        "installed": "ink",
+        "catalog": "sig-y",
+        "remote": "sig-g",
+        "missing": "energy"
+      },
+      "trackColor": {
+        "calls": "sig-c",
+        "precedes": "sig-y",
+        "feeds": "sig-g",
+        "guided-by": "sig-v",
+        "alternative-to": "ink-3",
+        "candidate-for": "sig-y"
+      },
+      "trackDash": {
+        "precedes": [
+          7,
+          3
+        ],
+        "feeds": [
+          2,
+          3
+        ],
+        "guided-by": [
+          10,
+          3,
+          2,
+          3
+        ],
+        "alternative-to": [
+          3,
+          3
+        ],
+        "candidate-for": [
+          1,
+          3
+        ]
+      },
+      "trackWidth": {
+        "rest": 0.8,
+        "lit": 1.6,
+        "dimmed": 0.35
+      },
+      "dimmedAlpha": 0.18,
+      "curvature": 0.12,
+      "labelFont": "500 11px Azeret Mono"
+    },
+    "calorimeter": {
+      "scale": "100px = $1.00",
+      "barHeight": "8px",
+      "axisSwatch": "100px x 6px",
+      "color": "energy"
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one filled call to action (Join the discussions); ink at rest, Trigger Yellow on hover with a 1 px lift.",
+      "html": "<a class=\"ds-btn\" href=\"#\">Join the discussions</a>",
+      "css": ".ds-btn{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;font-family:var(--display);font-weight:600;font-size:.95rem;letter-spacing:.01em;text-decoration:none;border:1px solid var(--ink);border-radius:3px;background:var(--ink);color:var(--ground);cursor:pointer;transition:transform .18s cubic-bezier(.16,1,.3,1),background .18s,color .18s}.ds-btn:hover{transform:translateY(-1px);background:var(--sig-y);border-color:var(--sig-y);color:var(--on-sig)}.ds-btn:focus-visible{outline:2px solid var(--sig-c);outline-offset:3px;border-radius:2px}"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "The secondary action beside a primary (Install guide, Open a pull request); rule border, fills layer on hover.",
+      "html": "<a class=\"ds-btn-ghost\" href=\"#\">Open a pull request</a>",
+      "css": ".ds-btn-ghost{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;font-family:var(--display);font-weight:600;font-size:.95rem;letter-spacing:.01em;text-decoration:none;border:1px solid var(--rule);border-radius:3px;background:transparent;color:var(--ink);cursor:pointer;transition:transform .18s cubic-bezier(.16,1,.3,1),background .18s,color .18s}.ds-btn-ghost:hover{transform:translateY(-1px);background:var(--layer);border-color:var(--steel)}.ds-btn-ghost:focus-visible{outline:2px solid var(--sig-c);outline-offset:3px;border-radius:2px}"
+    },
+    {
+      "name": "Label Plate",
+      "kind": "chip",
+      "refersTo": "plate",
+      "description": "Names a zone literally; placed after its heading on the same baseline, never above it.",
+      "html": "<div class=\"ds-sec-head\"><h2 class=\"ds-h2\">Deposited energy, measured</h2><span class=\"ds-plate\"><b>Calorimeter</b> proof</span></div>",
+      "css": ".ds-sec-head{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}.ds-h2{font-family:var(--display);font-variation-settings:\"opsz\" 96,\"wdth\" 90;font-weight:500;font-size:2.44rem;line-height:1.05;letter-spacing:-.02em;margin:0;color:var(--ink)}.ds-plate{display:inline-flex;align-items:center;gap:8px;font-family:var(--display);font-variation-settings:\"opsz\" 12,\"wdth\" 92;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;font-weight:600;color:var(--ink-2);border:1px solid var(--rule);padding:4px 12px;border-radius:2px;background:var(--layer)}.ds-plate b{color:var(--ink);font-weight:500}"
+    },
+    {
+      "name": "Beamline Index",
+      "kind": "nav",
+      "refersTo": "",
+      "description": "The layer index that runs the page: a steel spine, dots on it, the current layer's dot in Trigger Yellow.",
+      "html": "<nav class=\"ds-rail\" aria-label=\"Layers\"><a href=\"#\" aria-current=\"true\">Event<small>the session</small></a><a href=\"#\">Trigger<small>the gate</small></a><a href=\"#\">Layers<small>the flow</small></a><a href=\"#\">Run log<small>library</small></a></nav>",
+      "css": ".ds-rail{display:flex;flex-direction:column;border-left:1px solid var(--steel);width:132px}.ds-rail a{display:block;padding:8px 12px 8px 16px;font-family:var(--display);font-variation-settings:\"opsz\" 12,\"wdth\" 92;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);text-decoration:none;position:relative;transition:color .2s}.ds-rail a small{display:block;font-family:var(--text);text-transform:none;letter-spacing:0;font-size:.78rem;color:var(--ink-2);margin-top:1px}.ds-rail a::before{content:\"\";position:absolute;left:-4px;top:50%;width:7px;height:7px;border-radius:50%;background:var(--ground);border:1px solid var(--steel);transform:translateY(-50%)}.ds-rail a:hover{color:var(--ink)}.ds-rail a[aria-current=\"true\"]{color:var(--ink)}.ds-rail a[aria-current=\"true\"]::before{background:var(--sig-y);border-color:var(--sig-y)}.ds-rail a:focus-visible{outline:2px solid var(--sig-c);outline-offset:3px;border-radius:2px}"
+    },
+    {
+      "name": "Command Line with Copy",
+      "kind": "custom",
+      "refersTo": "command-line",
+      "description": "A command the visitor takes away, with a control that names its action.",
+      "html": "<span class=\"ds-cmd\"><code>/omniharness</code><button class=\"ds-copy\" type=\"button\">copy</button></span>",
+      "css": ".ds-cmd{display:inline-flex;align-items:center;gap:12px;padding:12px 16px;background:var(--layer);border:1px solid var(--steel);border-radius:3px;font-family:var(--mono);font-size:.88rem;color:var(--ink);font-variant-numeric:tabular-nums}.ds-cmd code{font-family:inherit}.ds-copy{margin-left:8px;font:inherit;font-family:var(--display);font-variation-settings:\"opsz\" 12,\"wdth\" 92;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border:1px solid var(--steel);background:transparent;color:var(--ink-2);border-radius:2px;cursor:pointer;transition:background .15s,color .15s}.ds-copy:hover{background:var(--sig-y);border-color:var(--sig-y);color:var(--on-sig)}.ds-copy:focus-visible{outline:2px solid var(--sig-c);outline-offset:3px;border-radius:2px}"
+    },
+    {
+      "name": "Filter Chips and Search",
+      "kind": "chip",
+      "refersTo": "filter-chip",
+      "description": "Run-log filters: uppercase label chips that fill ink when pressed, a search field in layer, a live count.",
+      "html": "<div class=\"ds-filters\"><div class=\"ds-grp\" role=\"group\" aria-label=\"Kind\"><button class=\"ds-fbtn\" type=\"button\" aria-pressed=\"true\">All</button><button class=\"ds-fbtn\" type=\"button\" aria-pressed=\"false\">Tutorial</button><button class=\"ds-fbtn\" type=\"button\" aria-pressed=\"false\">How-to</button></div><input class=\"ds-search\" type=\"search\" placeholder=\"Search the run log\" aria-label=\"Search\"><span class=\"ds-count\">24 of 24</span></div>",
+      "css": ".ds-filters{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center}.ds-grp{display:flex;flex-wrap:wrap;gap:4px}.ds-fbtn{font:inherit;font-family:var(--display);font-variation-settings:\"opsz\" 12,\"wdth\" 92;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;padding:8px 12px;border:1px solid var(--steel);background:transparent;color:var(--ink-2);border-radius:2px;cursor:pointer}.ds-fbtn[aria-pressed=\"true\"]{background:var(--ink);border-color:var(--ink);color:var(--ground)}.ds-fbtn:focus-visible,.ds-search:focus-visible{outline:2px solid var(--sig-c);outline-offset:3px;border-radius:2px}.ds-search{font:inherit;padding:8px 12px;border:1px solid var(--steel);background:var(--layer);color:var(--ink);border-radius:2px;min-width:16rem}.ds-search::placeholder{color:var(--ink-3)}.ds-count{font-family:var(--display);font-variation-settings:\"opsz\" 12,\"wdth\" 92;font-size:.74rem;color:var(--ink-3)}"
+    },
+    {
+      "name": "Layer Step with Skill Chips",
+      "kind": "card",
+      "refersTo": "skill-chip",
+      "description": "A layer of the flow: a left rule that turns Trigger Yellow when current, with the chips' borders following.",
+      "html": "<div class=\"ds-step ds-on\"><h3><span class=\"ds-k\">L2</span>Which skills</h3><p>Three rings: installed, catalog and remote. <code>route</code> ranks them for a task at zero tokens; a gap becomes a candidate, never an install.</p><div class=\"ds-uses\"><span class=\"ds-chip\">skills-graph</span><span class=\"ds-chip\">scout</span><span class=\"ds-chip\">skill-installer</span></div></div>",
+      "css": ".ds-step{padding:12px 0 12px 24px;border-left:1px solid var(--rule);transition:border-color .3s cubic-bezier(.16,1,.3,1);max-width:50ch;font-family:var(--text);color:var(--ink)}.ds-step.ds-on{border-left-color:var(--sig-y)}.ds-step h3{display:flex;gap:12px;align-items:baseline;font-family:var(--display);font-variation-settings:\"opsz\" 96,\"wdth\" 90;font-size:1.5625rem;font-weight:500;line-height:1.05;letter-spacing:-.02em;margin:0}.ds-k{font-family:var(--display);font-variation-settings:\"opsz\" 12,\"wdth\" 92;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;font-weight:400;color:var(--ink-3)}.ds-step p{color:var(--ink-2);margin:12px 0 0;line-height:1.6}.ds-step code{font-family:var(--mono);font-size:.9em}.ds-uses{margin-top:12px;display:flex;flex-wrap:wrap;gap:8px}.ds-chip{font-family:var(--mono);font-size:.74rem;padding:2px 8px;border:1px solid var(--rule);border-radius:2px;color:var(--ink-2);transition:border-color .3s,color .3s}.ds-on .ds-chip{border-color:var(--sig-y);color:var(--ink)}"
+    },
+    {
+      "name": "Trigger Terminal",
+      "kind": "custom",
+      "refersTo": "terminal",
+      "description": "The gate simulation's log: ground-coloured, mono, ask lines in yellow, triage lines in pass green, y/n controls that name their action.",
+      "html": "<div class=\"ds-term\" role=\"log\"><div class=\"ds-l ds-dim\"># simulation · harness arm · nothing is executed</div><div class=\"ds-l ds-dim\">$ rm -r fixture</div><div class=\"ds-l ds-ask\">ask: Bash(rm -r:*) matched. Recursive delete of fixture/ (3 files). Allow?</div><div class=\"ds-prompt\"><button type=\"button\">y · allow once</button><button type=\"button\">n · refuse</button></div><div class=\"ds-l ds-ok\">triage: 1. fixture/: deletion requested by the task; 3 files. The owner decides.</div></div>",
+      "css": ".ds-term{background:var(--ground);color:var(--ink);border:1px solid var(--rule);border-radius:4px;padding:16px 24px;font-family:var(--mono);font-size:.86rem;line-height:1.65;min-height:8rem;overflow-x:auto;font-variant-numeric:tabular-nums}.ds-l{white-space:pre-wrap;word-break:break-word}.ds-ask{color:var(--sig-y)}.ds-ok{color:var(--ok)}.ds-dim{color:var(--ink-3)}.ds-prompt{display:flex;gap:8px;margin-top:8px}.ds-prompt button{font:inherit;padding:2px 12px;border:1px solid var(--sig-y);background:transparent;color:var(--sig-y);border-radius:2px;cursor:pointer}.ds-prompt button:hover{background:var(--sig-y);color:var(--on-sig)}.ds-prompt button:disabled{opacity:.4;cursor:default}.ds-prompt button:focus-visible{outline:2px solid var(--sig-c);outline-offset:3px;border-radius:2px}"
+    },
+    {
+      "name": "Calorimeter Row",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "A proof row: state dot, tabular figures, the rerun command under the name, and an energy bar at 100 px per dollar.",
+      "html": "<table class=\"ds-cal\"><thead><tr><th>Benchmark</th><th>Result</th><th>Cost <span class=\"ds-axis\"><i></i>= $1.00</span></th><th>Date · commit</th></tr></thead><tbody><tr><td><b>B3 · hitl-triage, harness</b><span class=\"ds-d\">the gate holds under an adversarial prompt</span><code class=\"ds-d\">python evals/run.py run hitl-triage --arm harness</code></td><td class=\"ds-num\"><span class=\"ds-st ds-st-ok\"></span>2/2 gated calls denied · 3/3 files intact</td><td class=\"ds-num ds-nw\"><span class=\"ds-bar\" style=\"width:50px\"></span>$0.499 · 13 turns</td><td class=\"ds-num ds-nw\">2026-09-10 · 474138f</td></tr></tbody></table>",
+      "css": ".ds-cal{width:100%;border-collapse:collapse;font-size:.9rem;font-family:var(--text);color:var(--ink)}.ds-cal th,.ds-cal td{text-align:left;padding:12px;border-bottom:1px solid var(--rule-soft);vertical-align:top}.ds-cal th{font-family:var(--display);font-variation-settings:\"opsz\" 12,\"wdth\" 92;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;font-weight:500;color:var(--ink-3);border-bottom:1px solid var(--steel)}.ds-axis{display:inline-flex;align-items:center;gap:8px;margin-left:12px;font-weight:400;letter-spacing:.06em;text-transform:none}.ds-axis i{display:inline-block;width:100px;height:6px;background:var(--energy);border-radius:1px}.ds-d{display:block;color:var(--ink-2);font-size:.8rem;margin-top:2px;line-height:1.5}code.ds-d{font-family:var(--mono);font-size:.74rem;color:var(--ink-3);margin-top:4px;white-space:normal;overflow-wrap:anywhere}.ds-cal td b{font-weight:500}.ds-num{font-family:var(--mono);font-size:.8rem;font-variant-numeric:tabular-nums}.ds-nw{white-space:nowrap}.ds-st{display:inline-block;width:.55em;height:.55em;border-radius:50%;margin-right:8px;vertical-align:middle}.ds-st-ok{background:var(--ok)}.ds-bar{display:inline-block;height:8px;background:var(--energy);vertical-align:middle;margin-right:8px;border-radius:1px}"
+    },
+    {
+      "name": "Members Door",
+      "kind": "card",
+      "refersTo": "",
+      "description": "The state line that replaces a login form: dashed in the public edition, solid pass green in the members edition.",
+      "html": "<div class=\"ds-door\"><svg class=\"ds-i\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"5\" y=\"11\" width=\"14\" height=\"10\" rx=\"1.5\"/><path d=\"M8 11V7a4 4 0 0 1 8 0v4\"/></svg> public edition · the members' edition is a private claude.ai page the maintainer shares; opening it is the sign-in</div><div class=\"ds-door ds-in\"><svg class=\"ds-i\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12.5l4.5 4.5L19 7\"/></svg> members edition · you are reading through claude.ai</div>",
+      "css": ".ds-door{margin-top:16px;padding:16px;border:1px dashed var(--rule);border-radius:3px;font-family:var(--mono);font-size:.8rem;color:var(--ink-2);display:flex;gap:12px;align-items:center}.ds-door.ds-in{border-style:solid;border-color:var(--ok);color:var(--ok)}.ds-i{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}"
+    },
+    {
+      "name": "Stage Card (header and legend)",
+      "kind": "card",
+      "refersTo": "stage-card",
+      "description": "The event's frame: the one surface with a shadow; the canvas sits between a header row and the ring/track legend.",
+      "html": "<div class=\"ds-stage\"><div class=\"ds-hd\"><span><b>Skills graph</b> · live event</span><span>86 tracks · 84 links</span></div><div class=\"ds-canvas\"></div><div class=\"ds-legend\"><div class=\"ds-rings\"><span><b class=\"ds-in\"></b>installed</span><span><b class=\"ds-cat\"></b>catalog</span><span><b class=\"ds-rem\"></b>remote</span></div><div class=\"ds-tracks\"><span><i style=\"border-color:var(--sig-c)\"></i>calls</span><span><i style=\"border-color:var(--sig-y)\"></i>precedes</span><span><i style=\"border-color:var(--sig-g)\"></i>feeds</span><span><i style=\"border-color:var(--sig-v)\"></i>guided-by</span><span><i class=\"ds-dash\" style=\"border-color:var(--ink-3)\"></i>alternative-to</span><span><i class=\"ds-dot\" style=\"border-color:var(--sig-y)\"></i>candidate-for</span></div></div></div>",
+      "css": ".ds-stage{position:relative;background:var(--layer);border:1px solid var(--rule);border-radius:6px;box-shadow:var(--shadow);overflow:hidden;color:var(--ink)}.ds-hd{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--rule-soft);font-family:var(--display);font-variation-settings:\"opsz\" 12,\"wdth\" 92;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}.ds-hd b{color:var(--ink);font-weight:500}.ds-canvas{height:160px;background:transparent}.ds-legend{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;padding:8px 16px 12px;border-top:1px solid var(--rule-soft)}.ds-rings,.ds-tracks{display:flex;flex-wrap:wrap;gap:8px 12px;font-family:var(--display);font-variation-settings:\"opsz\" 12,\"wdth\" 92;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}.ds-rings b{display:inline-block;width:8px;height:8px;border-radius:50%;border:1.5px solid var(--steel);vertical-align:middle;margin-right:5px}.ds-rings b.ds-in{background:var(--ink);border-color:var(--ink)}.ds-rings b.ds-cat{border-color:var(--sig-y)}.ds-rings b.ds-rem{border-color:var(--sig-g)}.ds-tracks i{display:inline-block;width:14px;height:0;border-top:2px solid;margin-right:4px;vertical-align:middle}.ds-tracks i.ds-dash{border-top-style:dashed}.ds-tracks i.ds-dot{border-top-style:dotted}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Collider Event Display",
+    "overview": "The page is an event display and one session is one event. The skills graph is the event itself: tracks curling out of the collision into three detector rings (installed, catalog, remote), the human gate is the trigger that decides which events get recorded, and the benchmarks are deposited energy read off calorimeter bars. The world is dark-native: a near-black vacuum ground that is never pure black, detector rings and rules in muted steel blue, and colour reserved for what carries information: tracks by edge type, bars for spend, one yellow dot for the current layer. The light theme is not a dimmed copy but the publication figure: white ground, ink rings, the same tracks at print-safe values.\n\nDensity is instrument-like and legible: one column of reading measure beside a pinned stage, label plates that name every zone literally, tabular figures wherever a number sits, and a beamline index running down the left of the whole page. Nothing glows, nothing is glass, no gradient exists anywhere in the stylesheet. Motion is one authored moment (the event blooms and cools on load) and then camera moves that follow the reader; everything else is still.\n\nConfirmed rejections, from the direction contract and held by the build: the hero-plus-cards docs template; the dark \"AI dev tool\" page with neon gradients; a decorative graph that does not navigate; a login form that pretends.",
+    "keyCharacteristics": [
+      "Near-black vacuum ground (#0A0E15) with steel-blue rings and rules; colour only on tracks, bars and state.",
+      "Three faces with three jobs: Bricolage Grotesque (display and labels, opsz/wdth axes), Schibsted Grotesk (reading), Azeret Mono (figures, ids, commands).",
+      "Label plates after headings name every zone; wayfinding is reading, never a kicker.",
+      "A 4 px spacing scale (s1–s8) and four radii (2/3/4/6 px); 1 px rules carry all structure.",
+      "The beamline index on the left and the pinned stage on the right are the page's silhouette with the content removed.",
+      "One shadow token, soft and low; depth is tonal (ground, layer, layer-2)."
+    ],
+    "rules": [
+      {
+        "name": "The Tracks-and-Bars Rule",
+        "body": "Hue means one thing: an edge type on a track, spend on a bar, a state on a dot or a tag. No signal colour fills a surface at rest; a fill in yellow or cyan is a hover or a selection, and it always pairs with `on-sig`.",
+        "section": "colors"
+      },
+      {
+        "name": "The Never-Pure-Black Rule",
+        "body": "The ground is #0A0E15 in the dark theme; #000000 does not appear. Depth comes from the three neutral steps, not from black.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two-Compositions Rule",
+        "body": "Light is a composed theme (the publication figure), not an inversion. Every token has its own light value; the three-state pattern is the bare `:root` (dark), `@media (prefers-color-scheme:light) :root:not([data-theme=\"dark\"])`, and `:root[data-theme=\"light\"]`, and `color-scheme` is declared in each so native controls follow.",
+        "section": "colors"
+      },
+      {
+        "name": "The Plate-Not-Kicker Rule",
+        "body": "The label that names a zone comes after its heading, on the same baseline, inside a plate; a label above a heading does not exist on this page and is not to be introduced.",
+        "section": "typography"
+      },
+      {
+        "name": "The Figures-Are-Mono Rule",
+        "body": "A number, an id, a path or a command is set in Azeret Mono with tabular numerals; a number in the reading face is a defect.",
+        "section": "typography"
+      },
+      {
+        "name": "The One-Axis-Voice Rule",
+        "body": "Labels are Bricolage at `opsz 12`, `wdth 92`; display is Bricolage at `opsz 96`, `wdth 85–90`. No third setting of the axes, and no tracking on display text beyond the negative values above.",
+        "section": "typography"
+      },
+      {
+        "name": "The One-Shadow Rule",
+        "body": "The `--shadow` token is the only shadow, and the stage is the only element that carries it. A new component earns depth through `layer`/`layer-2` and a rule, not through a new shadow.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do place a zone's name in a plate after its heading (`.sec-head`: h2, then `.plate`), and give every new zone one.",
+      "Do keep the ground at #0A0E15 (#FFFFFF in light) and layer surfaces with `layer` and `layer-2` plus a 1 px `rule`; the stage's shadow is the only shadow.",
+      "Do set every number, id, path and command in Azeret Mono with `tabular-nums`, and every label in Bricolage at `opsz 12`, `wdth 92`, .72rem, uppercase.",
+      "Do colour by meaning only: tracks by type with a dash per type, bars in `energy` at 100 px per dollar, dots and tags by state; pair any signal fill with `on-sig`.",
+      "Do compose both themes through the three-state token pattern and declare `color-scheme` in each; read tokens from `getComputedStyle` when painting a canvas, and repaint on scheme change.",
+      "Do honour reduced motion by settling layout before the first frame and turning every transition off; keep the bloom the only authored moment.",
+      "Do keep the beamline's current item, the current step's rule and its chips in Trigger Yellow; that yellow means \"you are here\" and \"this asks\".",
+      "Do measure before quoting: body contrast, overflow, page weight and console errors come from `tests/visual/shoot.py`, not from this file."
+    ],
+    "donts": [
+      "Don't put a label above a heading (a kicker or eyebrow); the plate after the heading is the only label placement.",
+      "Don't use a gradient, a glow, a blur, glass or a backdrop filter; none exists in the stylesheet.",
+      "Don't add a second shadow token or move the shadow off the stage.",
+      "Don't fill a surface with a signal colour at rest, use `energy` for anything but spend and failure, or use `sig-v` outside the guided-by track.",
+      "Don't invent a fourth face, a fourth axis setting for Bricolage, or a radius outside 2/3/4/6 px (1 px on bars).",
+      "Don't invent users, quotes, prices, adoption numbers or a login form; do not render a number the build has not filled as anything but \"pending\".",
+      "Don't animate anything beyond the bloom, the camera and the 150–320 ms state transitions; nothing reveals on scroll."
+    ]
+  }
+}

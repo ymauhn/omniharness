@@ -7,10 +7,12 @@ templates removed, data-edition="public") and, with --artifact <path>, the membe
 doctype/html/head/body wrappers). --report prints the weight of each edition. Stdlib only; the source keeps its placeholders.
 """
 import argparse
+import base64
 import html
 import json
 import os
 import re
+import subprocess
 import sys
 import zlib
 
@@ -18,7 +20,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))).replace("\\",
 SRC = ROOT + "/site/index.html"
 GUIDES = {"omniharness": ".agents/skills/omniharness/SKILL.md", "skills-graph": ".agents/skills/skills-graph/SKILL.md",
           "scout": ".agents/skills/scout/SKILL.md", "detour": ".agents/skills/detour/SKILL.md",
-          "skill-installer": ".agents/skills/skill-installer/SKILL.md", "plan-example": "docs/scout/portal-v2/PLAN.md"}
+          "skill-installer": ".agents/skills/skill-installer/SKILL.md", "plan-example": "docs/scout/portal-v3/PLAN.md"}
 GITHUB = "https://github.com/ymauhn/omniharness/blob/master/"
 PLUGIN_URL = {"mattpocock-skills": "https://github.com/mattpocock/skills", "ponytail": "https://github.com/ponytail-dev/ponytail"}
 
@@ -47,8 +49,18 @@ def graph_payload(graph):
         plug = next((h[7:] for h in hosts if h.startswith("plugin:")), None)
         return plug or ("repo" if "repo" in hosts else (hosts[0] if hosts else n["ring"]))
     return {"generated": graph["generated"],
-            "nodes": [{"id": n["id"], "ring": n["ring"], "group": group(n), "d": (n.get("description") or "")[:140], "href": href(n)} for n in nodes],
+            "nodes": [{"id": n["id"], "ring": n["ring"], "group": group(n), "d": blurb(n.get("description") or ""), "href": href(n)} for n in nodes],
             "edges": [{"s": e["from"], "t": e["to"], "type": e["type"]} for e in graph["edges"] if e["from"] in ids and e["to"] in ids]}
+
+
+def blurb(text, limit=220):
+    """The first sentences of a description that fit the limit; an ellipsis only when a cut was needed."""
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    end = max(cut.rfind(". "), cut.rfind("; "))
+    return (cut[:end + 1] if end > 60 else cut.rsplit(" ", 1)[0] + "…").strip()
 
 
 def strip_frontmatter(md):
@@ -63,15 +75,42 @@ def build(src, graph, guides, metrics):
                          lambda m: m.group(1) + html.escape(strip_frontmatter(text)) + m.group(2), out, count=1, flags=re.S)
         if not n:
             print(f"warning: no <template data-guide=\"{key}\"> in the source", file=sys.stderr)
-    for key, val in metrics.items():
-        out = re.sub(rf'(<[a-z]+[^>]*data-metric="{re.escape(key)}"[^>]*>).*?(</[a-z]+>)', lambda m: m.group(1) + html.escape(str(val)) + m.group(2), out, flags=re.S)  # every element that carries the key
+    keys = set(re.findall(r'data-metric="([^"]+)"', out))
+    for key in keys:
+        val = metrics.get(key, "not recorded")  # an unresolved metric is said plainly, never left "pending"
+        out = re.sub(rf'(<[a-z]+[^>]*data-metric="{re.escape(key)}"[^>]*>).*?(</[a-z]+>)', lambda m: m.group(1) + html.escape(str(val)) + m.group(2), out, flags=re.S)
     return out
 
 
-def edition(built, kind):
+SHOTS = ("v1", "v2", "v3")
+
+
+def shots(width=720):
+    """Downscale <tag>-1440-light.jpg from site/showcase/v3/shots into site/public/shots with ffmpeg; returns {tag: path}."""
+    src_dir, out_dir = ROOT + "/site/showcase/v3/shots", ROOT + "/site/public/shots"
+    os.makedirs(out_dir, exist_ok=True)
+    out = {}
+    for tag in SHOTS:
+        for scheme in ("light", "dark"):
+            src, dst = f"{src_dir}/{tag}-1440-{scheme}.jpg", f"{out_dir}/{tag}-1440-{scheme}-{width}.jpg"
+            if not os.path.isfile(src):
+                continue
+            if not os.path.isfile(dst) or os.path.getmtime(dst) < os.path.getmtime(src):
+                subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", src, "-vf", f"scale={width}:-2,crop={width}:{int(width*10/16)}:0:0", "-q:v", "6", dst], check=True)
+            out[f"{tag}-{scheme}"] = dst
+    return out
+
+
+def edition(built, kind, shot_paths):
     out = built.replace('<html lang="en">', f'<html lang="en" data-edition="{kind}">', 1)
     if kind == "public":
         out = re.sub(r"<template data-members[^>]*>.*?</template>\s*", "", out, flags=re.S)
+    else:  # one file: the captures ride as data URIs
+        for key, path in shot_paths.items():
+            with open(path, "rb") as f:
+                uri = "data:image/jpeg;base64," + base64.b64encode(f.read()).decode("ascii")
+            tag, scheme = key.rsplit("-", 1)
+            out = out.replace(f'"shots/{tag}-1440-{scheme}-720.jpg"', f'"{uri}"')
     return out
 
 
@@ -94,18 +133,19 @@ def main(argv=None):
     src = read(SRC)
     graph = graph_payload(json.load(open(ROOT + "/docs/skills-graph/graph.json", encoding="utf-8")))
     guides = {k: read(f"{ROOT}/{p}") for k, p in GUIDES.items() if os.path.isfile(f"{ROOT}/{p}")}
-    mpath = ROOT + "/site/showcase/06-metrics.json"
+    mpath = ROOT + "/site/showcase/v3/metrics.json"
     metrics = json.load(open(mpath, encoding="utf-8")) if os.path.isfile(mpath) else {}
     built = build(src, graph, guides, metrics)
     os.makedirs(ROOT + "/site/public", exist_ok=True)
-    pub = edition(built, "public")
+    shot_paths = shots()
+    pub = edition(built, "public", shot_paths)
     with open(ROOT + "/site/public/index.html", "w", encoding="utf-8", newline="\n") as f:
         f.write(pub)
-    members = edition(built, "members")
+    members = edition(built, "members", shot_paths)
     if a.artifact:
         with open(a.artifact, "w", encoding="utf-8", newline="\n") as f:
             f.write(fragment(members))
-    print(f"graph: {len(graph['nodes'])} nodes, {len(graph['edges'])} edges; guides: {', '.join(guides)}; metrics: {len(metrics)} keys")
+    print(f"graph: {len(graph['nodes'])} nodes, {len(graph['edges'])} edges; guides: {', '.join(guides)}; metrics: {len(metrics)} keys; shots: {len(shot_paths)}")
     if a.report:
         for name, doc in (("public", pub), ("members", members)):
             b, z, req = weight(doc)

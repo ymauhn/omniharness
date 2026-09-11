@@ -1,0 +1,78 @@
+{
+ "source": "C:/Users/Yeonatan/master_team/site/public/index.html",
+ "commit": "3c87263",
+ "captured": "2026-09-11T05:08:26Z",
+ "captures": [
+  {
+   "file": "v3-1440-light.jpg",
+   "viewport": [
+    1440,
+    1000
+   ],
+   "scheme": "light",
+   "errors": [],
+   "contrast": 17.98,
+   "overflow": 0,
+   "inked": 18868,
+   "height": 12484,
+   "title": "OmniHarness Community",
+   "nodes_rendered": 86,
+   "nodes_data": 86
+  },
+  {
+   "file": "v3-1440-dark.jpg",
+   "viewport": [
+    1440,
+    1000
+   ],
+   "scheme": "dark",
+   "errors": [],
+   "contrast": 16.27,
+   "overflow": 0,
+   "inked": 17906,
+   "height": 12484,
+   "title": "OmniHarness Community",
+   "nodes_rendered": 86,
+   "nodes_data": 86
+  },
+  {
+   "file": "v3-390-light.jpg",
+   "viewport": [
+    390,
+    844
+   ],
+   "scheme": "light",
+   "errors": [],
+   "contrast": 17.98,
+   "overflow": 0,
+   "inked": 10917,
+   "height": 19260,
+   "title": "OmniHarness Community",
+   "nodes_rendered": 86,
+   "nodes_data": 86
+  },
+  {
+   "file": "v3-390-dark.jpg",
+   "viewport": [
+    390,
+    844
+   ],
+   "scheme": "dark",
+   "errors": [],
+   "contrast": 16.27,
+   "overflow": 0,
+   "inked": 9852,
+   "height": 19260,
+   "title": "OmniHarness Community",
+   "nodes_rendered": 86,
+   "nodes_data": 86
+  }
+ ],
+ "states": {
+  "tooltip_ms": 23,
+  "drawer": true,
+  "filter_count": 3,
+  "copy_label": "copied",
+  "errors_after": []
+ }
+}
