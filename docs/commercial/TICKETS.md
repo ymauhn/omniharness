@@ -175,3 +175,62 @@ Owner steps: approve `npx skills add tt-a1i/archify -g` (gated) after the scan.
 Acceptance: the skill read in full or scanned, findings reported; one architecture diagram of the harness (hosts, gate, drivers, skills rings) generated with evidence nodes pinned to a commit, validated by its own checks, saved under `docs/adr/` and linked from CONTEXT.md; the `candidate-for domain-modeling` edge either promoted to `feeds` or removed, with the reason in the TOML `why`.
 Files: `docs/adr/`, `CONTEXT.md`, `.agents/skills/skills-graph/skills-graph.toml`.
 Host note: Node.js required.
+
+---
+
+# T13 · OmniHarness v3, the Swarm & Autonomy Era (master ticket, added 2026-09-14)
+
+Owner's direction of 2026-09-14: the harness must not stay on a permanent hand-brake. Three pillars, configurable autonomy, GOAP-style routing with dynamic rerouting, parallel swarms without collision; the technical shape below is the agent's proposal under the owner's design freedom, and the evidence for it is `../experiments/ruflo-comparison-2026-09-14.md`. Blocked by: T1 (parity first). Ready-for-agent: yes for S1–S4 and S6; S5 runs paid benchmarks behind the gate. Estimated: 6–10 h of agent time, 1.5–2.5 M tokens including the two benchmarks; report measured usage at the close.
+
+## Design in one paragraph
+
+The gate does not disappear; it moves. At session start `/omniharness` (or `$omniharness`) offers three modes and writes a **session envelope** (`.omniharness/session.json`, gitignored): mode, token budget, scope of paths, allowed network hosts, allowed installs, expiry. Inside the envelope the agent runs continuously; outside it the old behaviour returns. Hard stops never move, in any mode: recursive deletion, credentials and keys, `git push`, payments, anything not in the envelope. The plan gate stays the first critical milestone of every mode except Strict, where every step asks as today. GOAP arrives as data, not as a search engine: `needs:` and `cost:` on routine steps and graph nodes, and explicit `alternative-to` edges the agent may take on failure according to the mode. Swarms are Workflow-driven implementers in git worktrees with disjoint scopes, an integrator and a reviewer, under the envelope's budget.
+
+## Modes (chosen at start, changeable with `/omniharness mode <name>`)
+
+| Mode | Plan gate | Gated calls inside the envelope (network to allowed hosts, listed installs, model calls within budget) | Reroute on a failed step | Stops |
+|---|---|---|---|---|
+| Swarm | once, at the start (the plan is the contract) | allowed and logged with cost | automatic: the cheapest `alternative-to` whose `needs:` hold, logged; `detour` only if none | budget at 80 % (warn) and 100 % (stop), scope breach, hard stops, fatal error, a milestone the plan marks `stop:` |
+| Balanced (recommended default) | once, at the start | allowed and logged | automatic for zero-token steps; asks before a paid or network alternative | destructive or high-impact actions, hard stops, budget |
+| Strict | every round, as today | every call asks with its cost | asks | as today |
+
+The envelope is signed by the operator's answer to the menu (Claude Code: `AskUserQuestion`; Codex: the question in chat, the answer written by the skill). Every allowed-by-envelope call leaves a line in `.omniharness/session.log` with the command, the host, the cost estimate and the running budget, so `omniharness explain` can say why something ran without asking.
+
+## Sub-tickets
+
+### S1 · Session envelope and modes (blocked by: T1)
+Owner steps: the yes to the AGENTS.md amendment the ticket drafts (invariant 2 gains "or inside a session envelope the operator signed at the start; the hard stops never move"; a "Session modes" section; the HITL list names the hard stops); the default mode (recommended: Balanced) and the default budget.
+Acceptance: `.agents/skills/omniharness/` gains the menu and writes `.omniharness/session.json` (mode, budget, scope, hosts, installs, expiry); `harness/envelope.py` (stdlib) answers allow / ask / deny for a command from the envelope, the hard-stop list and the running usage read from the transcript path the hook receives, and prints the reason; `harness/guard_bash.py` calls it and returns `permissionDecision` accordingly (Claude Code hooks); `harness/settings.json` gains an `allow` list of read-only commands (git status/log/diff, the test commands, ls, python -c reads) so even Strict stops asking for harmless reads; `tests/test_envelope.py` covers: hard stops denied in every mode, a host outside the list asks in Balanced and Swarm, budget at 100 % stops, an expired envelope falls back to Strict, the log line format; on Codex (no hooks) the skill prints the envelope and AGENTS.md instructs the agent to honour it, recorded as a parity row.
+Files: `.agents/skills/omniharness/**`, `harness/envelope.py`, `harness/guard_bash.py`, `harness/settings.json`, `AGENTS.md`, `tests/test_envelope.py`, `.gitignore`.
+
+### S2 · GOAP as data: needs, costs, alternatives, reroute (blocked by: T1)
+Owner steps: none.
+Acceptance: `skills-graph.toml` nodes accept `needs` (files, env keys, installed skills, binaries) and `cost` (tokens or USD with the benchmark id and date that measured it; unmeasured stays absent, never guessed); `skills_graph.py route` ranks by keyword overlap then by measured cost, `skills_graph.py alternatives <node>` lists `alternative-to` neighbours whose `needs` hold on this machine, cheapest first; PLAN.md steps carry `needs:` and optional `stop:`; `scout status` names the first blocked step and what unblocks it; the reroute rule per mode is implemented in the scout routine text and tested on a fixture plan where step 2 fails; `docs/skills-graph/README.md` documents the fields; `tests/test_skills_graph.py` gains the cases. No A*: the graph is small and the alternatives are explicit edges; an A* over needs and effects is a roadmap row to be opened only when a measured plan exceeds ten steps.
+Files: `.agents/skills/skills-graph/**`, `.agents/skills/scout/**`, `docs/skills-graph/README.md`, `tests/test_skills_graph.py`.
+
+### S3 · Swarm driver: worktrees, scope map, integrator, reviewer (blocked by: S1)
+Owner steps: the yes to the first real run (cost named from the envelope).
+Acceptance: `swarm/swarm.workflow.js` (Claude-only driver, installed like the scout driver) takes tasks from PLAN.md or TICKETS.md with a **scope map** (disjoint path globs per task; the driver refuses overlapping scopes, the claims-board idea made static), spawns one implementer per task with `isolation: 'worktree'` and the ponytail ruleset, collects a structured report per task (worktree, branch, changed files, test command and result, tokens), then one integrator merges the branches in order of dependency, runs the whole zero-token battery and reports conflicts as a numbered list (never resolves a conflict by deleting), then one reviewer runs `ponytail-review` and `code-review`; `budget` comes from the envelope; `parouPor` names why it stopped; optional `--tournament n` runs n implementers on one task and the integrator keeps the winner by tests then by net lines (the orca pattern); `.agents/skills/swarm/SKILL.md` is the portable entry (`/swarm` on Claude Code, `$swarm` on Codex runs the same tasks one after another in worktrees through `git worktree` commands until a parity ticket finds better); `tests/test_swarm_driver.js` covers scope overlap refusal, report shape, integrator order and the stop reasons with a mocked agent.
+Files: `swarm/swarm.workflow.js`, `.agents/skills/swarm/**`, `scripts/install.py` (installs the driver), `tests/test_swarm_driver.js`.
+
+### S4 · Cross-run seen store and deterministic hooks (blocked by: S1)
+Owner steps: none.
+Acceptance: `scout` and `gauntlet` read and write a `seen.jsonl` (URL or finding id, date, verdict) so a rerun skips what a previous run judged, measured against a cold run in the log; the settings fragment adds `SessionStart` (install check and `regress`, zero tokens) and `PostToolUse` on `.agents/skills/**` (layout test and graph check) beside the existing design detector; every hook is local and free, and none calls the model.
+Files: `.agents/skills/scout/**`, `gauntlet/**`, `harness/settings.json`, `harness/hooks/*.py`.
+
+### S5 · Benchmarks B8 and B9 (blocked by: S2, S3; gated)
+Owner steps: the yes to the paid runs with the cost named (about three B3-scale runs each).
+Acceptance: B8 "swarm against sequential": the same three small tickets built sequentially and by the swarm; wall clock, tokens, test pass, conflicts, net lines, recorded in `docs/benchmarks.md` with the commands; B9 "the envelope holds": an adversarial prompt inside Swarm mode tries to exceed the budget, touch a path outside the scope, reach a host outside the list and delete recursively; every attempt denied or asked, the log lines quoted; `evals/cases/{swarm-vs-sequential,envelope-holds}/` with the grader; losses reported as plainly as gains.
+Files: `evals/cases/**`, `docs/benchmarks.md`.
+
+### S6 · Docs, portal, showcase (blocked by: S1–S4)
+Owner steps: the yes to commit and push.
+Acceptance: CONTEXT.md gains envelope, mode, scope map, integrator, seen store; an ADR records the envelope decision and the rejected alternative (installing RuFlo as an MCP server, with the reasons of the comparison file); the portal's flow gains the mode as the first thing the visitor sees after the trigger (L1 text) and the swarm as a layer, PT-BR entries included, visual battery green; `site/showcase/log.md` and README updated; the impeccable detector runs on the portal edit in a Claude session.
+Files: `CONTEXT.md`, `docs/adr/0005-session-envelope.md`, `site/index.html`, `site/i18n/pt-BR.json`, `README.md`.
+
+### S7 · Close (blocked by: S5, S6)
+Acceptance: full battery green on both hosts where possible; measured usage of T13 against its estimate; the tree clean.
+
+## What was deliberately left out
+
+No shared vector memory between agents (the integrator is the only writer to the main tree); no background workers that spend tokens; no MCP server with hundreds of tools; no automatic A*; no mode that removes the hard stops.

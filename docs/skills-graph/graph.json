@@ -4,7 +4,7 @@
  "root": "C:/Users/Yeonatan/master_team",
  "rings": {
   "installed": 83,
-  "catalog": 403,
+  "catalog": 404,
   "remote": 4
  },
  "remote_sources": [
@@ -2508,6 +2508,14 @@
    "url": "./plugins/rust-analyzer-lsp"
   },
   {
+   "id": "ruvnet/ruflo",
+   "ring": "catalog",
+   "source": "docs/catalog/community-skills.md",
+   "section": "Execution",
+   "description": "meta-harness: ~210 MCP tools, 27 hooks, swarms in 6 topologies with a queen and a claims board, Thompson-sampling model router, GOAP on the product page only; verdict 2026-09-14: not installed, patterns mined for T13 (`docs/experiments/ruflo-comparison-2026-09-14.md`)",
+   "url": "https://github.com/ruvnet/ruflo"
+  },
+  {
    "id": "sagemaker-ai",
    "ring": "catalog",
    "source": "marketplace:claude-plugins-official",
@@ -4936,6 +4944,18 @@
    "type": "candidate-for",
    "to": "ponytail-review",
    "source": "proposal:3"
+  },
+  {
+   "from": "ruvnet/ruflo",
+   "type": "alternative-to",
+   "to": "gauntlet-loop",
+   "source": "proposal:12"
+  },
+  {
+   "from": "ruvnet/ruflo",
+   "type": "alternative-to",
+   "to": "scout",
+   "source": "proposal:13"
   }
  ],
  "warnings": []

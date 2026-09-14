@@ -64,6 +64,12 @@
    "url": "https://github.com/stablyai/orca",
    "list": "owner:2026-09-14",
    "description": "Desktop orchestrator (Electron, macOS/Windows/Linux, mobile companion) that runs many CLI coding agents in parallel, one git worktree each, SSH worktrees for remote runtimes, compare-and-merge the winner, usage and rate-limit tracking per account; MIT; 68.6k stars (read 2026-09-14); a reading for an ADR, not a skill"
+  },
+  {
+   "id": "ruvnet/ruflo",
+   "url": "https://github.com/ruvnet/ruflo",
+   "list": "owner:2026-09-14",
+   "description": "Meta-harness for Claude Code and Codex (formerly Claude Flow): ~210 MCP tools, 27 hooks, 12 auto-triggered workers, swarms in 6 topologies with a queen coordinator, claims board, AgentDB + SQLite + HNSW memory, Thompson-sampling model router; MIT, TypeScript, 72.4k stars, v3.8.0 (read 2026-09-14); not installed, compared in docs/experiments/ruflo-comparison-2026-09-14.md"
   }
  ]
 }
