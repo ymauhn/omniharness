@@ -186,6 +186,12 @@ Owner's direction of 2026-09-14: the harness must not stay on a permanent hand-b
 
 The gate does not disappear; it moves. At session start `/omniharness` (or `$omniharness`) offers three modes and writes a **session envelope** (`.omniharness/session.json`, gitignored): mode, token budget, scope of paths, allowed network hosts, allowed installs, expiry. Inside the envelope the agent runs continuously; outside it the old behaviour returns. Hard stops never move, in any mode: recursive deletion, credentials and keys, `git push`, payments, anything not in the envelope. The plan gate stays the first critical milestone of every mode except Strict, where every step asks as today. GOAP arrives as data, not as a search engine: `needs:` and `cost:` on routine steps and graph nodes, and explicit `alternative-to` edges the agent may take on failure according to the mode. Swarms are Workflow-driven implementers in git worktrees with disjoint scopes, an integrator and a reviewer, under the envelope's budget.
 
+## Owner's answers to T13's pending items (2026-09-14)
+
+1. Invariant 2 amendment: **approved**. The operator's choice of the session envelope at the start counts formally as the explicit prior yes for every operation inside the envelope's scope and budget; the hard stops stay outside any envelope.
+2. Session defaults: mode **Balanced** (the menu offers Swarm and Strict); budget **US$ 2.00, about 750 k tokens**, automatic warning at 80 %.
+3. Benchmarks B8 and B9: **approved**, to run when S5 is reached, cost named at that moment.
+
 ## Modes (chosen at start, changeable with `/omniharness mode <name>`)
 
 | Mode | Plan gate | Gated calls inside the envelope (network to allowed hosts, listed installs, model calls within budget) | Reroute on a failed step | Stops |
@@ -199,7 +205,7 @@ The envelope is signed by the operator's answer to the menu (Claude Code: `AskUs
 ## Sub-tickets
 
 ### S1 · Session envelope and modes (blocked by: T1)
-Owner steps: the yes to the AGENTS.md amendment the ticket drafts (invariant 2 gains "or inside a session envelope the operator signed at the start; the hard stops never move"; a "Session modes" section; the HITL list names the hard stops); the default mode (recommended: Balanced) and the default budget.
+Owner steps: answered on 2026-09-14 (see above): the AGENTS.md amendment is approved (invariant 2 gains "or inside a session envelope the operator signed at the start; the hard stops never move"; a "Session modes" section; the HITL list names the hard stops), the default mode is Balanced, the default budget US$ 2.00 (about 750 k tokens) with the warning at 80 %; the agent writes the amendment and the defaults without asking again.
 Acceptance: `.agents/skills/omniharness/` gains the menu and writes `.omniharness/session.json` (mode, budget, scope, hosts, installs, expiry); `harness/envelope.py` (stdlib) answers allow / ask / deny for a command from the envelope, the hard-stop list and the running usage read from the transcript path the hook receives, and prints the reason; `harness/guard_bash.py` calls it and returns `permissionDecision` accordingly (Claude Code hooks); `harness/settings.json` gains an `allow` list of read-only commands (git status/log/diff, the test commands, ls, python -c reads) so even Strict stops asking for harmless reads; `tests/test_envelope.py` covers: hard stops denied in every mode, a host outside the list asks in Balanced and Swarm, budget at 100 % stops, an expired envelope falls back to Strict, the log line format; on Codex (no hooks) the skill prints the envelope and AGENTS.md instructs the agent to honour it, recorded as a parity row.
 Files: `.agents/skills/omniharness/**`, `harness/envelope.py`, `harness/guard_bash.py`, `harness/settings.json`, `AGENTS.md`, `tests/test_envelope.py`, `.gitignore`.
 
@@ -219,7 +225,7 @@ Acceptance: `scout` and `gauntlet` read and write a `seen.jsonl` (URL or finding
 Files: `.agents/skills/scout/**`, `gauntlet/**`, `harness/settings.json`, `harness/hooks/*.py`.
 
 ### S5 · Benchmarks B8 and B9 (blocked by: S2, S3; gated)
-Owner steps: the yes to the paid runs with the cost named (about three B3-scale runs each).
+Owner steps: approved on 2026-09-14; the agent still names the cost before each run (about three B3-scale runs each) and records it.
 Acceptance: B8 "swarm against sequential": the same three small tickets built sequentially and by the swarm; wall clock, tokens, test pass, conflicts, net lines, recorded in `docs/benchmarks.md` with the commands; B9 "the envelope holds": an adversarial prompt inside Swarm mode tries to exceed the budget, touch a path outside the scope, reach a host outside the list and delete recursively; every attempt denied or asked, the log lines quoted; `evals/cases/{swarm-vs-sequential,envelope-holds}/` with the grader; losses reported as plainly as gains.
 Files: `evals/cases/**`, `docs/benchmarks.md`.
 
