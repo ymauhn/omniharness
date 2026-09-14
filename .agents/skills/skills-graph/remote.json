@@ -1,7 +1,8 @@
 {
- "fetched": "2026-09-11",
+ "fetched": "2026-09-14",
  "sources": [
-  "scout:portal-v2 (docs/scout/portal-v2/dossier.md)"
+  "scout:portal-v2 (docs/scout/portal-v2/dossier.md)",
+  "owner brief 2026-09-14, six WebFetch reads approved at D1 (docs/scout/context-ingestion/pre-scout.md)"
  ],
  "entries": [
   {
@@ -27,6 +28,42 @@
    "url": "https://github.com/robinmoisson/staticrypt",
    "list": "scout:portal-v2",
    "description": "Password-protect a static HTML page (AES via WebCrypto); brute-force caveat; 8,034 stars"
+  },
+  {
+   "id": "unclecode/crawl4ai",
+   "url": "https://github.com/unclecode/crawl4ai",
+   "list": "owner:2026-09-14",
+   "description": "Open-source LLM-friendly crawler: pages to clean markdown, JSON, CSS/XPath/LLM extraction; Playwright Chromium under the hood, raw-HTML and file:// modes; Docker REST server with MCP; no key; Apache-2.0, Python; 83.5k stars, v0.9.3 (read 2026-09-14)"
+  },
+  {
+   "id": "bradautomates/claude-video",
+   "url": "https://github.com/bradautomates/claude-video",
+   "list": "owner:2026-09-14",
+   "description": "Agent skill /watch: yt-dlp download (YouTube, Instagram, X, TikTok, Loom, local files), ffmpeg frames with keyframe/scene/uniform modes and a frame budget by duration, captions via yt-dlp free, Whisper fallback through Groq or OpenAI API keys; Claude Code plugin marketplace or npx skills add; Codex and 50+ hosts; MIT; 17.2k stars (read 2026-09-14)"
+  },
+  {
+   "id": "abi/screenshot-to-code",
+   "url": "https://github.com/abi/screenshot-to-code",
+   "list": "owner:2026-09-14",
+   "description": "Screenshot or screen recording to HTML+Tailwind, React, Vue, Bootstrap, Ionic; FastAPI + React app needing at least one of OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY (Replicate recommended); hosted paid version at screenshottocode.com; MIT; 78.8k stars (read 2026-09-14)"
+  },
+  {
+   "id": "tt-a1i/archify",
+   "url": "https://github.com/tt-a1i/archify",
+   "list": "owner:2026-09-14",
+   "description": "Agent skill for architecture, workflow, sequence, data-flow and lifecycle diagrams as self-contained HTML+SVG with PNG/WebM export; evidence nodes pin git-verified files and line ranges to one commit; schema/layout/route validation before delivery; Node.js; npx skills add tt-a1i/archify -g; Claude Code, Codex CLI, Cursor, OpenCode; MIT; 62.1k stars, v2.17.0-dev (read 2026-09-14)"
+  },
+  {
+   "id": "calesthio/openmontage",
+   "url": "https://github.com/calesthio/openmontage",
+   "list": "owner:2026-09-14",
+   "description": "Agentic video production system: 12 pipelines (Animated Explainer, Screen Demo, Talking Head, Podcast Repurpose, Clip Factory, Documentary Montage, Localization & Dub, ...), 100+ tools, 700+ skill and knowledge files under skills/{pipelines,creative,core,meta}; Remotion, HyperFrames, FFmpeg; Python 3.10+, Node 18+; offline path with Piper TTS and free stock; 60+ paid providers optional; example cost $1-5 per video; Claude Code, Codex, Cursor, Copilot, Windsurf; AGPL-3.0; 59k stars (read 2026-09-14; the owner's brief said lesthio/, the real path is calesthio/)"
+  },
+  {
+   "id": "stablyai/orca",
+   "url": "https://github.com/stablyai/orca",
+   "list": "owner:2026-09-14",
+   "description": "Desktop orchestrator (Electron, macOS/Windows/Linux, mobile companion) that runs many CLI coding agents in parallel, one git worktree each, SSH worktrees for remote runtimes, compare-and-merge the winner, usage and rate-limit tracking per account; MIT; 68.6k stars (read 2026-09-14); a reading for an ADR, not a skill"
   }
  ]
 }

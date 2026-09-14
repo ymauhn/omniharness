@@ -19,6 +19,7 @@ Installed or native first (AGENTS.md invariant 3: "Default to the model's native
 | imbue-ai/blueprint | steering | MIT | npx or copy | none | https://github.com/imbue-ai/blueprint | asks clarifying questions, emits an executable markdown plan; the README's curl-piped-to-bash path must not be used, intake by copy |
 | anthropics/skills skill-creator | steering | Apache-2.0 | plugin (`example-skills@anthropic-agent-skills`) | eval runs spend model tokens (gate) | https://github.com/anthropics/skills/tree/main/skills/skill-creator | template, eval viewer and scripts for writing and benchmarking SKILL.md files |
 | ykdojo/claude-code-tips dx | steering | open-source (license not stated in survey) | plugin (`dx@ykdojo`) | none; reddit-fetch and hn-summarize reach the network | https://github.com/ykdojo/claude-code-tips | handoff, half-clone/quarter-clone context trimming, gha CI-failure triage |
+| tt-a1i/archify | steering | MIT | `npx skills add tt-a1i/archify -g` (gated); Node.js | none stated | https://github.com/tt-a1i/archify | architecture, workflow, sequence, data-flow and lifecycle diagrams as self-contained HTML+SVG with PNG/WebM export; evidence nodes pin git-verified file and line ranges to a commit; validation before delivery; candidate for `docs/adr` diagrams and the portal; read 2026-09-14 |
 
 ## Execution
 
@@ -30,6 +31,7 @@ Installed or native first (AGENTS.md invariant 3: "Default to the model's native
 | trailofbits/skills differential-review, variant-analysis | execution | CC-BY-SA-4.0 (share-alike) | plugin or copy | none | https://github.com/trailofbits/skills | diff review with git history, variant analysis, property-based and mutation testing; SECURITY-RELEVANT (runs local tools) |
 | getsentry/skills | execution | Apache-2.0 | plugin (`sentry-skills@sentry-skills`) or npx | Sentry account only when reading Sentry data | https://github.com/getsentry/skills | sentry-code-review, sentry-pr-code-review, sentry-create-alert |
 | anthropics/skills mcp-builder | execution | Apache-2.0 | plugin | none | https://github.com/anthropics/skills/tree/main/skills/mcp-builder | reference and scripts for building an MCP server the harness can adapt |
+| stablyai/orca | execution | MIT | desktop app (DMG/EXE/AppImage) or CLI; not for install here | the agents' own subscriptions | https://github.com/stablyai/orca | reference for multi-agent execution: one git worktree per agent, SSH worktrees for remote runtimes, compare-and-merge, per-account usage tracking; a reading for an ADR against our Workflow drivers; read 2026-09-14 |
 
 ## Design stack (frontend)
 
@@ -38,6 +40,7 @@ Two entries that work as one pipeline, added 2026-09-10 at the owner's request. 
 | Skill or collection | Layer | License | Install | Keys / credits | URL | Notes |
 |---|---|---|---|---|---|---|
 | pbakaus/impeccable | execution | Apache-2.0 | plugin (`/plugin marketplace add pbakaus/impeccable`) or copy (`dist/claude-code/.claude` into the project) | none; deterministic, no network at use time; `npx impeccable detect` needs a local Chrome, Chromium or Edge | https://github.com/pbakaus/impeccable | 23 commands (craft, init, document, extract, shape, critique, audit, polish, bolder, quieter, distill, harden, onboard, animate, colorize, typeset, layout, delight, overdrive, clarify, adapt, optimize, live); ships `.impeccable/config.json`, `design.json`, `surfaces/*.md`; supports Claude Code, Codex CLI, Hermes Agent, Cursor and 13 others; not installed on the reference machine |
+| abi/screenshot-to-code | design | MIT | FastAPI backend (poetry) + React frontend (pnpm) or Docker Compose (gated); hosted paid version exists | at least one of OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY; Replicate recommended (credits) | https://github.com/abi/screenshot-to-code | screenshot or screen recording to HTML+Tailwind, React, Vue, Bootstrap, Ionic; catalog row only: the model's native vision plus DESIGN.md covers the job in this harness; read 2026-09-14 |
 
 ## Academic
 
@@ -62,6 +65,7 @@ Two entries that work as one pipeline, added 2026-09-10 at the owner's request. 
 | firecrawl/skills | ingestion | ISC | npx or copy | FIRECRAWL_API_KEY; free plan 1,000 credits/month, 2 concurrent, scrape 10/min, crawl 2/min, no card (firecrawl.dev/pricing 2026-09-10) | https://github.com/firecrawl/skills | scrape/crawl/interact/deep-research/SEO-audit; gated by name in AGENTS.md and `Bash(firecrawl:*)`; WebFetch first |
 | yusufkaraaslan/Skill_Seekers | ingestion | MIT | `pip install skill-seekers` (gated) | core free; optional LLM enhancement needs Anthropic/Gemini/OpenAI keys | https://github.com/yusufkaraaslan/Skill_Seekers | docs sites, repos, PDFs, videos into SKILL.md packages; large dependency surface, intake carefully |
 | Xquik-dev/x-twitter-scraper | ingestion | MIT (skill) | copy | Xquik key, $0.00015 per tweet, no free tier stated | https://github.com/Xquik-dev/x-twitter-scraper | public X reads without an X account; README warns never to hand cookies or passwords to an agent; overlaps Agent-Reach |
+| unclecode/crawl4ai | ingestion | Apache-2.0 | `pip install -U crawl4ai` + `crawl4ai-setup` (gated), or the Docker server (gated) | none for the open-source library; Playwright Chromium runs locally; keeps browser sessions and proxies, so a logged-in read is the owner's decision behind the gate | https://github.com/unclecode/crawl4ai | pages to LLM-ready markdown and structured JSON; REST + MCP from the Docker image; fetch layer of `ingest --route=session` and a scout source adapter; read 2026-09-14 |
 
 ## Multimodal
 
@@ -72,6 +76,8 @@ Two entries that work as one pipeline, added 2026-09-10 at the owner's request. 
 | video-db/skills | multimodal | MIT (skills) | npx or plugin | VIDEO_DB_API_KEY; $20 free credits, no card (README 2026-09-10) | https://github.com/video-db/skills | server-side video capture, search, edit, stream |
 | remotion-dev/skills | multimodal | not stated on README (Remotion itself has a company license) | npx or copy | none; local rendering | https://github.com/remotion-dev/skills | programmatic React video: create, markup, render, captions, maps; needs Node and npm packages (install gated) |
 | anthropics/skills canvas-design, algorithmic-art, slack-gif-creator | multimodal | Apache-2.0 | plugin | none | https://github.com/anthropics/skills/tree/main/skills | PNG/PDF design, p5.js seeded art, Slack-sized GIFs with no paid provider |
+| bradautomates/claude-video | multimodal | MIT | plugin marketplace `bradautomates/claude-video` or `npx skills add` (gated); needs yt-dlp and ffmpeg | captions free via yt-dlp; Whisper fallback needs a Groq or OpenAI key (credits) | https://github.com/bradautomates/claude-video | /watch: frames by keyframe, scene or uniform mode with a budget by duration; alternative to the local yt-dlp + ffmpeg + faster-whisper recipe, which keeps transcription keyless; read 2026-09-14 |
+| calesthio/openmontage | multimodal | AGPL-3.0 (network-use clause: relevant to anything served to members) | `git clone` + `make setup` (gated); intake a subset of `skills/pipelines/` (Animated Explainer, Screen Demo) with the scanner, never the 700 files | offline path: Piper TTS, Archive.org, Pexels/Unsplash/Pixabay free keys; 60+ paid providers optional; $1-5 per video quoted by the README | https://github.com/calesthio/openmontage | curated subset only: markdown or script to narrated explainer and screen demo; the owner's D3: subset, not the collection; the brief's `lesthio/` path is a 404, `calesthio/` is the project; read 2026-09-14 |
 
 ## Security and growth
 

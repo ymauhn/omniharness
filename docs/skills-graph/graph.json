@@ -1,10 +1,10 @@
 {
- "generated": "2026-09-11",
+ "generated": "2026-09-14",
  "home": "C:/Users/Yeonatan",
  "root": "C:/Users/Yeonatan/master_team",
  "rings": {
   "installed": 83,
-  "catalog": 397,
+  "catalog": 403,
   "remote": 4
  },
  "remote_sources": [
@@ -17,7 +17,7 @@
   "https://skills.sh",
   "https://agentskills.io"
  ],
- "remote_fetched": "2026-09-11",
+ "remote_fetched": "2026-09-14",
  "nodes": [
   {
    "id": "21st-magic-mcp",
@@ -42,6 +42,14 @@
    "category": "security",
    "description": "Automate API security directly in Claude Code with 42Crunch - automatically audit OpenAPI specs, detect vulnerabilities aligned with OWASP API Security risks (including BOLA/BFLA), and apply AI-powered fixes. Designed for AI-assisted development workflows, it provides continuous guardrails through a",
    "url": "https://42crunch.com"
+  },
+  {
+   "id": "abi/screenshot-to-code",
+   "ring": "catalog",
+   "source": "docs/catalog/community-skills.md",
+   "section": "Design stack (frontend)",
+   "description": "screenshot or screen recording to HTML+Tailwind, React, Vue, Bootstrap, Ionic; catalog row only: the model's native vision plus DESIGN.md covers the job in this harness; read 2026-09-14",
+   "url": "https://github.com/abi/screenshot-to-code"
   },
   {
    "id": "activecampaign",
@@ -500,6 +508,14 @@
    "url": "https://github.com/box/box-for-ai"
   },
   {
+   "id": "bradautomates/claude-video",
+   "ring": "catalog",
+   "source": "docs/catalog/community-skills.md",
+   "section": "Multimodal",
+   "description": "/watch: frames by keyframe, scene or uniform mode with a budget by duration; alternative to the local yt-dlp + ffmpeg + faster-whisper recipe, which keeps transcription keyless; read 2026-09-14",
+   "url": "https://github.com/bradautomates/claude-video"
+  },
+  {
    "id": "brave-search-api",
    "ring": "catalog",
    "source": "docs/catalog/free-tiers.md",
@@ -546,6 +562,14 @@
    "category": "development",
    "description": "Official Buildkite skills for Claude Code, Cursor, and other AI coding agents — pipelines, migration, preflight, agent runtime, CLI, and API",
    "url": "https://buildkite.com"
+  },
+  {
+   "id": "calesthio/openmontage",
+   "ring": "catalog",
+   "source": "docs/catalog/community-skills.md",
+   "section": "Multimodal",
+   "description": "curated subset only: markdown or script to narrated explainer and screen demo; the owner's D3: subset, not the collection; the brief's `lesthio/` path is a 404, `calesthio/` is the project; read 2026-09-14",
+   "url": "https://github.com/calesthio/openmontage"
   },
   {
    "id": "canva",
@@ -2716,6 +2740,14 @@
    "url": "https://github.com/spotify/ads-claude-plugin"
   },
   {
+   "id": "stablyai/orca",
+   "ring": "catalog",
+   "source": "docs/catalog/community-skills.md",
+   "section": "Execution",
+   "description": "reference for multi-agent execution: one git worktree per agent, SSH worktrees for remote runtimes, compare-and-merge, per-account usage tracking; a reading for an ADR against our Workflow drivers; read 2026-09-14",
+   "url": "https://github.com/stablyai/orca"
+  },
+  {
    "id": "stackhawk-api",
    "ring": "catalog",
    "source": "marketplace:claude-plugins-official",
@@ -2900,6 +2932,14 @@
    "url": "https://trigger.dev"
   },
   {
+   "id": "tt-a1i/archify",
+   "ring": "catalog",
+   "source": "docs/catalog/community-skills.md",
+   "section": "Steering and memory",
+   "description": "architecture, workflow, sequence, data-flow and lifecycle diagrams as self-contained HTML+SVG with PNG/WebM export; evidence nodes pin git-verified file and line ranges to a commit; validation before delivery; candidate for `docs/adr` diagrams and the portal; read 2026-09-14",
+   "url": "https://github.com/tt-a1i/archify"
+  },
+  {
    "id": "turso",
    "ring": "catalog",
    "source": "docs/catalog/free-tiers.md",
@@ -2954,6 +2994,14 @@
    "category": "development",
    "description": "SAPUI5 / OpenUI5 plugin for coding agents. Convert JavaScript based UI5 projects to TypeScript.",
    "url": "https://github.com/UI5/plugins-coding-agents"
+  },
+  {
+   "id": "unclecode/crawl4ai",
+   "ring": "catalog",
+   "source": "docs/catalog/community-skills.md",
+   "section": "Ingestion",
+   "description": "pages to LLM-ready markdown and structured JSON; REST + MCP from the Docker image; fetch layer of `ingest --route=session` and a scout source adapter; read 2026-09-14",
+   "url": "https://github.com/unclecode/crawl4ai"
   },
   {
    "id": "unity",
@@ -4295,7 +4343,7 @@
    "list": "scout:portal-v2",
    "description": "Agent skill (Claude Code, Codex) for scroll-driven websites: fixed engine plus theme tokens, eight page grammars, progress as a CSS custom property; 2,309 stars, pushed 2026-09-04",
    "ring": "remote",
-   "fetched": "2026-09-11"
+   "fetched": "2026-09-14"
   },
   {
    "id": "robinmoisson/staticrypt",
@@ -4303,7 +4351,7 @@
    "list": "scout:portal-v2",
    "description": "Password-protect a static HTML page (AES via WebCrypto); brute-force caveat; 8,034 stars",
    "ring": "remote",
-   "fetched": "2026-09-11"
+   "fetched": "2026-09-14"
   },
   {
    "id": "russellsamora/scrollama",
@@ -4311,7 +4359,7 @@
    "list": "scout:portal-v2",
    "description": "Scrollytelling with IntersectionObserver, no build; 6,002 stars",
    "ring": "remote",
-   "fetched": "2026-09-11"
+   "fetched": "2026-09-14"
   },
   {
    "id": "vasturiano/force-graph",
@@ -4319,7 +4367,7 @@
    "list": "scout:portal-v2",
    "description": "Force-directed graph on HTML5 canvas, UMD, dagMode; 2,116 stars",
    "ring": "remote",
-   "fetched": "2026-09-11"
+   "fetched": "2026-09-14"
   }
  ],
  "edges": [
@@ -4827,6 +4875,48 @@
    "type": "feeds",
    "to": "skills-graph",
    "why": "register writes the tool's measured status into the curated half",
+   "source": "curated"
+  },
+  {
+   "from": "unclecode/crawl4ai",
+   "type": "feeds",
+   "to": "scout",
+   "why": "pre-scout triage 2026-09-14, docs/scout/context-ingestion/pre-scout.md; repository not fetched yet, the six WebFetch reads wait on the owner's yes; LLM-ready markdown per page cuts scout's per-source tokens; Apache-2.0, Python, Playwright under the hood",
+   "source": "curated"
+  },
+  {
+   "from": "unclecode/crawl4ai",
+   "type": "alternative-to",
+   "to": "firecrawl",
+   "why": "pre-scout triage 2026-09-14, docs/scout/context-ingestion/pre-scout.md; repository not fetched yet, the six WebFetch reads wait on the owner's yes; self-hosted and keyless where Firecrawl is hosted with a key",
+   "source": "curated"
+  },
+  {
+   "from": "bradautomates/claude-video",
+   "type": "alternative-to",
+   "to": "video-db/skills",
+   "why": "pre-scout triage 2026-09-14, docs/scout/context-ingestion/pre-scout.md; repository not fetched yet, the six WebFetch reads wait on the owner's yes; owner's brief: frames + transcript so the model watches a video; overlaps the ffmpeg + faster-whisper recipe; capabilities unverified",
+   "source": "curated"
+  },
+  {
+   "from": "abi/screenshot-to-code",
+   "type": "alternative-to",
+   "to": "frontend-design",
+   "why": "pre-scout triage 2026-09-14, docs/scout/context-ingestion/pre-scout.md; repository not fetched yet, the six WebFetch reads wait on the owner's yes; hosted app with its own vision-model keys (credits); Claude's native vision plus DESIGN.md covers the same job, so catalog row, not install",
+   "source": "curated"
+  },
+  {
+   "from": "tt-a1i/archify",
+   "type": "candidate-for",
+   "to": "domain-modeling",
+   "why": "read 2026-09-14 (remote.json, catalog row): git-verified evidence nodes and validated HTML+SVG make it a fit for docs/adr and CONTEXT.md diagrams; intake with the scanner first",
+   "source": "curated"
+  },
+  {
+   "from": "calesthio/openmontage",
+   "type": "alternative-to",
+   "to": "higgsfield-video-explainer",
+   "why": "read 2026-09-14 (remote.json, catalog row): Animated Explainer and Screen Demo pipelines with an offline path (Piper TTS); AGPL-3.0; the owner's D3: curated subset only",
    "source": "curated"
   },
   {

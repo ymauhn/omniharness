@@ -166,3 +166,39 @@ id = "impeccable"
 ring = "installed"
 url = "https://github.com/pbakaus/impeccable"
 status = "installed"
+
+[[edge]]  # approved 2026-09-14 from proposal 4
+from = "unclecode/crawl4ai"
+type = "feeds"
+to = "scout"
+why = "pre-scout triage 2026-09-14, docs/scout/context-ingestion/pre-scout.md; repository not fetched yet, the six WebFetch reads wait on the owner's yes; LLM-ready markdown per page cuts scout's per-source tokens; Apache-2.0, Python, Playwright under the hood"
+
+[[edge]]  # approved 2026-09-14 from proposal 5
+from = "unclecode/crawl4ai"
+type = "alternative-to"
+to = "firecrawl"
+why = "pre-scout triage 2026-09-14, docs/scout/context-ingestion/pre-scout.md; repository not fetched yet, the six WebFetch reads wait on the owner's yes; self-hosted and keyless where Firecrawl is hosted with a key"
+
+[[edge]]  # approved 2026-09-14 from proposal 6
+from = "bradautomates/claude-video"
+type = "alternative-to"
+to = "video-db/skills"
+why = "pre-scout triage 2026-09-14, docs/scout/context-ingestion/pre-scout.md; repository not fetched yet, the six WebFetch reads wait on the owner's yes; owner's brief: frames + transcript so the model watches a video; overlaps the ffmpeg + faster-whisper recipe; capabilities unverified"
+
+[[edge]]  # approved 2026-09-14 from proposal 7
+from = "abi/screenshot-to-code"
+type = "alternative-to"
+to = "frontend-design"
+why = "pre-scout triage 2026-09-14, docs/scout/context-ingestion/pre-scout.md; repository not fetched yet, the six WebFetch reads wait on the owner's yes; hosted app with its own vision-model keys (credits); Claude's native vision plus DESIGN.md covers the same job, so catalog row, not install"
+
+[[edge]]  # approved 2026-09-14 from proposal 10
+from = "tt-a1i/archify"
+type = "candidate-for"
+to = "domain-modeling"
+why = "read 2026-09-14 (remote.json, catalog row): git-verified evidence nodes and validated HTML+SVG make it a fit for docs/adr and CONTEXT.md diagrams; intake with the scanner first"
+
+[[edge]]  # approved 2026-09-14 from proposal 11
+from = "calesthio/openmontage"
+type = "alternative-to"
+to = "higgsfield-video-explainer"
+why = "read 2026-09-14 (remote.json, catalog row): Animated Explainer and Screen Demo pipelines with an offline path (Piper TTS); AGPL-3.0; the owner's D3: curated subset only"

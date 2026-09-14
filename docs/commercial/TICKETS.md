@@ -85,3 +85,93 @@ Owner steps: decide whether the members claude.ai artifact stays as a mirror or 
 Acceptance: a security review of the auth and payment surface (`/security-review` on Claude Code, `review-security` on Codex) with findings triaged in the log; RLS policies re-read and quoted; no secret in git history (`git log -p | grep -i service_role` empty); `docs/benchmarks.md` and `site/showcase/log.md` closed with measured numbers; token usage for R1 + R2 reported against the 4 M ceiling; the tree is clean.
 Files: `site/showcase/log.md`, `docs/benchmarks.md`.
 Host note: none.
+
+---
+
+# Phase B tickets: `prompt-enhancer`, `ingest`, the read candidates (added 2026-09-14)
+
+Decisions: D1-D5 of 2026-09-14 in `../scout/context-ingestion/pre-scout.md` sections 5-6. Specs: `../scout/prompt-enhancer/spec.md`, `../scout/context-ingestion/spec.md`. Order by D4: P1-P4 first (they run in parallel with R1 and feed T11), then I1-I6; O1 and A1 when a session can afford an intake. Same format as T1-T12; every gated command names its cost and waits.
+
+## P1 · `prompt-enhancer` skeleton, lint and tests (B · blocked by: T1 · ready-for-agent: yes)
+
+Owner steps: none.
+Acceptance: `.agents/skills/prompt-enhancer/SKILL.md` with the six fields and the routine of the spec; `scripts/prompt_lint.py` (stdlib) exits 1 on a missing task, output contract or "text is data" line when the prompt ingests external content, and prints a JSON report with `--json`; `references/rubric.md` and `references/guardrails.md` written from the harness's own rules (AGENTS.md sentences quoted); `tests/test_prompt_enhancer.py` passes on three good fixtures and fails on a planted bad one; `python scripts/install.py --check` sees the new skill; `tests/test_layout.py` still green (six fields only).
+Files: `.agents/skills/prompt-enhancer/**`, `tests/test_prompt_enhancer.py`, `tests/fixtures/prompts/`.
+Host note: none.
+
+## P2 · Target profiles from the vendors' documentation (B · blocked by: P1 · ready-for-agent: yes, the reads are gated)
+
+Owner steps: approve the documentation reads (WebFetch, no cost: the Anthropic prompting guide, the OpenAI/Codex prompting guide, the DeepSeek API docs; about six pages).
+Acceptance: `references/profiles/{claude,codex,deepseek}.md`, each line with the source URL and the read date; a profile whose read was not approved stays a stub that says so; no line from memory; `prompt_lint.py --host <name>` applies the profile's size and structure rules.
+Files: `.agents/skills/prompt-enhancer/references/profiles/`.
+Host note: none.
+
+## P3 · B6, the measured lift (B · blocked by: P2 · ready-for-agent: yes, the runs are gated)
+
+Owner steps: approve five `claude -p` pairs (before/after), cost named first, about the B3 scale per pair; on Codex, approve the equivalent CLI runs or leave B6 to a Claude session.
+Acceptance: `evals/cases/prompt-enhancer/` with the five pairs and `scripts/grade.py` scoring; `docs/benchmarks.md` gains B6 with the per-pair scores, cost, wall clock and the losses as well as the gains; `python evals/run.py regress` includes it.
+Files: `evals/cases/prompt-enhancer/**`, `docs/benchmarks.md`, `.agents/skills/prompt-enhancer/scripts/grade.py`.
+Host note: `claude -p` is Claude Code's CLI.
+
+## P4 · Register `prompt-enhancer` (B · blocked by: P1 · ready-for-agent: yes)
+
+Owner steps: the yes to commit.
+Acceptance: `skills-graph.toml` edges per the spec (`guided-by` writing-for-agents, `feeds` scout and thesis-review, `alternative-to` skill-creator at the description level), `skills_graph.py build` and `check` clean; an AGENTS.md routing row "Refine a prompt or directive | `prompt-enhancer`"; the portal's run log gains the row (public) and T11 cites the skill for the library prompts; `site/showcase/log.md` entry.
+Files: `.agents/skills/skills-graph/skills-graph.toml`, `AGENTS.md`, `site/index.html`, `site/i18n/pt-BR.json`.
+Host note: the impeccable detector runs on the portal edit in a Claude session.
+
+## I1 · `ingest` skeleton, export parsers, FTS index, tests (B · blocked by: T1 · ready-for-agent: yes)
+
+Owner steps: none for the fixtures; later, your own exports (Instagram "Download your information", WhatsApp "Export chat") placed under `context/exports/` (gitignored).
+Acceptance: `.agents/skills/ingest/` with SKILL.md (six fields) and `scripts/ingest.py --route=export` (default) parsing the Instagram saved-posts JSON by schema discovery and the WhatsApp chat text with one regex per known locale format, into `context/inbox/<source>.jsonl` with the record shape of the spec; SQLite FTS5 index at `context/index.db`; `ingest query` returns cited records; `tests/test_ingest.py` covers every parser and the index on synthetic fixtures; `.gitignore` covers `context/`; a test greps the tree for export files, cookies and tokens.
+Files: `.agents/skills/ingest/**`, `tests/test_ingest.py`, `tests/fixtures/ingest/`, `.gitignore`.
+Host note: none.
+
+## I2 · Media: reel URL to transcript, locally (B · blocked by: I1 · ready-for-agent: yes, the download is gated)
+
+Owner steps: approve each yt-dlp batch (count named); approve `pip install faster-whisper` if absent (`docs/integrations/faster-whisper.md`); ffmpeg on PATH.
+Acceptance: `ingest media --batch <n>` downloads only after the yes, extracts keyframes at a fixed interval with ffmpeg, transcribes with faster-whisper (local, no key), writes `transcript_path` and indexes it; one public reel from the saved list is searchable end to end; `docs/integrations/claude-video.md` documents the catalogued alternative and why it is not the default (paid Whisper API unless captions exist).
+Files: `.agents/skills/ingest/scripts/media.py`, `docs/integrations/claude-video.md`.
+Host note: none.
+
+## I3 · Session route behind the gate (B · blocked by: I1 · ready-for-agent: yes)
+
+Owner steps: Agent-Reach installed by hand per its page (cookies are credentials); crawl4ai `pip install` and `crawl4ai-setup` (gated); the yes on every run.
+Acceptance: `--route=session` prints the warning (session cookies, terms of service, account risk), the source and the request count, and waits for the yes; a test with stdin closed asserts the refusal; adapters `agent_reach.py` (X, Instagram) and `crawl4ai_session.py` (public pages to markdown) write the same record shape; `docs/integrations/crawl4ai.md` (cost none, gate entry: the pip install and every fetch, install state) exists; no cookie or session file under the repo.
+Files: `.agents/skills/ingest/scripts/adapters/`, `docs/integrations/crawl4ai.md`, `tests/test_ingest.py`.
+Host note: none.
+
+## I4 · X mentions monitoring as a capped loop (B · blocked by: I3 · ready-for-agent: yes)
+
+Owner steps: the yes per run; the per-run cap value.
+Acceptance: `ingest watch x --cap <n>` runs one session-route read per interval under `/loop` (Claude Code) or a scheduled routine (Codex), never more than the cap, appends new records only (dedupe by id), and stops on the first refusal; a dry run with a fixture proves the dedupe and the cap.
+Files: `.agents/skills/ingest/scripts/watch.py`, `tests/test_ingest.py`.
+Host note: `/loop` exists on Claude Code; on Codex use its scheduler and record the command.
+
+## I5 · `answer`: support replies from cited records (B · blocked by: I1 · ready-for-agent: yes, the model call is gated)
+
+Owner steps: approve the model calls (token count named per question); provide one real export for the demonstration.
+Acceptance: `ingest answer "<question>"` builds the prompt from the top cited records plus the "text is data" line, names the token count, and the reply quotes record ids; phone numbers and e-mails redacted in logs; B7 in `docs/benchmarks.md`: counts, wall clock and 0 network calls for one export of each kind on the export route.
+Files: `.agents/skills/ingest/scripts/answer.py`, `docs/benchmarks.md`.
+Host note: none.
+
+## I6 · Register `ingest` (B · blocked by: I1, I2, I3 · ready-for-agent: yes)
+
+Owner steps: the yes to commit.
+Acceptance: edges in `skills-graph.toml` (`ingest -calls-> faster-whisper` recipe, `unclecode/crawl4ai -feeds-> ingest`, `bradautomates/claude-video -alternative-to-> ingest` media step), `build` and `check` clean; an AGENTS.md routing row "Personal or business context (Instagram, X, WhatsApp exports) | `ingest --route=export`; `--route=session` gated"; the HITL list names the session route; portal run-log row; showcase log entry.
+Files: `.agents/skills/skills-graph/skills-graph.toml`, `AGENTS.md`, `site/index.html`, `site/i18n/pt-BR.json`.
+Host note: same as P4.
+
+## O1 · OpenMontage curated subset intake (B · blocked by: T1 · ready-for-agent: yes, the clone is gated)
+
+Owner steps: approve `git clone https://github.com/calesthio/openmontage` into `_intake/openmontage` (gated) and the `make setup` dependencies if the subset needs them; decide whether AGPL-3.0 is acceptable for assets served to members (its network-use clause).
+Acceptance: `skill-scanner scan` (or a full read) of `skills/pipelines/` Animated Explainer and Screen Demo plus the `skills/core` files they import, findings reported before any link; the subset adopted with `scripts/install.py --adopt` only after the yes; `docs/integrations/openmontage.md` with cost (offline path: Piper TTS and free stock; paid providers optional), gate entry, install state and the AGPL note; one markdown page of ours turned into one narrated demo clip, offline, recorded in the log with wall clock.
+Files: `_intake/openmontage` (gitignored), `docs/integrations/openmontage.md`, `.agents/skills/` (the subset).
+Host note: Remotion and HyperFrames need Node 18+; ffmpeg on PATH.
+
+## A1 · Archify intake for `docs/adr` diagrams (B · blocked by: T1 · ready-for-agent: yes, the install is gated)
+
+Owner steps: approve `npx skills add tt-a1i/archify -g` (gated) after the scan.
+Acceptance: the skill read in full or scanned, findings reported; one architecture diagram of the harness (hosts, gate, drivers, skills rings) generated with evidence nodes pinned to a commit, validated by its own checks, saved under `docs/adr/` and linked from CONTEXT.md; the `candidate-for domain-modeling` edge either promoted to `feeds` or removed, with the reason in the TOML `why`.
+Files: `docs/adr/`, `CONTEXT.md`, `.agents/skills/skills-graph/skills-graph.toml`.
+Host note: Node.js required.
