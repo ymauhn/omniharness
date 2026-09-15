@@ -12,8 +12,10 @@ One page per optional tool. Every page has the same eleven sections (What it is 
 | [firecrawl.md](firecrawl.md) | 4 ingestion | opt-in: API key plus credits, or self-host | yes: `Bash(firecrawl:*)` | no |
 | [scrapegraphai.md](scrapegraphai.md) | 4 ingestion | opt-in: LLM key or Ollama; paid cloud | yes (AGENTS.md HITL list) | no |
 | [browser-automation.md](browser-automation.md) | 4 ingestion | free (Claude Browser, Playwright); browser-use needs an LLM key | browser-use only | Claude Browser yes; Playwright 1.62 yes; browser-use no |
+| [android-adb.md](android-adb.md) | 4 ingestion | free; the Android SDK licence must be accepted | yes: `Bash(adb install:*)`, `Bash(adb uninstall:*)`, `Bash(adb connect:*)`, `Bash(adb root:*)`, `Bash(scrcpy:*)`, plus one yes per flow | no; neither `adb` nor `scrcpy` |
 | [higgsfield.md](higgsfield.md) | 5 multimodal | credits per generation | yes: `Bash(higgsfield:*)` | yes, CLI 1.1.23 plus eight skills |
 | [faster-whisper.md](faster-whisper.md) | 5 multimodal | free, MIT; one-time model download | no (install asks) | no; ffmpeg 9.0 and an RTX 5060 are present |
+| [ffmpeg-capture.md](ffmpeg-capture.md) | 5 multimodal | free; LGPL or GPL per build | no (local and free; only the install asks) | yes, ffmpeg 9.0 |
 | [blender.md](blender.md) | 5 multimodal | free, GPL-3.0 | no | no; `bpy` needs Python 3.13, local is 3.12 |
 | [skill-scanner.md](skill-scanner.md) | 6 security | free, offline static | no (install asks) | no |
 | [mcp-servers.md](mcp-servers.md) | all (registration rule) | varies per server | per server: process rule on its page plus its `Bash(<cli>:*)` twin | desktop-provided servers only; `mcpServers` blocks are empty |

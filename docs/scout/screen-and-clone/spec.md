@@ -20,9 +20,15 @@ Invariant 1 wants portable skills with progressive disclosure, and the working r
 
 ## Verification status of every command in this spec
 
-**UNVERIFIED.** This session had no approved network access and no Android device attached. Every `adb`, `scrcpy` and `ffmpeg` invocation below is a design sketch written from the agent's own knowledge, not a fact read from documentation or observed on a machine. The `higgsfield` shapes are the exception: they are quoted from `recipes/creative-video-higgsfield.md`, which quotes the installed skill files.
+**Ticket D4 ran on 2026-09-15.** 86 unique pages were opened across 8 documentation domains, every claim was re-checked by an independent refuter, and 143 claims survived against 32 killed. The verified surface is written up in `../../integrations/android-adb.md` (adb and scrcpy) and `../../integrations/ffmpeg-capture.md` (ffmpeg capture and analysis), each command carrying a source marker. Read those pages before writing code; this spec is the design, they are the facts.
 
-Ticket **D4** verifies the `adb`/`scrcpy` surface against the official documentation (a gated read) or against the owner's machine, and only then writes `docs/integrations/android-adb.md`. No command from this file is copied into an integration page before that.
+Two environment limits shape what "verified" can mean here, and both are stated on the pages:
+- `android.googlesource.com` and `cs.android.com` are egress-blocked, so **no AOSP fact was read from Google-hosted source** — all of it comes from third-party mirrors, on branch refs rather than pinned commits.
+- `ffmpeg.org` is egress-blocked, so the ffmpeg facts come from `doc/*.texi` in the FFmpeg repository, which is what those HTML pages are generated from.
+
+**Still UNVERIFIED after D4**, and marked as such below: the `/dev/tty` dump form (worse than unverified — the evidence argues against it), whether `screenrecord`'s 180 s is a ceiling or only a default, the `select`+`showinfo` and `-sseof` composites (every option documented, the composition on no page), the Windows OEM USB driver step, and any iOS claim. D4's own critic listed eight next steps to close these; the cheap ones need only a local `ffmpeg` run and one minute with a phone.
+
+The `higgsfield` shapes were never in doubt: they are quoted from `recipes/creative-video-higgsfield.md`, which quotes the installed skill files.
 
 ## Tool inventory
 
@@ -30,7 +36,7 @@ Ticket **D4** verifies the `adb`/`scrcpy` surface against the official documenta
 |---|---|---|---|---|
 | `ffmpeg` 9.0 | desktop capture, keyframes, palette, assembly | yes (integrations index) | free | none |
 | `adb` (Android platform-tools) | device reads, view tree, actions | **no** — not in `docs/PHASE0_AUDIT.md` | free | install asks; see the gate table |
-| `scrcpy` | mirror and long recordings of the phone | **no** | free (Apache-2.0, UNVERIFIED) | install asks |
+| `scrcpy` | mirror and long recordings of the phone | **no** | free, **Apache-2.0** (confirmed: the repository's `LICENSE` file) | install asks |
 | `faster-whisper` | transcription | no; installed on demand | free, MIT | `Bash(pip install:*)` |
 | `higgsfield` CLI 1.1.23 | generation | yes, with eight skills symlinked | credits | `Bash(higgsfield:*)` |
 | `yt-dlp` | the URL route | no | free | **ticket I2's job, not ours** |
@@ -58,7 +64,23 @@ device-lab run <flow.yaml>               # a whole flow, with a trace
 
 What makes Playwright usable is not that it clicks. It is that it has **a queryable tree, locators over that tree, actions, assertions and a trace**. Android gives all five for free:
 
-**The tree.** `adb exec-out uiautomator dump /dev/tty` returns the XML of the view hierarchy: every node with `bounds`, `resource-id`, `text`, `content-desc`, `class`, `clickable`, `enabled`. That is the DOM. (UNVERIFIED: the exact `/dev/tty` form and whether the device writes a trailing status line that must be stripped.)
+**The tree.** The documented form is two steps, and D4 replaced the spec's original one-liner with it:
+
+```
+adb shell uiautomator dump /sdcard/window_dump.xml
+adb pull /sdcard/window_dump.xml
+```
+
+That returns the XML of the view hierarchy, root `<hierarchy rotation="N">`, every node carrying `index`, `text`, `resource-id`, `class`, `package`, `content-desc`, `checkable`, `checked`, `clickable`, `enabled`, `focusable`, `focused`, `scrollable`, `long-clickable`, `password`, `selected` and `bounds` — all confirmed with exactly that spelling, hyphens included. `bounds="[left,top][right,bottom]"`. That is the DOM.
+
+`adb exec-out uiautomator dump /dev/tty`, which this spec originally gave as the primary form, **stays UNVERIFIED and is probably broken**: no page documents it, the dumper opens its target with a plain `FileWriter`, and `exec-out` yields a socketpair rather than a terminal. Keep it only as an explicitly-marked community form. Full reasoning in `../../integrations/android-adb.md`.
+
+Three behaviours D4 found that the parser must handle, and that no amount of design would have predicted:
+1. The success line is **misspelled in AOSP** — `UI hierchary dumped to: <path>`. Matching on "hierarchy" never strips it.
+2. That line is **printed even when the write failed**. Its presence is not a success signal; the only reliable check is that the retrieved text parses as XML.
+3. A dump taken during an animation **fails rather than going stale** (`waitForIdle`, then `ERROR: could not get idle state.`), so the retry-once rule in the failure modes below is right for the wrong reason: it is recovering from a hard failure, not from staleness.
+
+One more consequence for the locator resolver: **invisible children are skipped**, and `index` is the loop counter over *all* children including the skipped ones — so indices in the dumped XML are **not contiguous**, and a missing element may simply be off-screen rather than absent.
 
 **The locator.** A minimal language over that XML, resolved by our own script with `xml.etree` from the standard library:
 
@@ -73,7 +95,9 @@ nth=2                    disambiguates, appended with a space
 
 The tap point is the centre of the matched node's `bounds`. **No Appium, no `uiautomator2`, no new dependency**: the working rules ask "stdlib? one line?" before "write code", and an XML parse plus a rectangle centre is both.
 
-**The actions.** `adb shell input tap <x> <y>`, `input swipe <x1> <y1> <x2> <y2> [ms]`, `input text <s>`, `input keyevent <code>`, `adb shell am start -n <pkg>/<activity>`.
+**The actions.** `adb shell input tap <x> <y>`, `input swipe <x1> <y1> <x2> <y2> [duration(ms)]` (**default 300 ms** — fast enough that some apps read it as a fling), `input text <s>`, `input keyevent <code|name> ...` (number or name, several per call), `adb shell am start -n <pkg>/<activity>` (a leading `.` on the class is expanded to `pkg + class`).
+
+Two escaping traps D4 surfaced, both of which would have produced silent wrong behaviour: `input text` turns **`%s` into a space**, so a string legitimately containing `%s` loses it; and every argument must be **quoted twice**, once for the local shell and once for the device's — Google's own wording is "as you do with `ssh(1)`".
 
 **The assertion.** `device-lab expect "text=Seguindo" visible` exits non-zero when it does not hold. This is the runnable check the working rules require of non-trivial logic, and it is what makes a flow a test rather than a macro.
 
@@ -99,14 +123,17 @@ YAML is not in the standard library. Two options, decided in ticket D3: a JSON f
 
 ## Capture
 
-| Target | Command shape (UNVERIFIED) | Notes |
+| Target | Command shape (verified in D4) | Notes |
 |---|---|---|
-| phone, short | `adb shell screenrecord --time-limit <s> /sdcard/out.mp4` then `adb pull` | no audio; Android caps a single file's length (UNVERIFIED: commonly 3 minutes) |
-| phone, long | `scrcpy --record=out.mp4 --no-playback` | records the mirror, no length cap; audio on recent Android (UNVERIFIED) |
+| phone, short | `adb shell screenrecord --time-limit <s> /sdcard/out.mp4` then `adb pull` | **no audio, ever** ("Audio is not recorded with the video file."). Google documents 180 s as *default and maximum*; AOSP fork source has 180 as the default only, with `--time-limit 0` removing it. Contested — settle on the device. Rotation mid-recording is unsupported; pin `--size` |
+| phone, long | `scrcpy --no-playback --no-control --record=out.mp4` | the documented line. **No built-in length cap** — `--time-limit=<s>` imposes one. Audio on **Android 11+, enabled by default** (12+ automatic; 11 needs the screen unlocked; ≤10 none). `--no-playback` is the post-v2.1 name for `--no-display` |
 | desktop (Windows) | `ffmpeg -f gdigrab -framerate 30 -i desktop out.mp4` | the reference machine is Windows 11 |
-| one window | `ffmpeg -f gdigrab -framerate 30 -i title=<Window Title> out.mp4` | title must match exactly |
-| region | `ffmpeg -f gdigrab -framerate 30 -offset_x <x> -offset_y <y> -video_size <w>x<h> -i desktop out.mp4` | |
-| desktop (Linux) | `ffmpeg -f x11grab -i :0.0+<x>,<y>` / `wf-recorder` on Wayland | parity row, not the reference path |
+| one window | `ffmpeg -f gdigrab -framerate 30 -i title=<Window Title> out.mp4` | title must match exactly; `-i hwnd=<handle>` also exists |
+| region | `ffmpeg -f gdigrab -framerate 30 -offset_x <x> -offset_y <y> -video_size <w>x<h> -i desktop out.mp4` | **the offset origin is the primary monitor's top-left**, so a monitor to the left needs a negative `-offset_x`. `-video_size` also accepts abbreviations (`vga`, `cif`) |
+| desktop (Linux) | `ffmpeg -f x11grab -framerate 25 -video_size <size> -i :0.0+<x>,<y> out.mp4` | parity row. **Wayland has no native ffmpeg grabber** (verified by absence in `alldevices.c`); the paths there are `kmsgrab` or `wf-recorder` |
+| desktop (Windows, GPU) | `ffmpeg -f lavfi -i ddagrab ...` | `ddagrab` is a **filter source, not an input device** — never `-f ddagrab`. Faster when the encoder is also on the GPU |
+
+Input options go **before** `-i`; placed after it they are silently ignored. All of the above is sourced line by line in `../../integrations/ffmpeg-capture.md` and `../../integrations/android-adb.md`.
 
 Every recording writes a sidecar `<file>.json`: source, device model, resolution, fps, duration, sha256, start time, and the exact command used. A capture with no sidecar is not a capture the harness will act on — it is how `video-read` knows what it is looking at.
 
@@ -123,7 +150,7 @@ Asking for a yes on every tap makes a flow unusable; asking for none breaks inva
 | `run <flow>` on `route: social` | asks every time, printing the terms-of-service and account-risk warning, the app, and the step count |
 | `do` as a single ad-hoc action | asks, once per action — it is not covered by a flow's yes |
 | `adb install`, `uninstall`, `pm clear`, `connect`, `root`, `shell su` | asks every time |
-| `adb shell pm uninstall`, `--wipe-data`, recovery/fastboot wipe, `adb shell rm -r` | **hard block** in `harness/guard_bash.py` |
+| `adb shell pm uninstall`, `pm clear`, `pm remove-user`, `adb shell rm -r\|-R\|-rf`, `adb reboot bootloader\|recovery\|sideload`, `adb disable-verity`, `adb remount` | **hard block** in `harness/guard_bash.py`. Every one verified in D4. **Correction:** `--wipe-data` is an *emulator* option (`emulator @<avd> -wipe-data`), not an adb flag — this spec had it wrong |
 
 New `ask` entries for `harness/settings.json`: `"Bash(adb install:*)"`, `"Bash(adb uninstall:*)"`, `"Bash(adb connect:*)"`, `"Bash(adb root:*)"`, `"Bash(scrcpy:*)"`. The flow-level and route-level gates run inside Python, match no Bash pattern, and are therefore enforced by the AGENTS.md HITL list and by the skill's own text — stated plainly, as the integrations README already does for tools called from Python.
 
@@ -173,12 +200,12 @@ The URL route is **not implemented here**. Ticket I2 already specifies `ingest m
 
 ## The analysis, all local and free
 
-- **Cuts**: `ffmpeg -i in.mp4 -vf "select='gt(scene,0.3)',showinfo" -f null -` and parse the `showinfo` timestamps, with uniform sampling as a fallback so a reel with soft transitions and no hard cuts still yields frames. (UNVERIFIED: the threshold; 0.3 is a starting point for a ticket to calibrate against a fixture.)
+- **Cuts**: the documented form is `select='gt(scene\,0.4)'` — **the comma must be escaped**, and this spec originally wrote it bare, which the filtergraph parser reads as an argument separator. The manual's guidance is "Comparing scene against a value between 0.3 and 0.5 is generally a sane choice", so 0.4 is the example and 0.3 is the bottom of the range, not a default. `showinfo` does print per-frame timestamps, and `select` also exports `lavfi.scene_score` as frame metadata — but **`select` + `showinfo` as one chain appears on no page**, so it stays a marked composition until run locally (which needs no gate). Uniform sampling remains the fallback for a reel with soft transitions.
 - **Shot table**: n, start, end, duration — which gives the **rhythm**: mean shot length, cuts per second, and where the cuts fall against the audio energy.
 - **Audio**: `faster-whisper` locally (`docs/integrations/faster-whisper.md`) for a timestamped transcript; `ffmpeg` `silencedetect` and `ebur128` for the energy curve that the cuts are measured against.
 - **On-screen text**: read by **the model's own vision** on the sampled frames. Invariant 3 says default to the native capability and load a dependency only when the domain warrants it; an OCR package does not earn its place when the model reads the frame directly.
 - **The hook**: the first ~2 seconds treated as its own unit — what is on screen, what is said, what moves, what text appears — because that is the part a trend actually copies.
-- **Palette**: `ffmpeg -i in.mp4 -vf palettegen` reduced to a hex list. Deterministic, and it is what makes `style.md` checkable later.
+- **Palette**: `ffmpeg -i in.mp4 -vf palettegen` reduced to a hex list. Verified: palettegen "Returns only one frame at the end containing the full palette", with `max_colors` defaulting to 256 (min 2, max 256). That single-frame behaviour is exactly what makes the palette reproducible across two runs, which is what `style.md` and V1's determinism test rest on.
 
 ## Outputs, in `reference/<slug>/`
 
@@ -232,7 +259,7 @@ This copies **style and structure**. It does not reproduce someone's footage, fa
 6. **The production loop**, part by part, with all four consistency mechanisms the owner chose in Q6:
 
    - **a. Style bible and a fixed anchor.** `style.md` plus one anchor image — generated once or supplied by the owner — passed as `--image` to `nano_banana_2` on every still. Holds the look when the scene changes.
-   - **b. Tail-frame chaining.** After clip N: `ffmpeg -sseof -0.1 -i clip-N.mp4 -frames:v 1 tail-N.png` (UNVERIFIED), and `tail-N.png` becomes the `--start-image` of clip N+1. Deterministic, costs no extra credits, holds continuity across the join.
+   - **b. Tail-frame chaining.** After clip N: `ffmpeg -sseof -0.1 -i clip-N.mp4 -frames:v 1 tail-N.png`, and `tail-N.png` becomes the `--start-image` of clip N+1. Costs no extra credits. D4 verified every piece separately — `-sseof` is an input option and "negative values are earlier in the file, 0 is at EOF", `-frames:v 1` writes exactly one frame — but the **composite is on no page**, and the same manual warns that "in most formats it is not possible to seek exactly", so this yields *a frame near the end*, not provably *the last* frame. Mark: **composed from documented options, behaviour not observed.** F2's continuity gate is what makes that acceptable: if the chained frame is wrong, the gate stops the loop.
    - **c. `soul-id`** when a recurring person appears: trained once with `higgsfield-soul-id`, used as `higgsfield generate create text2image_soul_v2 --prompt "…" --soul-id <id> --quality 2k --wait` (quoted from the recipe). Only with the owner's explicit statement of consent for a real face; a moderation refusal is final and is reported, never worked around by rewording.
    - **d. A continuity gate after every part**, zero tokens and zero credits: duration, resolution and fps match the storyboard; the tail frame exists and is neither black nor a frozen duplicate of the previous one; the palette distance between the two frames at the join is under a threshold. **A failed gate stops the loop** and reports — rather than spending more credits on a video that has already broken. This is the runnable check the working rules demand, and it is the difference between a loop and a runaway.
 
@@ -257,7 +284,7 @@ New AGENTS.md HITL list entries: `scrcpy`, `adb install`, `adb uninstall`, `adb 
 
 New `harness/settings.json` `ask` entries: `"Bash(adb install:*)"`, `"Bash(adb uninstall:*)"`, `"Bash(adb connect:*)"`, `"Bash(adb root:*)"`, `"Bash(scrcpy:*)"`.
 
-New `harness/guard_bash.py` hard blocks: `adb shell pm uninstall`, `adb shell rm -r`, `--wipe-data`, and fastboot wipe forms.
+New `harness/guard_bash.py` hard blocks, all verified in D4: `adb shell pm uninstall`, `adb shell pm clear`, `adb shell pm remove-user`, `adb shell rm -r|-R|-rf`, `adb reboot bootloader|recovery|sideload`, `adb disable-verity`, `adb remount`. `--wipe-data` is **not** among them: it is an emulator option, not an adb flag.
 
 These land in tickets D3 and C1, not before — AGENTS.md must not promise a gate for a command that nothing can yet run.
 
