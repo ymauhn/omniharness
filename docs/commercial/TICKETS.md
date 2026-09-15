@@ -240,3 +240,99 @@ Acceptance: full battery green on both hosts where possible; measured usage of T
 ## What was deliberately left out
 
 No shared vector memory between agents (the integrator is the only writer to the main tree); no background workers that spend tokens; no MCP server with hundreds of tools; no automatic A*; no mode that removes the hard stops.
+
+---
+
+# Phase C tickets: `device-lab`, `video-read`, `video-forge` (added 2026-09-15)
+
+Plan gate: `../scout/screen-and-clone/grilling.md` (no fan-out was run; the facts are listed there). Spec: `../scout/screen-and-clone/spec.md`. Routine: `../scout/screen-and-clone/PLAN.md`. Same format as T1-T12; every gated command names its cost and waits. By the owner's answer to Q5 this phase sits behind R1 and T13 in the queue: it is specified now and built later.
+
+Order: **D4 runs first**, before any code, because every `adb` and `scrcpy` command in the spec is marked UNVERIFIED and nothing should be written against a flag read from memory. Then D1-D3, then V1-V2, then F1-F3, then F4 and C1. V3 waits on I1 and I2.
+
+## D4 · Verify the device surface and write its integration page (C · blocked by: T1 · ready-for-agent: yes, the documentation read is gated)
+
+Owner steps: approve the documentation reads (WebFetch, no cost: the Android platform-tools / `adb` reference, the `uiautomator` dump reference, the `scrcpy` README; about four pages), or run the commands on your own machine with a phone attached and paste the output; approve the platform-tools and `scrcpy` installs if absent.
+Acceptance: `docs/integrations/android-adb.md` follows the eleven-section template of `docs/integrations/README.md` (What it is · When to reach for it · Cost and keys · Network and the gate · Install · Activate in OmniHarness · Verify it works · Uninstall · License · Source · Verified on) and quotes, each with its source URL and read date, the working forms of `adb devices`, `adb exec-out uiautomator dump`, `adb exec-out screencap -p`, `adb shell screenrecord` with its length cap, `adb shell input tap|swipe|text|keyevent`, `adb shell am start`, and `scrcpy --record`; the `ffmpeg` capture forms (`gdigrab` desktop, `title=`, `-offset_x/-offset_y/-video_size`, `x11grab`) are verified the same way; every command in `../scout/screen-and-clone/spec.md` that this ticket confirmed loses its UNVERIFIED mark, and every one it could not confirm keeps it and is named in the page; the integrations index gains its row (layer, cost, gated?, installed on the reference machine?); `scrcpy`'s license is stated from its own repository, not from memory.
+Files: `docs/integrations/android-adb.md`, `docs/integrations/README.md`, `docs/scout/screen-and-clone/spec.md`, `docs/PHASE0_AUDIT.md` (one row if the tools get installed).
+Host note: none; the page is host-neutral, the Windows and Linux capture forms are both recorded.
+
+## D1 · `device-lab` skeleton and capture (C · blocked by: D4 · ready-for-agent: yes)
+
+Owner steps: none for the fixtures; a phone with USB debugging on, for the one manual check at the end.
+Acceptance: `.agents/skills/device-lab/SKILL.md` with the six spec fields only and the routine of the spec; `scripts/device_lab.py` (stdlib) implements `devices`, `record <phone|desktop|window:<title>|region:<x,y,w,h>>` and `shot`, each writing the capture plus a sidecar `<file>.json` (source, device model, resolution, fps, duration, sha256, start time, exact command); a capture truncated by the device's length cap records the truncation in the sidecar instead of reporting a complete file; `tests/test_device_lab.py` covers sidecar shape, sha256, the truncation flag and argument validation with a stubbed `adb`/`ffmpeg` (no device, no network); `capture/` is in `.gitignore`; `python scripts/install.py --check` sees the new skill; `tests/test_layout.py` stays green (six fields only).
+Files: `.agents/skills/device-lab/**`, `tests/test_device_lab.py`, `tests/fixtures/device_lab/`, `.gitignore`.
+Host note: the `gdigrab` path is Windows, `x11grab` is Linux; the test stubs both, so the suite is green on either host.
+
+## D2 · View tree, locators and assertions (C · blocked by: D1 · ready-for-agent: yes)
+
+Owner steps: none.
+Acceptance: `device-lab tree` parses `uiautomator dump` XML into an outline and a node list (bounds, resource-id, text, content-desc, class, clickable, enabled); the locator language of the spec (`text=`, `text*=`, `id=`, `desc=`, `class=`, `nth=`) is resolved with `xml.etree` and no third-party dependency; `device-lab find` prints every match with its bounds and its tap point, and **refuses** rather than guessing when a locator matches more than one node without `nth=`; `device-lab expect <locator> visible|text=...` exits non-zero on failure with a message naming the locator and the match count; an empty or stale tree is retried once and then reported, never tapped against; orientation is recorded with the tree; `tests/test_device_lab.py` gains cases for every locator form, the ambiguity refusal, the empty-tree report and the assertion exit codes, all against fixture XML with no device attached.
+Files: `.agents/skills/device-lab/scripts/`, `tests/test_device_lab.py`, `tests/fixtures/device_lab/*.xml`.
+Host note: none; pure parsing, identical on all hosts.
+
+## D3 · Actions, flows, trace and the gate (C · blocked by: D2 · ready-for-agent: yes)
+
+Owner steps: the yes on the first real flow run (package and step count named); the yes on any `--route=social` run, every time.
+Acceptance: `device-lab do` (tap, swipe, type, key, launch) taps the centre of the resolved bounds and refuses when orientation changed between `tree` and `do`; `device-lab run <flow>` executes a flow file, appending one line per step to `capture/<run>/trace.jsonl` (step index, action, locator, resolved bounds, exit status, timestamp, screenshot path) plus a screenshot, and stops at the first failed `expect`; the flow file format is decided between JSON and a hand-parsed YAML subset, and the reason is written in the SKILL.md (the spec recommends JSON, for zero dependency and zero parser); the gate table of the spec is implemented — device reads free, `run` on `route: app` asking once per flow with the package and step count, `route: social` asking every time with the terms-of-service and account-risk warning, ad-hoc `do` asking per action; `harness/settings.json` gains `"Bash(adb install:*)"`, `"Bash(adb uninstall:*)"`, `"Bash(adb connect:*)"`, `"Bash(adb root:*)"`, `"Bash(scrcpy:*)"`; `harness/guard_bash.py` gains hard blocks for `adb shell pm uninstall`, `adb shell rm -r`, `--wipe-data` and fastboot wipe forms; `tests/test_device_lab.py` proves, with stdin closed, that `--route=social` refuses, that one yes covers a whole flow and not a second one, that each hard-block pattern is denied, and that a failing `expect` leaves a trace naming the step.
+Files: `.agents/skills/device-lab/**`, `harness/settings.json`, `harness/guard_bash.py`, `tests/test_device_lab.py`, `tests/test_layout.py` (the blocks and allows assertions).
+Host note: the hooks are Claude Code; on Codex the SKILL.md text and the AGENTS.md HITL list are the enforcement, recorded as a parity row.
+
+## V1 · `video-read` skeleton, input router, cuts and palette (C · blocked by: T1 · ready-for-agent: yes)
+
+Owner steps: none.
+Acceptance: `.agents/skills/video-read/SKILL.md` with the six fields; the input router of the spec picks local file, URL or record from the prompt and asks exactly once when the prompt is ambiguous or names more than one; `scripts/video_read.py` extracts the shot table with `ffmpeg` scene detection plus uniform sampling as a fallback, derives the rhythm (mean shot length, cuts per second, cut positions against the audio energy) and the palette; on a synthetic fixture built by the test itself with known cut points, the shot table matches them within one frame and the palette is byte-identical across two runs; `reference/` is in `.gitignore`; `tests/test_video_read.py` covers the router's four cases, the cut detection and the palette determinism.
+Files: `.agents/skills/video-read/**`, `tests/test_video_read.py`, `tests/fixtures/video_read/`, `.gitignore`.
+Host note: needs `ffmpeg` on PATH on every host; the test skips with a named reason when it is absent, as the visual tests do for Playwright.
+
+## V2 · Transcript, on-screen text, hook and the artifacts (C · blocked by: V1 · ready-for-agent: yes, the install is gated)
+
+Owner steps: approve `pip install faster-whisper` and the one-time model download if absent (`docs/integrations/faster-whisper.md` names the sizes).
+Acceptance: the transcript comes from local `faster-whisper` and lands as `transcript.srt`; on-screen text is read by the model's own vision on the sampled frames, with no OCR dependency added; the hook is isolated as its own unit with what is on screen, what is said, what moves and what text appears; `reference/<slug>/` carries `reference.json`, `shots.md`, `style.md`, `pattern.md`, `transcript.srt`, `frames/` and `clone-prompt.md` with the shapes of the spec; `pattern.md` describes structure with timings in numbers (hook, promise, beats, payoff, CTA) and quotes no frame of the reference; `clone-prompt.md` names the rhythm in numbers, not adjectives; the SKILL.md states the limit — style and structure are copied, footage, faces, voices, music and trademarks are not — and inherits the face-consent rule of `docs/integrations/higgsfield.md`; `tests/test_video_read.py` asserts every artifact exists with its required fields on the fixture.
+Files: `.agents/skills/video-read/**`, `tests/test_video_read.py`.
+Host note: none.
+
+## V3 · URL route through `ingest media` (C · blocked by: V1, I1, I2 · ready-for-agent: yes)
+
+Owner steps: the yes on each download, as ticket I2 already specifies.
+Acceptance: the URL branch of the router calls `ingest media` and consumes its output; no second downloader exists anywhere under `.agents/skills/video-read/` (a test greps for `yt-dlp` invocation and fails if it finds one outside a printed instruction); while `ingest` is absent, the branch prints the single gated `yt-dlp` command for the owner to run and accepts the resulting file as a local source, and a test proves it downloads nothing; an edge `video-read -calls-> ingest` is proposed for `skills-graph.toml`.
+Files: `.agents/skills/video-read/scripts/`, `tests/test_video_read.py`.
+Host note: none.
+
+## F1 · `video-forge` questionnaire, asset ledger and storyboard (C · blocked by: V2 · ready-for-agent: yes)
+
+Owner steps: answer the questionnaire once on a real reference; the yes at the plan gate of step 5.
+Acceptance: `.agents/skills/video-forge/SKILL.md` with the six fields; the questionnaire asks one organised round (subject, what replaces the reference's content, aspect and duration, language of on-screen text and voice-over, what must not appear, the ceiling in credits or US$, the confirmation mode), each question with a one-line "why it matters", and assumes nothing on the owner's behalf; `assets.md` lists every asset the storyboard needs with `have | generate | record | substitute`, its path when it exists and its estimated credits when it does not, and `have` and `substitute` are printed as the recommended rows; `storyboard.md` maps one-to-one onto `pattern.md`'s beats; a STOP at the plan gate prints ledger, storyboard, the filled cost table and the ceiling and waits for an explicit yes; `tests/test_video_forge.py` proves that **zero paid calls are issued before that yes**, with stdin closed and a shimmed CLI.
+Files: `.agents/skills/video-forge/**`, `tests/test_video_forge.py`, `tests/fixtures/video_forge/`.
+Host note: the questionnaire uses `AskUserQuestion` on Claude Code and plain chat questions on Codex, with the answers written by the skill either way.
+
+## F2 · The production loop and the continuity gate (C · blocked by: F1 · ready-for-agent: yes)
+
+Owner steps: none; the whole ticket runs against a shimmed CLI.
+Acceptance: the loop generates part by part with all four consistency mechanisms — `style.md` plus a fixed anchor image passed as `--image` on every still, tail-frame chaining (`ffmpeg -sseof` extracting the last frame of clip N as the `--start-image` of clip N+1), `soul-id` used only for a recurring person and only after the owner's explicit consent statement for a real face, and a continuity gate after every part; the continuity gate checks duration, resolution and fps against the storyboard, that the tail frame exists and is neither black nor a frozen duplicate, and that the palette distance across the join is under a stated threshold, and **stops the loop** on failure instead of generating the next part; a moderation refusal is reported and never worked around by rewording; assembly reuses the ffmpeg chain of `recipes/creative-video-higgsfield.md` step 7 including its Windows `subtitles=` path note, and is not rewritten; `higgsfield` is shimmed in the tests as in `evals/cases/hitl-triage/` so no test can spend a credit, and `tests/test_video_forge.py` proves the shim was used, that a planted broken clip trips the gate and stops the loop at that part, and that chaining passes the right file as the next `--start-image`.
+Files: `.agents/skills/video-forge/scripts/`, `tests/test_video_forge.py`.
+Host note: none.
+
+## F3 · Budget: ceiling, warning, stop and confirmation modes (C · blocked by: F2 · ready-for-agent: yes)
+
+Owner steps: none.
+Acceptance: the ceiling from the questionnaire is in force for the whole run; the estimate before each call comes from `higgsfield generate cost <jst> [flags]` (which returns a number without submitting) and is recorded next to the actual spend; `--confirm per-clip` (the default on a first video) states each estimate and waits, `--confirm per-batch` states the batch and waits once; a warning is printed at 80 % of the ceiling and the loop **stops hard at 100 %**, delivering the parts already finished and naming why it stopped; `tests/test_video_forge.py` proves the 80 % warning fires once, that a ceiling set below the storyboard's total stops the loop and still delivers the finished parts, and that `per-clip` asks once per clip while `per-batch` asks once per batch, all with a shimmed CLI and no spend.
+Files: `.agents/skills/video-forge/scripts/`, `tests/test_video_forge.py`.
+Host note: none.
+
+## F4 · The first real clone, end to end (C · blocked by: F3, D3 · ready-for-agent: partly, every generation is gated)
+
+Owner steps: pick the reference; answer the questionnaire; the yes at the plan gate; the yes per clip or per batch; confirm consent explicitly if any real face appears.
+Acceptance: one reference goes from `video-read` through `video-forge` to `final.mp4`; the cost was named from the filled cost table before the first call and the **actual** credits spent per call are recorded from `higgsfield generate list --json` against the estimate; the delivered video's cut density is within a stated tolerance of the reference's, and both numbers are printed side by side; every reroll and its reason is reported; the run is recorded in `site/showcase/log.md` and in `docs/benchmarks.md` with wall clock, credits and tokens; a run that hit the ceiling reports that as plainly as a run that finished.
+Files: `site/showcase/log.md`, `docs/benchmarks.md`.
+Host note: `higgsfield` CLI 1.1.23 is on the reference machine; on a host without it the ticket stops at the plan gate and says so.
+
+## C1 · Register the three skills (C · blocked by: D3, V2, F3 · ready-for-agent: yes)
+
+Owner steps: the yes to commit.
+Acceptance: nodes for `device-lab`, `video-read` and `video-forge` in `skills-graph.toml` with `needs` and, where a benchmark measured one, `cost`; edges `video-read -precedes-> video-forge`, `device-lab -feeds-> video-read`, `video-read -calls-> ingest` (V3), and `alternative-to` edges to the catalog rows `bradautomates/claude-video`, `calesthio/openmontage` (Screen Demo), `remotion-dev/skills`, `video-db/skills` and `fal-ai-community/skills`, each with its `why`; `skills_graph.py build` and `check` clean; AGENTS.md routing rows "Record a screen, or drive an Android phone | `device-lab`; the social route is gated and warns every run" and "Read a reference video, or clone its style | `video-read` (free, local), then `video-forge` (credits, ceiling and plan gate)"; the HITL list gains `scrcpy`, `adb install`, `adb uninstall`, `adb connect`, `adb root` and `device-lab --route=social`; CONTEXT.md gains locator, flow, trace, asset ledger, continuity gate and anchor image; the three roadmap rows at the bottom of `../scout/screen-and-clone/spec.md` move into `docs/roadmap.md` once T3 created it; portal run-log row; showcase log entry.
+Files: `.agents/skills/skills-graph/skills-graph.toml`, `AGENTS.md`, `CONTEXT.md`, `docs/roadmap.md`, `site/index.html`, `site/i18n/pt-BR.json`, `site/showcase/log.md`.
+Host note: same as P4.
+
+## What this phase deliberately leaves out
+
+No Appium and no `uiautomator2` (the view tree is XML and the actions are one `adb shell input` each; the standard library covers it). No iOS control (no WebDriverAgent without macOS and Xcode; roadmap row, `not shipped`). No second downloader (the URL route is ticket I2's). No OCR package (the model reads the frames). No new video library (`ffmpeg` is on the reference machine; Remotion and `video-db` stay catalog rows). No unattended generation: the plan gate before the loop and the ceiling inside it are not optional in any mode.
