@@ -81,9 +81,11 @@ def cmd_run(a):
     if harness:
         for f in ("AGENTS.md", "CLAUDE.md"): shutil.copy(ROOT / f, ws / f)
         (ws / ".claude").mkdir()
-        settings = (ROOT / "harness" / "settings.json").read_text(encoding="utf-8").replace("{{OMNIHARNESS_HOME}}", ROOT.as_posix())
-        (ws / ".claude" / "settings.json").write_text(settings, encoding="utf-8")
-    env = dict(os.environ, OMNIHARNESS_SANDBOX="1", PATH=str(ws / "bin") + os.pathsep + os.environ.get("PATH", ""))
+        settings = json.loads((ROOT / "harness" / "settings.json").read_text(encoding="utf-8").replace("{{OMNIHARNESS_HOME}}", ROOT.as_posix()))
+        hook = settings["hooks"]["PreToolUse"][0]["hooks"][0]
+        hook["command"] = hook["command"].replace("python ", f'"{Path(sys.executable).as_posix()}" ', 1)
+        (ws / ".claude" / "settings.json").write_text(json.dumps(settings, indent=2), encoding="utf-8")
+    env = dict(os.environ, OMNIHARNESS_SANDBOX="1", PATH=os.pathsep.join((str(ws / "bin"), str(Path(sys.executable).parent), os.environ.get("PATH", ""))))
     # flags as printed by `claude --help` (2.1.267): permission-mode has no "default" choice, "manual" is the prompting mode;
     # --permission-prompts none turns every prompt into an automatic denial, which is the permission_denials signal of ADR 0003.
     # a case may override the arm's permission mode and add flags (arms.json: {"harness": {...}, "control": {...}});
@@ -104,23 +106,36 @@ def cmd_run(a):
             tree_kill(proc); failures.append(f"timeout after {a.timeout}s (process tree killed)")
             try: proc.wait(timeout=15)
             except subprocess.TimeoutExpired: pass
+    (ws / "_process.json").write_text(json.dumps({"exit_code": proc.returncode, "failures": failures}), encoding="utf-8")
     return score_ws(a.case, a.arm, ws, a.max_budget_usd, proc.returncode, stamp, failures)
 
 
-def score_ws(case, arm, ws, max_budget, exit_code=0, stamp=None, failures=()):
+def score_ws(case, arm, ws, max_budget, exit_code=None, stamp=None, failures=()):
     """Parse a finished workspace and write its baseline record. Also used by `rescore` (offline, free)."""
     failures = list(failures)
+    if exit_code != 0:
+        failures.append(f"process did not succeed: exit_code={exit_code}")
     events, result, commands = parse(ws / "_stream.jsonl")
     if result is None:
-        failures.append("stream empty or unparseable: no result event"); passed = False
+        failures.append("stream empty or unparseable: no result event")
     else:
         result["max_budget_usd"] = max_budget
+        if result.get("subtype") != "success" or result.get("is_error"):
+            failures.append(f"result did not succeed: subtype={result.get('subtype')!r}, is_error={result.get('is_error')!r}")
+        answer = result.get("result")
+        if not isinstance(answer, str) or not answer.strip():
+            failures.append("empty final answer")
+    # Infrastructure validity is a prerequisite; a control's expected behaviour cannot rescue a failed run.
+    if not failures:
         chk = load_check(case)
-        if chk:
+        if chk and hasattr(chk, "check"):
             verdict = chk.check(ws, events, result, arm)
-            passed, failures = bool(verdict.get("pass")) and not failures, failures + list(verdict.get("failures", []))
+            failures.extend(verdict.get("failures", []))
+            if not verdict.get("pass") and not failures:
+                failures.append("grader rejected the result")
         else:
-            passed = not failures
+            failures.append(f"no stream grader for case {case!r}")
+    passed = not failures
     rec = baseline(case, arm, passed, failures, commands, result, exit_code, stamp, workspace=str(ws))
     write_record(rec, arm)
     return 0 if passed else 1
@@ -130,7 +145,9 @@ def cmd_rescore(a):
     ws = Path(a.workspace)
     if not (ws / "_stream.jsonl").exists():
         print(f"rescore: no _stream.jsonl in {ws}"); return 1
-    return score_ws(a.case, a.arm, ws, a.max_budget_usd)
+    status = ws / "_process.json"
+    process = json.loads(status.read_text(encoding="utf-8")) if status.exists() else {}
+    return score_ws(a.case, a.arm, ws, a.max_budget_usd, process.get("exit_code"), failures=process.get("failures", []))
 
 
 def cmd_record(a):

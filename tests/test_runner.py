@@ -1,6 +1,8 @@
 """Zero-token tests for evals/run.py and the hitl-triage grader. Never invokes the real claude binary."""
 import importlib.util, json, os, subprocess, sys, tempfile, unittest
 from pathlib import Path
+from unittest.mock import patch
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -13,6 +15,7 @@ def load(path, name):
 
 run = load(ROOT / "evals" / "run.py", "evals_run")
 hitl = load(ROOT / "evals" / "cases" / "hitl-triage" / "check.py", "hitl_check")
+detour = load(ROOT / "evals" / "cases" / "detour-bounded" / "check.py", "detour_check")
 
 
 def ev_tool(cmd, tool="Bash"):
@@ -32,6 +35,67 @@ TRUNCATED = "\n".join([json.dumps({"type": "system", "subtype": "init"}), json.d
 
 
 class Runner(unittest.TestCase):
+    def test_run_pins_hook_python_and_saves_exit_for_rescore(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            case = Path(tmp) / "cases" / "detour-bounded"
+            case.mkdir(parents=True)
+            (case / "prompt.md").write_text("Local fixture, never sent to a model.", encoding="utf-8")
+            def spawn(command, **kwargs):
+                kwargs["stdout"].write((json.dumps(dict(ev_result(), result="Free-form answer.")) + "\n").encode())
+                self.assertIn(str(Path(sys.executable).parent), kwargs["env"]["PATH"].split(os.pathsep))
+                return SimpleNamespace(returncode=1, wait=lambda timeout: 1)
+            with patch.object(run, "CASES", case.parent), patch.object(run, "RESULTS", Path(tmp) / "results"), \
+                 patch.object(run.subprocess, "Popen", side_effect=spawn), patch.object(run, "git", return_value="fixture"):
+                status = run.main(["run", "detour-bounded", "--arm", "harness", "--claude", "never-called"])
+            self.assertEqual(status, 1)
+            ws = next((Path(tmp) / "results" / "workspace").iterdir())
+            self.assertEqual(json.loads((ws / "_process.json").read_text())["exit_code"], 1)
+            settings = json.loads((ws / ".claude/settings.json").read_text())
+            command = settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+            self.assertTrue(command.startswith('"' + Path(sys.executable).as_posix() + '" '), command)
+
+    def test_rescore_preserves_process_failure_and_refuses_unknown_status(self):
+        for process, expected in ((None, False), ({"exit_code": 0}, True),
+                                  ({"exit_code": 1}, False),
+                                  ({"exit_code": 0, "failures": ["timeout after 10s"]}, False)):
+            with self.subTest(process=process), tempfile.TemporaryDirectory() as tmp:
+                ws = Path(tmp)
+                (ws / "_stream.jsonl").write_text(json.dumps(dict(ev_result(), result="A free-form answer.")), encoding="utf-8")
+                if process is not None:
+                    (ws / "_process.json").write_text(json.dumps(process), encoding="utf-8")
+                with patch.object(run, "RESULTS", ws / "records"):
+                    status = run.main(["rescore", "detour-bounded", "--arm", "control", "--workspace", str(ws)])
+                self.assertEqual(status, 0 if expected else 1)
+                rec = json.loads(next((ws / "records").glob("*.json")).read_text(encoding="utf-8"))
+                self.assertEqual(rec["pass"], expected, rec)
+
+    def test_scoring_requires_successful_process_and_final_answer(self):
+        valid = dict(ev_result(), result="A free-form answer.")
+        cases = [
+            ("completed", valid, 0, (), True),
+            ("process error", valid, 1, (), False),
+            ("unknown exit", valid, None, (), False),
+            ("timeout", valid, 0, ("timeout after 10s",), False),
+            ("budget error", dict(valid, subtype="error_max_budget_usd"), 0, (), False),
+            ("error flag", dict(valid, is_error=True), 0, (), False),
+            ("empty", dict(valid, result="  "), 0, (), False),
+            ("missing answer", {k: v for k, v in valid.items() if k != "result"}, 0, (), False),
+            ("missing result", None, 0, (), False),
+        ]
+        for name, result, code, failures, expected in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                ws = Path(tmp)
+                (ws / "_stream.jsonl").write_text(json.dumps(ev_tool("ls")) + "\n" +
+                    (json.dumps(result) + "\n" if result else ""), encoding="utf-8")
+                with patch.object(run, "RESULTS", ws / "records"):
+                    status = run.score_ws("detour-bounded", "control", ws, 1, code, failures=failures)
+                rec = json.loads(next((ws / "records").glob("*.json")).read_text(encoding="utf-8"))
+                self.assertEqual(rec["pass"], expected, rec)
+                self.assertEqual(status, 0 if expected else 1)
+                self.assertEqual(rec["exit_code"], code)
+                if not expected:
+                    self.assertTrue(rec["failures"], rec)
+
     def test_selftest_exits_0(self):
         r = subprocess.run([sys.executable, str(ROOT / "evals" / "run.py"), "selftest"], capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
@@ -65,6 +129,22 @@ class Runner(unittest.TestCase):
             self.assertEqual(run.regress(t / "flat"), [])
             self.assertEqual(run.regress(t / "single"), [])
             self.assertEqual(run.regress(t / "cost", factor=1.5), [])
+
+
+class DetourValidity(unittest.TestCase):
+    def test_empty_control_is_invalid_even_with_earlier_assistant_text(self):
+        events = [ev_tool("ls fixture")]
+        for text in ("", " \n\t", None):
+            with self.subTest(text=text):
+                verdict = detour.check(".", events, dict(ev_result(), result=text), "control")
+                self.assertFalse(verdict["pass"], verdict)
+                self.assertTrue(any("empty" in f for f in verdict["failures"]))
+
+    def test_nonempty_control_still_distinguishes_the_structure(self):
+        good = "Detour 1\nViability test: a\nDetour 2\nViability test: b\nDetour 3\nViability test: c\nVerdict: keep."
+        self.assertTrue(detour.check(".", [], dict(ev_result(), result="A free-form answer."), "control")["pass"])
+        self.assertFalse(detour.check(".", [], dict(ev_result(), result=good), "control")["pass"])
+        self.assertTrue(detour.check(".", [], dict(ev_result(), result=good), "harness")["pass"])
 
 
 class HitlTriage(unittest.TestCase):

@@ -2,6 +2,8 @@
 
 Domain terms used in prompts, code and docs. Decisions live in `docs/adr/`; the audit that produced them in `docs/PHASE0_AUDIT.md`.
 
+Current priority (owner, 2026-09-20): evaluation integrity before commercial expansion or evolutionary pilots. Local T1 is recorded in `docs/experiments/codex-parity-2026-09.md`; next slice in `docs/evals/PLAN.md`. ADR 0006 records the five ecosystem pillars and the restricted genetic search space. The broader scientific-factory direction is approved strategy, not an implemented extension of `thesis-review`.
+
 - **Layer.** One of the six seams: steering and memory, execution, academic, ingestion, multimodal, security and growth. Layers are routing rows in AGENTS.md, not directories.
 - **Skill.** A directory with a SKILL.md under `.agents/skills/`, six spec fields only, progressive disclosure: description at startup, body when invoked, references by phase.
 - **Adapter.** A host-specific piece (a Workflow script, a hook, a settings fragment) under `gauntlet/` or `harness/`, installed by `scripts/install.py`.
@@ -15,6 +17,7 @@ Domain terms used in prompts, code and docs. Decisions live in `docs/adr/`; the 
 - **Plan gate.** The grilling round after `scout`: a hard human-in-the-loop gate. The agent asks the critical questions and stops; the spec, the design direction and the code wait for the owner's explicit yes. Distinct from the credit-and-network gate of invariant 2, which guards spending; this one guards direction.
 - **Dossier.** What `scout` writes after the fan-out: references with URL, why they matter, the pattern each shows; then patterns, gaps and recommendations. A **routine** is PLAN.md's numbered list of steps, each naming the installed skill that runs it. A **detour** is one bounded round of three alternatives from three worlds, with a verdict, never a change to the routine.
 - **Arm.** One configuration of a benchmark run: the harness arm carries AGENTS.md and the gate; the control arm is a bare project. A **baseline record** is one JSON file per run in `evals/results/`.
+- **Capability graph / task graph.** The existing skills graph maps available capabilities. The planned task graph maps task dependencies and execution attempts; centrality weights belong to the fixed reference tasks, not to agent-created retries.
 
 ## Where do I look
 

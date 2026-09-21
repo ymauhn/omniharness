@@ -3,9 +3,8 @@ schemes; the assertions are measurements, not opinions (the owner's Q6 set, plan
 no horizontal overflow, body contrast at least 4.5:1 in both themes, the graph canvas has drawn pixels, the rendered node
 count equals the embedded graph data, a node tooltip appears within 300 ms, a click opens the drawer, the library filter
 and the copy button respond, the theme toggle stamps the explicit choice with the contrast kept, the language switch
-translates every slot without overflow and survives a reload. Skipped when python-playwright is not installed. The captures it leaves are the frames the
+translates every slot without overflow and survives a reload. Missing dependencies are errors, never skipped coverage. The captures it leaves are the frames the
 showcase compares across versions."""
-import importlib.util
 import os
 import sys
 import tempfile
@@ -14,17 +13,13 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))).replace("\\", "/")
 sys.path.insert(0, ROOT + "/tests/visual")
 
-HAS_PW = importlib.util.find_spec("playwright") is not None
-
-
-@unittest.skipUnless(HAS_PW, "python-playwright not installed")
 class Visual(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         import shoot
         src = ROOT + "/site/public/index.html"
         if not os.path.isfile(src):
-            raise unittest.SkipTest("site/public/index.html not built (python scripts/site_build.py)")
+            raise FileNotFoundError("site/public/index.html not built (python scripts/site_build.py)")
         cls.tmp = tempfile.mkdtemp(prefix="visual-")
         cls.report = shoot.shoot(src, cls.tmp, "test", with_states=True)
 

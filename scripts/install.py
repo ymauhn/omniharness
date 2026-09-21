@@ -80,6 +80,9 @@ def load_fragment():
     with open(REPO + "/harness/settings.json", encoding="utf-8") as f:
         frag = json.loads(f.read().replace("{{OMNIHARNESS_HOME}}", REPO))
     frag.pop("_comment", None)
+    hook = frag["hooks"]["PreToolUse"][0]["hooks"][0]
+    python = sys.executable.replace("\\", "/")
+    hook["command"] = hook["command"].replace("python ", f'"{python}" ', 1)
     return frag
 
 
@@ -94,6 +97,12 @@ def merged_settings(path):
         lst = perms.setdefault(key, [])
         lst.extend(e for e in frag["permissions"][key] if e not in lst)
     pre = cur.setdefault("hooks", {}).setdefault("PreToolUse", [])
+    # Upgrade this checkout's existing hook without changing hooks owned by other projects.
+    for entry in pre:
+        if entry.get("matcher") == "Bash":
+            for hook in entry.get("hooks", []):
+                if f'{REPO}/harness/guard_bash.py' in hook.get("command", "").replace("\\", "/"):
+                    hook["command"] = frag["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
     if not any("guard_bash.py" in h.get("command", "") for e in pre for h in e.get("hooks", [])):
         pre.extend(frag["hooks"]["PreToolUse"])
     return cur
@@ -111,11 +120,26 @@ def manual_lines(home):
 def check(home, links, drivers, settings):
     rows = [("junction", link, points_to(link, target)) for link, target in links]
     rows += [("driver", dst, os.path.isfile(dst) and filecmp.cmp(src, dst, shallow=False)) for src, dst in drivers]
-    have = []
+    have = {}
     if os.path.isfile(settings):
         with open(settings, encoding="utf-8") as f:
-            have = json.load(f).get("permissions", {}).get("ask", [])
-    rows.append(("settings", settings, all(e in have for e in load_fragment()["permissions"]["ask"])))
+            have = json.load(f)
+    frag = load_fragment()
+    for key in ("ask", "deny"):
+        rows.append((key, settings, all(e in have.get("permissions", {}).get(key, []) for e in frag["permissions"][key])))
+    wanted = frag["hooks"]["PreToolUse"][0]["hooks"][0]
+    wired = any(e.get("matcher") == "Bash" and wanted in e.get("hooks", [])
+                for e in have.get("hooks", {}).get("PreToolUse", []))
+    rows.append(("hook", settings, wired))
+    # Probe only our trusted hook, never execute an arbitrary command found in user settings.
+    guard_ok = wired
+    if wired:
+        for command, expected in (("git status", 0), ("git push --force origin main", 2)):
+            r = subprocess.run([sys.executable, REPO + "/harness/guard_bash.py"],
+                               input=json.dumps({"tool_input": {"command": command}}),
+                               capture_output=True, text=True, timeout=10)
+            guard_ok = guard_ok and r.returncode == expected
+    rows.append(("guard", "local allow/block probes (no shell commands executed)", guard_ok))
     for kind, path, ok in rows:
         print(f"{'OK  ' if ok else 'FAIL'}  {kind:9}{path}")
     return 0 if all(r[2] for r in rows) else 1
@@ -174,8 +198,8 @@ def main():
             shutil.copyfile(src, dst)
     if new != old:
         os.makedirs(os.path.dirname(settings), exist_ok=True)
-        if old is not None and not os.path.exists(settings + ".pre-omniharness"):
-            shutil.copyfile(settings, settings + ".pre-omniharness")
+        if old is not None:
+            shutil.copyfile(settings, free_backup(settings))
         with open(settings, "w", encoding="utf-8") as f:
             json.dump(new, f, indent=2)
             f.write("\n")

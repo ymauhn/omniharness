@@ -1,5 +1,7 @@
 # Handoff: continuing OmniHarness on Codex
 
+Update 2026-09-20: local T1 completed with authorised runtime, install-check and eval integrity fixes. Read `experiments/codex-parity-2026-09.md`, `adr/0006-evaluation-first-evolution.md` and `evals/PLAN.md` first. Use `./scripts/check.ps1` on this Windows host. Evals now precede commercial execution. The original handoff below is historical; Python 3.12+ is required by the Windows installer.
+
 Written 2026-09-11 at the close of the Claude Code session that built portal v3.1. The next session runs on Codex; it is also the harness's host-portability test, so every divergence is a finding to record (T1), not something to paper over.
 
 ## Where we are
@@ -13,7 +15,7 @@ Written 2026-09-11 at the close of the Claude Code session that built portal v3.
 
 ## Initialise and validate on Codex
 
-1. Clone and enter the repository. Python 3.11 or 3.12 and Node 20 or newer are required; Playwright is optional (the visual tests skip without it; installing it is a gated `pip`).
+1. Clone and enter the repository. Current requirement: Python 3.12+, Node 20+, and Playwright/Chromium (see `docs/install.md`). Missing test dependencies must be installed; skipped tests are no longer accepted.
 2. Read, in this order: `AGENTS.md` (the rules; Codex reads it natively), `CONTEXT.md` (the vocabulary), `docs/commercial/spec.md`, `docs/commercial/TICKETS.md`.
 3. Check the install, then adopt it into the user scope:
 
@@ -40,7 +42,7 @@ node tests/test_driver.js
 python evals/run.py selftest
 ```
 
-   Expected: 33 Python tests (the 2 visual ones skip without Playwright), 3 driver scenarios PASS, selftest OK.
+   Use the current `scripts/check.ps1` battery and recorded counts in the T1 report; both visual tests must execute. The original 33-test baseline is historical.
 5. Activate the harness in the session: `$omniharness` (Codex) loads the rules for this session only, checks the install and reports regressions. It is opt-in per session; nothing is imported globally.
 6. Rebuild the portal once to prove the toolchain: `python scripts/site_build.py --report` (needs ffmpeg on PATH for the downscaled captures; without it the build says so).
 

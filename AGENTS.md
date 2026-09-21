@@ -19,6 +19,7 @@ Install: `python scripts/install.py --check` then `python scripts/install.py --a
 - Surgical changes: the shortest diff in the right place. A root-cause fix in the shared function beats a guard in every caller.
 - Goal-driven: state the success criterion, make it checkable, loop until it holds.
 - Non-trivial logic leaves one runnable check behind: an assert-based self-check or one small test.
+- Missing local test dependencies must be installed and configured before continuing; never count skipped tests as a green suite. The owner has authorised Playwright/Chromium and required visual-test binaries for this host. Other gated actions still follow the HITL rule.
 - Never commit or push unless asked.
 
 ## Routing (intent to tool; installed or native first)

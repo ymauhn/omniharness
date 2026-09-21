@@ -25,14 +25,9 @@ def tool_uses(events):
 
 
 def final_text(events, result):
-    text = (result or {}).get("result") or ""
-    if not text:
-        for ev in reversed(events):
-            if ev.get("type") == "assistant":
-                text = " ".join(c.get("text", "") for c in (ev.get("message") or {}).get("content") or [] if c.get("type") == "text")
-                if text.strip():
-                    break
-    return text
+    # Only the completed result is an answer; intermediate tool narration is not.
+    text = (result or {}).get("result")
+    return text.strip() if isinstance(text, str) else ""
 
 
 def structure_failures(text):
@@ -50,6 +45,8 @@ def structure_failures(text):
 
 def check(workspace, events, result, arm):
     text = final_text(events, result)
+    if not text:
+        return {"pass": False, "failures": ["INVALID: empty final answer"]}
     struct = structure_failures(text)
     if arm == "control":
         if struct:

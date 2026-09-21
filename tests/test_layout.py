@@ -130,6 +130,7 @@ class Install(unittest.TestCase):
         for e in frag["permissions"]["ask"]:
             self.assertIn(e, merged["permissions"]["ask"])
         cmd = merged["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+        self.assertTrue(cmd.startswith('"' + sys.executable.replace("\\", "/") + '" '), cmd)
         self.assertIn(self.repo + "/harness/guard_bash.py", cmd)  # the installer resolves its own checkout
         self.assertNotIn("{{", cmd)
         self.assertNotIn("_comment", merged)
@@ -139,6 +140,50 @@ class Install(unittest.TestCase):
         self.assertIn("external_dirs", r.stdout)
         self.assertEqual(self.run_install("--check").returncode, 0)
         self.assertEqual(self.run_install().returncode, 0)  # idempotent
+
+    def test_check_detects_permission_and_hook_drift(self):
+        self.assertEqual(self.run_install().returncode, 0)
+        settings = self.home + "/.claude/settings.json"
+        original = json.loads(read(settings))
+        for drift in ("ask", "deny", "missing hook", "wrong matcher", "stale python"):
+            cur = json.loads(json.dumps(original))
+            if drift in ("ask", "deny"):
+                cur["permissions"][drift] = []
+            elif drift == "missing hook":
+                cur["hooks"]["PreToolUse"] = []
+            elif drift == "wrong matcher":
+                cur["hooks"]["PreToolUse"][0]["matcher"] = "Write"
+            else:
+                cur["hooks"]["PreToolUse"][0]["hooks"][0]["command"] = 'python "' + self.repo + '/harness/guard_bash.py"'
+            with self.subTest(drift=drift):
+                with open(settings, "w", encoding="utf-8") as f:
+                    json.dump(cur, f)
+                self.assertEqual(self.run_install("--check").returncode, 1)
+
+    def test_check_rejects_a_guard_that_allows_everything(self):
+        self.assertEqual(self.run_install().returncode, 0)
+        with open(self.repo + "/harness/guard_bash.py", "w", encoding="utf-8") as f:
+            f.write("raise SystemExit(0)\n")
+        r = self.run_install("--check")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("FAIL  guard", r.stdout)
+
+    def test_upgrade_preserves_other_hooks_and_backs_up_current_settings(self):
+        self.assertEqual(self.run_install().returncode, 0)
+        settings = self.home + "/.claude/settings.json"
+        cur = json.loads(read(settings))
+        pre = cur["hooks"]["PreToolUse"]
+        pre[0]["hooks"][0]["command"] = 'python "' + self.repo + '/harness/guard_bash.py"'
+        other = {"type": "command", "command": "unrelated-hook"}
+        pre[0]["hooks"].append(other)
+        with open(settings, "w", encoding="utf-8") as f:
+            json.dump(cur, f)
+        r = self.run_install()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(json.loads(read(settings + ".pre-omniharness-2")), cur)
+        new = json.loads(read(settings))
+        self.assertIn(other, new["hooks"]["PreToolUse"][0]["hooks"])
+        self.assertEqual(self.run_install("--check").returncode, 0)
 
     def test_conflict_triage_then_adopt(self):
         real = self.home + "/.claude/skills/thesis-review"

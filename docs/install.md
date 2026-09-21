@@ -6,6 +6,10 @@ User-scope install: the repository stays where you cloned it and the hosts reach
 
 ## Prerequisites
 
+On the Codex Windows host, `./scripts/check.ps1` selects the already-installed bundled Python explicitly. It accepts `-Python <absolute-path>` or `OMNIHARNESS_PYTHON` for another existing runtime, requires 3.12+, and configures the test process without changing the user's PATH. Use that same executable for `scripts/install.py`; the generated guard command pins it rather than relying on bare `python`. See [the T1 report](experiments/codex-parity-2026-09.md).
+
+Visual coverage is required. With the runner's Python, install `-m pip install -r tests/visual/requirements.txt`, then `-m playwright install chromium` (network installation requires authorisation). Invoke Playwright as a Python module, so its Scripts directory need not be on PATH. `check.ps1` rejects skipped tests. The screenshot suite uses Chromium, not an external ffmpeg command; Playwright manages its own downloaded browser/media binaries.
+
 - Python 3.12+ (`python --version`; the reference machine has 3.12.10; the installer uses `os.path.isjunction`, new in 3.12). Stdlib only, no pip packages.
 - Node 18+ (`node --version`; reference 24.19). Plain Node, no npm packages; only `tests/test_driver.js` needs it.
 - git on PATH.
@@ -19,7 +23,7 @@ All flags of `scripts/install.py`:
 | Flag | Effect |
 |---|---|
 | (none) | Plan, then apply. Exits 1 with a numbered triage list if any target exists and is not ours. |
-| `--check` | Drift check only, writes nothing. One `OK`/`FAIL` row per junction, the driver copy (byte compare) and the settings ask list. Exit 0 when all pass. |
+| `--check` | Read-only drift check: junctions, driver bytes, ask/deny lists, the Bash hook and local guard allow/block probes. The probe commands are JSON data, never executed. Exit 0 when all pass. |
 | `--dry-run` | Print the plan and the manual lines, write nothing. |
 | `--adopt` | Rename conflicting targets to `<path>.pre-omniharness` (then `-2`, `-3` if taken) before linking. |
 | `--no-agents` | Skip the `~/.agents/skills/<name>` junctions (Codex/Hermes side). |
@@ -60,7 +64,7 @@ The installer refuses to run when `OMNIHARNESS_SANDBOX=1` is set (benchmark sand
    1. Renames any existing target that is not already a junction to us: `<path>` becomes `<path>.pre-omniharness`. Without `--adopt` the script prints `1. <path>: real directory; would be renamed to ...` and exits 1.
    2. Creates junctions (`cmd /c mklink /J`, no admin needed): `~/.claude/skills/<name>` and `~/.agents/skills/<name>` for every directory under `<repo>/.agents/skills/`, and `~/.claude/skills/gauntlet-loop` to `<repo>/gauntlet`.
    3. Copies `<repo>/gauntlet/gauntlet.workflow.js` to `~/.claude/workflows/gauntlet-driver.js` if the bytes differ (the Workflow registry only reads `*.js` from that directory, so this file cannot be a link).
-   4. Union-merges `harness/settings.json` into `~/.claude/settings.json`: appends the `deny` and `ask` entries that are missing, adds the `PreToolUse` Bash hook `python "<repo>/harness/guard_bash.py"` unless a `guard_bash.py` hook is already there, keeps every other key untouched. If a settings file existed, it is copied first to `~/.claude/settings.json.pre-omniharness` (only once; a later run does not overwrite the backup).
+   4. Union-merges `harness/settings.json` into `~/.claude/settings.json`: appends missing `deny` and `ask` entries and installs the `PreToolUse` Bash guard with the installing interpreter's absolute path. An existing Bash guard for this checkout is upgraded to that interpreter; unrelated hooks and settings are retained. Every changed settings file is backed up to the next available `.pre-omniharness` name before writing.
    5. Prints the manual lines.
 
 5. **Add the two lines by hand.** The script prints them and never writes them:
