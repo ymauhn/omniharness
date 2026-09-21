@@ -14,7 +14,7 @@ $testBootstrap = @'
 import os, pathlib, sys, unittest
 os.environ["PATH"] = str(pathlib.Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", "")
 suite = unittest.defaultTestLoader.discover("tests")
-result = unittest.TextTestRunner(verbosity=2).run(suite)
+result = unittest.TextTestRunner(verbosity=2, warnings="default").run(suite)
 if result.skipped:
     print("Incomplete coverage: skipped tests are not accepted.", file=sys.stderr)
 sys.exit(0 if result.wasSuccessful() and not result.skipped else 1)
@@ -23,7 +23,7 @@ Push-Location (Split-Path $PSScriptRoot -Parent)
 try {
     & $Python -c $testBootstrap
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    foreach ($test in @('tests/test_driver.js', 'tests/test_scout_driver.js', 'tests/test_site.js')) {
+    foreach ($test in @('tests/test_driver.js', 'tests/test_scout_driver.js', 'tests/test_swarm_driver.js', 'tests/test_site.js')) {
         & node $test
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }

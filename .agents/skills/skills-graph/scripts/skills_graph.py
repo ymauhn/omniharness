@@ -10,11 +10,14 @@ propose, approve, reject. Stdlib only (tomllib needs Python 3.11+).
 import argparse
 import glob
 import json
+import math
 import os
 import re
+import shutil
 import sys
 import tomllib
 from datetime import date
+from pathlib import Path
 
 HERE = os.path.dirname(os.path.realpath(__file__)).replace("\\", "/")
 SKILL_DIR = os.path.dirname(HERE)
@@ -60,7 +63,7 @@ def skill_files(home, root):
            for p in glob.glob(pat)]
     reg = f"{home}/.claude/plugins/installed_plugins.json"
     if os.path.isfile(reg):
-        for pname, installs in json.load(open(reg, encoding="utf-8")).get("plugins", {}).items():
+        for pname, installs in json.loads(read(reg)).get("plugins", {}).items():
             for inst in installs:
                 base = inst.get("installPath", "")
                 for d, dirs, files in os.walk(base):
@@ -125,7 +128,7 @@ def scan_catalog(home, root):
     nodes = {}
     mp = f"{home}/{MARKET}"
     if os.path.isfile(mp):
-        for p in json.load(open(mp, encoding="utf-8")).get("plugins", []):
+        for p in json.loads(read(mp)).get("plugins", []):
             nodes[p["name"]] = {"id": p["name"], "ring": "catalog", "source": "marketplace:claude-plugins-official",
                                 "category": p.get("category", ""), "description": p.get("description", "")[:300],
                                 "url": p.get("homepage") or (p["source"].get("url", "") if isinstance(p.get("source"), dict) else str(p.get("source", "")))}
@@ -148,7 +151,7 @@ def build(home, root, data):
     nodes = scan_installed(home, root)
     nodes.update({k: v for k, v in scan_catalog(home, root).items() if k not in nodes})
     rpath = f"{data}/remote.json"
-    remote = json.load(open(rpath, encoding="utf-8")) if os.path.isfile(rpath) else {}
+    remote = json.loads(read(rpath)) if os.path.isfile(rpath) else {}
     for e in remote.get("entries", []):
         nodes.setdefault(e["id"], {**e, "ring": "remote", "fetched": remote.get("fetched", "")})
     for cn in curated.get("node", []):  # curated nodes win over table rows that point at the same url
@@ -213,9 +216,83 @@ def score(node, words):
     return sum(3 if w in node["id"].lower() else 1 for w in words if w in text)
 
 
-def route(g, intent, limit=8):
+def measured(node, unit="usd"):
+    cost = node.get("cost", {})
+    if not isinstance(cost, dict): return None
+    value = cost.get(unit)
+    try:
+        dated = date.fromisoformat(cost.get("date", "")) <= date.today()
+    except (ValueError, TypeError):
+        dated = False
+    return value if type(value) in (int, float) and math.isfinite(value) and value >= 0 and isinstance(cost.get("benchmark"), str) and cost["benchmark"].strip() and dated else None
+
+
+def cost_key(node, unit):
+    value = measured(node, unit)
+    return (value is None, value or 0)
+
+
+def unmet(needs, g, root):
+    """Inspect presence only; never print environment values or execute a binary."""
+    if not isinstance(needs, dict): return ["invalid needs object"]
+    missing = []
+    root = Path(root).resolve()
+    installed = {n["id"] for n in g["nodes"] if n["ring"] == "installed"}
+    for kind, values in needs.items():
+        if kind not in ("files", "env", "skills", "binaries") or not isinstance(values, list) or not all(isinstance(v, str) and v for v in values):
+            missing.append("invalid needs:" + kind)
+            continue
+        for value in values:
+            path = (root / value).resolve()
+            present = {"files": lambda: path.is_relative_to(root) and path.is_file(),
+                       "env": lambda: bool(os.environ.get(value)), "skills": lambda: value in installed,
+                       "binaries": lambda: shutil.which(value) is not None}[kind]()
+            if not present: missing.append(kind + ":" + value)
+    return missing
+
+
+def alternatives(g, node_id, root, unit="usd", excluded=()):
+    neighbours = {e["to"] if e["from"] == node_id else e["from"] for e in g["edges"]
+                  if e["type"] == "alternative-to" and e["source"] == "curated" and node_id in (e["from"], e["to"])}
+    return sorted((n for n in g["nodes"] if n["id"] in neighbours and n["id"] not in excluded and n["ring"] == "installed"
+                   and not unmet(n.get("needs", {}), g, root)), key=lambda n: (*cost_key(n, unit), n["id"]))
+
+
+def plan_status(g, plan, root, mode="strict", unit="usd", remaining=None):
+    steps = plan.get("steps")
+    if mode not in ("strict", "balanced", "swarm") or not isinstance(steps, list) or not steps:
+        raise ValueError("a mode and nonempty steps list are required")
+    if any(not isinstance(s, dict) or not isinstance(s.get("id"), str) or not isinstance(s.get("skill"), str) or s.get("status") not in ("done", "pending", "failed") for s in steps):
+        raise ValueError("steps require id, skill and status (done/pending/failed)")
+    if len({s["id"] for s in steps}) != len(steps): raise ValueError("duplicate step ids")
+    step = next((s for s in steps if s["status"] != "done"), None)
+    if step is None: return {"action": "complete"}
+    out = {"step": step["id"], "skill": step["skill"], "mode": mode, "executes": False}
+    if step.get("stop"): return {**out, "action": "ask", "reason": str(step["stop"])}
+    nodes = {n["id"]: n for n in g["nodes"]}
+    node = nodes.get(step["skill"], {})
+    missing = unmet(step.get("needs", {}), g, root) + unmet(node.get("needs", {}), g, root)
+    if node.get("ring") != "installed": missing.append("skills:" + step["skill"])
+    if step["status"] != "failed":
+        return {**out, "action": "blocked" if missing else "next", "unmet": missing}
+    attempts = step.get("attempted", [])
+    if not isinstance(attempts, list) or not all(isinstance(v, str) for v in attempts): raise ValueError("invalid attempted alternatives")
+    # Routine needs are prerequisites shared by every implementation.
+    if unmet(step.get("needs", {}), g, root): return {**out, "action": "blocked", "unmet": missing}
+    choices = alternatives(g, step["skill"], root, unit, [step["skill"], *attempts])
+    if not choices: return {**out, "action": "detour", "reason": "no untried eligible explicit alternative", "unmet": missing}
+    choice = choices[0]
+    value = measured(choice, unit)
+    free = measured(choice, "usd") == 0 and measured(choice, "tokens") == 0 and choice.get("network") is False
+    within = value is not None and type(remaining) in (int, float) and math.isfinite(remaining) and 0 <= value <= remaining
+    automatic = (mode == "balanced" and free) or (mode == "swarm" and within)
+    return {**out, "action": "reroute" if automatic else "ask", "alternative": choice["id"],
+            "cost": choice.get("cost"), "reason": "eligible measured alternative; envelope check still required" if automatic else "mode or missing cost/budget evidence requires owner decision"}
+
+
+def route(g, intent, limit=8, unit="usd"):
     words = [w for w in re.findall(r"[a-z0-9]+", intent.lower()) if w not in STOP and len(w) > 2]
-    ranked = sorted(((score(n, words), n) for n in g["nodes"] if n["ring"] != "missing"), key=lambda t: (-t[0], t[1]["ring"] != "installed", t[1]["id"]))
+    ranked = sorted(((score(n, words), n) for n in g["nodes"] if n["ring"] != "missing"), key=lambda t: (-t[0], *cost_key(t[1], unit), t[1]["ring"] != "installed", t[1]["id"]))
     return [(s, n) for s, n in ranked if s > 0][:limit]
 
 
@@ -246,6 +323,15 @@ def main(argv=None):
     sub.add_parser("check", help="validate curated edges and proposals against the rings; exit 1 on a bad edge type")
     nb = sub.add_parser("neighbors", help="edges in and out of one node"); nb.add_argument("id")
     rt = sub.add_parser("route", help="rank nodes for an intent by keyword overlap (zero tokens)"); rt.add_argument("intent"); rt.add_argument("--limit", type=int, default=8)
+    rt.add_argument("--unit", choices=("usd", "tokens"), default="usd")
+    alt = sub.add_parser("alternatives", help="eligible explicit alternatives; no execution")
+    alt.add_argument("id")
+    alt.add_argument("--unit", choices=("usd", "tokens"), default="usd")
+    status = sub.add_parser("plan-status", help="read one omniharness-plan JSON fence from PLAN.md")
+    status.add_argument("plan")
+    status.add_argument("--mode", choices=("strict", "balanced", "swarm"), default="strict")
+    status.add_argument("--unit", choices=("usd", "tokens"), default="usd")
+    status.add_argument("--remaining", type=float)
     pr = sub.add_parser("propose", help="queue a learned edge for the owner")
     for a in ("from_", "type", "to"):
         pr.add_argument(a)
@@ -279,8 +365,14 @@ def main(argv=None):
             if a.id in (e["from"], e["to"]):
                 print(f"{e['from']} -{e['type']}-> {e['to']}  [{e['source']}]")
     elif a.cmd == "route":
-        for s, n in route(g, a.intent, a.limit):
+        for s, n in route(g, a.intent, a.limit, a.unit):
             print(f"{s:2d}  {n['ring']:9s} {n['id']:32s} {n.get('description', '')[:90]}")
+    elif a.cmd == "alternatives":
+        print(json.dumps(alternatives(g, a.id, root, a.unit), ensure_ascii=False))
+    elif a.cmd == "plan-status":
+        fences = re.findall(r"```omniharness-plan\s*\n(.*?)\n```", read(a.plan), re.S)
+        if len(fences) != 1: raise ValueError("PLAN.md needs exactly one omniharness-plan JSON fence")
+        print(json.dumps(plan_status(g, json.loads(fences[0]), root, a.mode, a.unit, a.remaining), ensure_ascii=False))
     elif a.cmd == "propose":
         if a.type not in EDGE_TYPES:
             sys.exit(f"type must be one of {EDGE_TYPES}")

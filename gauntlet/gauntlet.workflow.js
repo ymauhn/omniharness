@@ -43,6 +43,15 @@ const janelaDup = a.janelaDup ?? 4 // achados no mesmo arquivo a ≤ N linhas de
 const prefixoTmp = a.prefixoTmp || '_gauntlet_'
 const esforco = { cacador: a.esforcoCacador ?? preset.esforcoCacador, refutador: a.esforcoRefutador ?? preset.esforcoRefutador }
 const modelo = { cacador: a.modeloCacador, refutador: a.modeloRefutador }
+const history = a.seen || { records: [] }
+if (a.seen && (history.consumer !== 'gauntlet' || !a.seenScope || history.scope !== a.seenScope ||
+    !/^[a-f0-9]{64}$/.test(a.seenContext || '') || history.context !== a.seenContext ||
+    !Array.isArray(history.records) || history.records.some((r) => !r || !['confirmed', 'refuted'].includes(r.verdict) || !r.id || !r.evidence))) {
+  throw new Error('seen snapshot must match the current scope/context and contain judged records')
+}
+const previouslyJudged = history.records
+const previous = new Set(previouslyJudged.map((r) => r.id))
+let reused = 0
 
 // ── teto de tokens ───────────────────────────────────────────────────────────
 // budget.spent() conta tokens de SAÍDA da sessão inteira (pool compartilhado com o laço
@@ -157,6 +166,7 @@ for (const s of a.jaVistos || []) {
 }
 // Já visto = mesma chave OU mesmo arquivo a ≤ janelaDup linhas de algo já visto (vale entre rodadas também).
 function jaVisto(f) {
+  if (previous.has(rotulo(f))) { reused++; return true }
   const arq = normArq(f.arquivo)
   for (let d = -janelaDup; d <= janelaDup; d++) if (vistos.has(arq + ':' + (f.linha + d))) return true
   return false
@@ -203,7 +213,7 @@ for (let rodada = 1; rodada <= maxRodadas; rodada++) {
   phase('Caçar')
   log('rodada ' + rodada + '/' + maxRodadas + ' — ' + confirmados.length + ' confirmado(s) — ' + tokensAgora())
 
-  const jaReportados = rotulos.slice(-80)
+  const jaReportados = Array.from(previous).concat(rotulos).slice(-80)
   const respostas = await parallel(
       a.areas.map((ar) => () =>
         agent(
@@ -287,9 +297,10 @@ for (let rodada = 1; rodada <= maxRodadas; rodada++) {
           ),
         ),
       ).then((vs) => {
-        const vivos = vs.filter(Boolean)
+        const valid = (v) => v && typeof v.refutado === 'boolean' && typeof v.porque === 'string' && v.porque.trim()
+        const vivos = vs.filter(valid)
         lentesFalhas += vs.length - vivos.length
-        const votos = vs.map((v, i) => v && { lente: lentes[i] || 'lente ' + (i + 1), refutado: v.refutado, porque: v.porque }).filter(Boolean)
+        const votos = vs.map((v, i) => valid(v) && { lente: lentes[i] || 'lente ' + (i + 1), refutado: v.refutado, porque: v.porque }).filter(Boolean)
         if (vivos.length === 0) return { f: Object.assign({}, f, { votos }), vivo: null } // nenhuma lente respondeu: sem verificação, não refutado
         const contra = vivos.filter((v) => v.refutado).length
         const sobrevive = contra * 2 < vivos.length // empate = refutado; em rapido (2 lentes) uma lente basta para derrubar
@@ -324,6 +335,7 @@ const resumo = {
   achadosBrutos: brutos,
   duplicadosFundidos: duplicadosTotal,
   descartadosJanela,
+  reused,
   refutados: refutados.length,
   confirmados: confirmados.length,
   naoVerificados: naoVerificados.length,
@@ -343,4 +355,7 @@ const resumo = {
 log('FIM (' + parouPor + '): ' + confirmados.length + ' confirmado(s) [' + resumo.porGravidade.alta + ' alta, ' + resumo.porGravidade.media + ' média, ' + resumo.porGravidade.baixa + ' baixa], ' + refutados.length + ' refutado(s), ' + naoVerificados.length + ' sem verificação — ' + tokensAgora())
 
 // vistos: rótulos 'arquivo:linha — título' — passe de volta em args.jaVistos para uma rodada extra não repetir
-return { confirmados, naoVerificados, refutados, resumo, vistos: rotulos }
+const complete = (f) => f.votos.length === lentes.length
+const seenUpdates = confirmados.filter(complete).map((f) => ({ id: rotulo(f), verdict: 'confirmed', evidence: JSON.stringify(f.votos) }))
+  .concat(refutados.filter(complete).map((f) => ({ id: rotulo(f), verdict: 'refuted', evidence: JSON.stringify(f.votos) })))
+return { confirmados, naoVerificados, refutados, resumo, vistos: rotulos, previouslyJudged, seenUpdates }

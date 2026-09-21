@@ -36,6 +36,8 @@ TRUNCATED = "\n".join([json.dumps({"type": "system", "subtype": "init"}), json.d
 
 class Runner(unittest.TestCase):
     def test_run_pins_hook_python_and_saves_exit_for_rescore(self):
+        # Windows platform discovery can spawn a shell; resolve it before mocking the model process.
+        run.records.platform.uname()
         with tempfile.TemporaryDirectory() as tmp:
             case = Path(tmp) / "cases" / "detour-bounded"
             case.mkdir(parents=True)
@@ -51,8 +53,10 @@ class Runner(unittest.TestCase):
             ws = next((Path(tmp) / "results" / "workspace").iterdir())
             self.assertEqual(json.loads((ws / "_process.json").read_text())["exit_code"], 1)
             settings = json.loads((ws / ".claude/settings.json").read_text())
-            command = settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
-            self.assertTrue(command.startswith('"' + Path(sys.executable).as_posix() + '" '), command)
+            for entries in settings["hooks"].values():
+                for entry in entries:
+                    for hook in entry["hooks"]:
+                        self.assertTrue(hook["command"].startswith('"' + Path(sys.executable).as_posix() + '" '), hook)
 
     def test_rescore_preserves_process_failure_and_refuses_unknown_status(self):
         for process, expected in ((None, False), ({"exit_code": 0}, True),
@@ -60,17 +64,17 @@ class Runner(unittest.TestCase):
                                   ({"exit_code": 0, "failures": ["timeout after 10s"]}, False)):
             with self.subTest(process=process), tempfile.TemporaryDirectory() as tmp:
                 ws = Path(tmp)
-                (ws / "_stream.jsonl").write_text(json.dumps(dict(ev_result(), result="A free-form answer.")), encoding="utf-8")
+                (ws / "_stream.jsonl").write_text(json.dumps(dict(ev_result(), result="Detour 1\nViability test: a\nDetour 2\nViability test: b\nDetour 3\nViability test: c\nVerdict: keep.")), encoding="utf-8")
                 if process is not None:
                     (ws / "_process.json").write_text(json.dumps(process), encoding="utf-8")
                 with patch.object(run, "RESULTS", ws / "records"):
-                    status = run.main(["rescore", "detour-bounded", "--arm", "control", "--workspace", str(ws)])
+                    status = run.main(["rescore", "detour-bounded", "--arm", "harness", "--workspace", str(ws)])
                 self.assertEqual(status, 0 if expected else 1)
                 rec = json.loads(next((ws / "records").glob("*.json")).read_text(encoding="utf-8"))
                 self.assertEqual(rec["pass"], expected, rec)
 
     def test_scoring_requires_successful_process_and_final_answer(self):
-        valid = dict(ev_result(), result="A free-form answer.")
+        valid = dict(ev_result(), result="Detour 1\nViability test: a\nDetour 2\nViability test: b\nDetour 3\nViability test: c\nVerdict: keep.")
         cases = [
             ("completed", valid, 0, (), True),
             ("process error", valid, 1, (), False),
@@ -88,7 +92,7 @@ class Runner(unittest.TestCase):
                 (ws / "_stream.jsonl").write_text(json.dumps(ev_tool("ls")) + "\n" +
                     (json.dumps(result) + "\n" if result else ""), encoding="utf-8")
                 with patch.object(run, "RESULTS", ws / "records"):
-                    status = run.score_ws("detour-bounded", "control", ws, 1, code, failures=failures)
+                    status = run.score_ws("detour-bounded", "harness", ws, 1, code, failures=failures)
                 rec = json.loads(next((ws / "records").glob("*.json")).read_text(encoding="utf-8"))
                 self.assertEqual(rec["pass"], expected, rec)
                 self.assertEqual(status, 0 if expected else 1)
@@ -117,7 +121,11 @@ class Runner(unittest.TestCase):
         def hist(d, vals):
             d.mkdir()
             for i, (ok, cost) in enumerate(vals):
-                (d / f"{i:03d}-c-harness.json").write_text(json.dumps(run.baseline("c", "harness", ok, [], cost_usd=cost, tokens_out=100, stamp=f"{i:03d}")), encoding="utf-8")
+                manifest = run.records.manifest(ROOT, run.CASES / "detour-bounded", "harness", 1, 60, {"home_isolation": "offline-fixture"})
+                rec = run.baseline("detour-bounded", "harness", ok, [], exit_code=0, manifest=manifest,
+                                   model="fixture-model", agent_version="fixture-cli", source={"files": {"_stream.jsonl": "a" * 64}},
+                                   grader_sha256=manifest["grader_sha256"], cost_usd=cost, tokens_out=100, stamp=f"{i:03d}")
+                (d / f"{i:03d}.json").write_text(json.dumps(rec), encoding="utf-8")
         with tempfile.TemporaryDirectory() as tmp:
             t = Path(tmp)
             hist(t / "drop", [(True, 1.0)] * 3 + [(False, 1.0)])
@@ -125,7 +133,7 @@ class Runner(unittest.TestCase):
             hist(t / "flat", [(True, 1.0)] * 6)
             hist(t / "single", [(True, 1.0)])
             self.assertEqual(len(run.regress(t / "drop")), 1)
-            lines = run.regress(t / "cost"); self.assertEqual(len(lines), 1); self.assertTrue(lines[0].startswith("REGRESSION c/harness: cost_usd"))
+            lines = run.regress(t / "cost"); self.assertEqual(len(lines), 1); self.assertTrue(lines[0].startswith("REGRESSION detour-bounded/harness: cost_usd"))
             self.assertEqual(run.regress(t / "flat"), [])
             self.assertEqual(run.regress(t / "single"), [])
             self.assertEqual(run.regress(t / "cost", factor=1.5), [])

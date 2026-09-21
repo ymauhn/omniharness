@@ -1,0 +1,146 @@
+# T13-H1 · Claude checkpoint and return handoff to Codex
+
+Status: **LOCAL CHECKPOINT — owner-authorised delivery validated; Docker recovered and offline process containment passed, 2026-09-21. Resolve the delivery SHA from Git; native executor integration remains next.**
+
+Prepared by Codex on 2026-09-21. Repository: `C:/Users/Yeonatan/master_team`. Branch at handoff: `master`. HEAD at handoff: `1a2289cd69ba48685a5f131563e20cf4a9591a90` (T1). The index was empty; E1 and the local T13 implementation are uncommitted working-tree changes, including new files. Re-read actual Git state on arrival; this snapshot is not permission to overwrite later work.
+
+Owner request: leave a ticket that Claude reads before changing anything or preparing the requested commit, and document every subsequent change so Codex can resume from repository evidence. This ticket does not itself perform a commit or grant push/publication authority. Once the owner asks Claude to commit, that request is sufficient for that commit; do not ask for the same approval again.
+
+Latest owner amendment: scoped local commits are now authorised for this work and future repository task checkpoints. Native Codex/Astra agents using the existing allowance require no repeated paid-call approval. See current AGENTS.md; older journal restrictions are historical. Unknown usage and unverified isolation still cannot become benchmark evidence. Push/publication is not authorised.
+
+## Read before changing files
+
+1. `AGENTS.md`, especially task-scoped autonomy. Routine dependencies, public documentation/assets, local setup and validation are already covered by task approval. Do not restore the old blanket per-command questions.
+2. This ticket, including the latest continuation entry at the bottom.
+3. `CONTEXT.md`, `docs/adr/0006-evaluation-first-evolution.md`, `docs/evals/RECORDS.md` and `docs/experiments/eval-integrity-2026-09.md`.
+4. `docs/t13/README.md`, `docs/t13/PLAN.md`, `docs/t13/SEEN.md`, `docs/t13/VALIDATION.md` and ADR 0005.
+5. The actual changed code, tests and untracked files. Older sections in `docs/handoff-codex.md` and `docs/commercial/TICKETS.md` describe historical plans, not current completion or authority. Current AGENTS.md and dated evidence take precedence over obsolete wording.
+
+## Current stage
+
+| Work | State at handoff | Remaining boundary |
+|---|---|---|
+| T1 parity/stabilization | Committed as `1a2289c`; complete visual coverage | Live host parity was not certified |
+| E1 eval integrity | Implemented and locally validated in this checkpoint | Live control still needs integration with the tested OS containment profile |
+| T13 S1 envelope/menu | Manual/coordinator CLI implemented; Claude's Bash guard remains block-only and never asks | No native envelope interception or real workspace envelope is claimed |
+| T13 S2 routing | Measured-cost/prerequisite/alternative routing implemented and tested | Recommendations do not execute themselves or establish task-quality weights |
+| T13 S3 swarm | Offline driver, ledger, whole-tree parser, worktree audits and live offline containment proof implemented | Native executor/usage wiring and E1 controls remain; ordinary native allowance work is authorised |
+| T13 S4 history/hooks | Implemented, installed and locally tested | SessionStart/PostToolUse native delivery still needs live Claude evidence; shell writes are outside the edit-hook coverage |
+| T13 S5–S7 | Not complete | B8/B9 depend on valid accounting/isolation; portal/showcase and final closure remain downstream |
+| E2 / genetic search / commercial work | Future work | Do not advance as part of a commit-only request |
+
+Latest complete battery: `scripts/check.ps1` exited 0; **92/92 Python tests, 0 skipped, 67.654 s**, including both visual methods. Node: 5 Gauntlet + 6 Scout + 7 Swarm scenarios and portal checks passed. Eval selftest and 25 installation rows passed. Graph: 511 nodes, 92 edges, 5 pending proposals, 0 errors. Separate real Docker probe: **12/12, 1.297 s**. Evidence: `docs/t13/VALIDATION.md`; local log `%TEMP%/omniharness-task-authority.log` (not guaranteed to survive on another host). Earlier journal measurements remain historical.
+
+The historical eval audit has four invalid and four unverified attempts, no certified baseline. Regression output remains INCOMPARABLE; a completed command is not proof of no regression. Cold/warm fixture counts are Scout 4→3 and Gauntlet 3→1 simulated calls, not real token, dollar or quality gains.
+
+## What Claude can change
+
+**For a commit-only request:** review the existing diff, validate it, fix concrete defects necessary to preserve its intended behavior, update the handoff/evidence and commit the reviewed delivery. Avoid unrelated cleanup or starting another feature. Document any correction with its failing case and resulting check. Do not discard the current work to recreate it from HEAD.
+
+**If the owner also asks to continue implementation:** the next recommended slice is the S3 host adapter and its deterministic boundary tests. Work primarily in `swarm/`, `harness/`, the portable swarm entry, relevant tests and `docs/t13/`. Establish what the actual host can enforce before inventing an API. `budget.reserve` / `budget.settle` are harness contracts, not verified native Workflow APIs. Keep unsupported hosts refusing execution. E1 control isolation and native-hook verification are adjacent evidence tasks; give each a bounded plan and log entry. Do not silently fold them into a checkpoint commit.
+
+Current starting point for that adapter is [ACCOUNTING.md](ACCOUNTING.md): reuse `harness/swarm_accounting.py` and `harness/swarm_worktrees.py`, their 12 tests and the driver's `cancel`/isolation contracts. Do not duplicate them or restore the stashed all-tool hook. Recover Docker's failed runtime first for OS acceptance; a destructive reset or machine restart needs its own owner decision. Actual Git isolation is tested, but worktrees cannot substitute for OS containment.
+
+Update: Docker recovery and the live offline process probe are now complete; reuse `harness/sandbox_probe.py` and its recorded 12-check result. The next implementation is the coordinator/native agent tool-execution bridge with attributable usage, not another Docker repair or blanket model-charge approval round. A passing fixed probe does not certify an agent already connected to that profile.
+
+Known file groups in the pending package (inspect exact paths, not a blanket staging command):
+
+| Area | Files/directories to inspect |
+|---|---|
+| E1 | `evals/run.py`, `evals/records.py`, `evals/__init__.py`, `tests/test_runner.py`, `tests/test_eval_integrity.py`, `tests/fixtures/evals/`, `docs/evals/`, `docs/experiments/eval-integrity-2026-09.md`, `docs/experiments/eval-history-2026-09.json`, `docs/benchmarks.md` |
+| Envelope and installation | `harness/envelope.py`, `harness/guard_bash.py`, `harness/settings.json`, `scripts/install.py`, `scripts/check.ps1`, `tests/test_envelope.py`, `tests/test_layout.py`, `.agents/skills/omniharness/`, `.gitignore`, `docs/install.md` |
+| Routing and swarm | `.agents/skills/skills-graph/`, `.agents/skills/scout/`, `.agents/skills/swarm/`, `swarm/`, `tests/test_skills_graph.py`, `tests/test_swarm_driver.js`, `docs/skills-graph/` |
+| History and auxiliary hooks | `harness/seen.py`, `harness/hooks/`, `gauntlet/SKILL.md`, `gauntlet/gauntlet.workflow.js`, `scout/scout.workflow.js`, `tests/test_seen.py`, `tests/test_hooks.py`, `tests/test_driver.js`, `tests/test_scout_driver.js` |
+| S3 continuation | `harness/swarm_accounting.py`, `harness/swarm_worktrees.py`, `tests/test_swarm_accounting.py`, `tests/test_swarm_worktrees.py`, `tests/test_guard.py`, `docs/t13/ACCOUNTING.md`, `docs/experiments/claude-reconciliation-2026-09-21.md`, `docs/experiments/swarm-usage-2026-09.json` |
+| Governance and handoff | `AGENTS.md`, `CONTEXT.md`, `docs/adr/0005-session-envelope.md`, `docs/t13/`, `docs/handoff-codex.md`, `docs/commercial/TICKETS.md` |
+
+Preserve these boundaries: unknown usage stays unknown; invalid executions never pass; incomplete judgments never enter reusable history; old confirmed findings remain visible; USD is not converted to tokens with a fixed ratio; worktrees are not an OS sandbox. Historical raw eval records remain untouched. Real model runs need the applicable approval, cost/budget and checkpoint evidence; old strategic approval is not proof that present technical prerequisites hold. Native permissions remain authoritative.
+
+## Review and commit procedure
+
+1. Read this ticket and inspect `git status --short --untracked-files=all`, `git diff --no-ext-diff --no-textconv`, `git diff --cached --no-ext-diff --no-textconv` and current HEAD. Read untracked source files explicitly; `git diff` alone omits them. If another agent is writing, coordinate through the owner before overlapping edits.
+2. Mark this ticket `IN PROGRESS` and append a dated continuation entry with the current HEAD, requested scope and starting worktree state. For a commit-only request, keep the existing feature scope.
+3. Validate with `./scripts/check.ps1`. The runner chooses bundled Python 3.12.14 on this host; `-Python <absolute-path>` selects another suitable runtime. Dependencies already installed here include Playwright/Chromium and PyYAML. Install/configure missing dependencies on another host; **no skipped tests**. Public Google Fonts used by visual tests are within the standing task authorization.
+4. If installed drivers or hooks drift after a correction, use the same Python to preview `scripts/install.py --dry-run`, then apply the necessary update with backups and recheck. Do not hand-edit copied drivers instead of their repository sources. Current settings backup is `C:/Users/Yeonatan/.claude/settings.json.pre-omniharness-5`; record any newer backup. User-home installs are not Git content.
+5. Record actual checks and any failures in `docs/t13/VALIDATION.md` plus the continuation entry. Preserve previous measurements as dated evidence. Run `git diff --check`; inspect the proposed staged files and diff. Include required new modules, fixtures, skills and this ticket. Exclude ignored runtime state, credentials, user-home settings, raw `evals/results/` and generated captures/logs. Do not stage unrelated files merely because they are present.
+6. Update this ticket's status and the current summaries in `CONTEXT.md` / `docs/handoff-codex.md` when their statements change (including the pending-versus-committed state). Identify the exact delivery and its evidence; do not mark all T13 complete. A suitable combined commit subject is `feat(harness): harden eval records and add local T13 autonomy`. Shared files span E1/T13; do not manufacture separate stage boundaries that produce broken intermediate commits.
+7. Commit when requested by the owner, preserving T1 history. A commit request does not imply push. Return the actual full SHA, branch, included scope, test result, residual worktree changes and next action to the owner. Verify final `git status --short`; describe leftovers instead of deleting or resetting them.
+
+## How to document every continuation
+
+Before handing back to Codex, append a completed entry below. Use one entry per coherent change or session; record failed attempts and limitations too. Do not rewrite earlier entries to imply a check was performed later than it was. Chat-only explanations are insufficient for decisions or changed behavior.
+
+Update the affected contract page when behavior changes (`RECORDS.md`, `SEEN.md`, T13 README/PLAN), `VALIDATION.md` for executable evidence, and CONTEXT/handoff for current stage. An architectural decision gets an ADR or a dated amendment to its existing ADR. Keep raw transcripts/private material out of tracked documentation; provide sanitized evidence and reproducible commands.
+
+Copy this template as a new entry, replacing every placeholder or explicitly writing `not measured` / `not applicable`:
+
+```markdown
+### YYYY-MM-DD HH:MM timezone — Claude/Codex — short change title
+- Owner request / authority: exact scope and reference to the instruction.
+- Branch / HEAD before work / starting dirty files:
+- Ticket state: READY / IN PROGRESS / CHECKPOINT READY / HANDED BACK.
+- Changed files and behavior: path → what changed → why; include tests/docs.
+- Decisions: rationale, rejected alternative if relevant, ADR/contract link.
+- Validation: exact commands, runtime/host, exit codes, passed/failed/skipped counts,
+  elapsed time when measured, evidence path; identify offline fixtures versus live evidence.
+- Failures and unresolved risks: reproducer, attempted fix, remaining limitation.
+- Host changes: dependencies/versions, installed driver/hook updates, backup paths;
+  write “none” when only repository content changed.
+- Commit scope: included delivery, proposed subject or already-existing commit SHA;
+  list residual uncommitted files. Actual new SHA is returned after the commit.
+- Resume here: one next action, exact relevant files, acceptance check and dependencies.
+```
+
+A commit cannot contain its own SHA in a tracked file. Record the baseline and proposed commit subject in its entry; report the resulting SHA after committing. The next session resolves it from Git and can append that SHA in its next normal documentation change. Do not create a chain of amend/extra commits just to embed a self-reference.
+
+## Acceptance for T13-H1
+
+- [ ] Claude has read the current ticket and inspected staged, unstaged and untracked work.
+- [ ] Any corrections have a recorded reason and validation; the existing delivery was preserved.
+- [ ] The complete battery passes with zero skips before the checkpoint is described as validated.
+- [ ] The owner-requested commit includes the reviewed delivery and updated handoff, with no unrelated or local runtime artifacts.
+- [ ] The owner receives the actual SHA, residual Git state and next action; Codex can resume from the repository journal.
+- [ ] Live-host/accounting/isolation limitations remain explicit unless new evidence closes them.
+
+## Continuation journal
+
+### 2026-09-21 — Codex — resume after Claude guard changes (in progress)
+
+- Owner request: inspect the latest Claude changes, explain their effect, and continue actual swarm usage accounting/isolation.
+- HEAD remains `1a2289c`; pending E1/T13 work is not committed. Fetched remote refs without merging. Claude's `7a9b438` on `fix/guard-never-asks` pins a Bash-only, block-only, fail-open guard; the reverted T13 guard/settings remain preserved in stash `8105be6`. This policy is retained.
+- Remote `90534e4` includes Phase C planning; `28d2096` on the screen-control branch adds D4 source verification. Those docs are not integrated locally and introduce no runtime skill. Phase C remains downstream.
+- Reconciliation: restored local S4 auxiliary hooks and narrow allow entries while keeping the Bash guard byte-identical to the Claude-restored version. Ported Claude's guard contract test with provenance and moved envelope-specific assertions to the manual policy CLI. Installer probes now check the block-only contract.
+- Initial targeted verification reproduced 6 failures and 1 error (21 tests), including missing `allow` configuration and the obsolete all-tool-hook expectation. Current work follows tests before implementation; final results and remaining host limits will be appended here.
+- Next: coordinator-side accounting and verified worktree boundaries. Official Claude docs distinguish `modelUsage` whole-tree token totals from main-loop `usage`, and client-estimated USD from authoritative billing. Preserve that distinction in the new contract.
+
+### 2026-09-21 — Codex — handoff prepared
+
+- Owner request: create this ticket so Claude can understand the current stage before its separately requested commit and document any continuation for Codex.
+- Branch/HEAD: `master` / `1a2289cd69ba48685a5f131563e20cf4a9591a90`; index empty at inspection; existing E1/T13 changes and new files preserved.
+- Change scope: documentation only. Added this ticket and discovery links in AGENTS.md, the master ticket list and the Codex handoff. `CLAUDE.md` remains the one-line AGENTS.md import.
+- Prior implementation validation: 75/75 Python plus the complete Node/eval/install/graph battery; see the dated S4 record above. Ticket creation does not claim a new complete battery run.
+- Handoff validation: `git diff --check` passed; `python -m unittest tests.test_layout.Skills.test_claude_md -v` passed (1 test, zero skips). All 3 local Markdown links in the changed documents and 8 required reading references resolve. Only existing CRLF normalization notices were emitted by Git.
+- Host changes: none. No commit or push performed by Codex for this handoff.
+- State: READY FOR CLAUDE. Codex has no further active implementation in this handoff; verify fresh Git state before assuming exclusive ownership.
+- Resume here: review/checkpoint the E1 + local T13 package under the owner's commit request. If continuation is requested afterward, investigate the S3 trusted host adapter with boundary tests; keep paid dispatch blocked until its prerequisites are proven.
+
+### 2026-09-21 — Codex — reconciled guard and validated S3 primitives
+
+- Authority: owner's latest request to inspect Claude changes and continue real consumption accounting/swarm isolation; standing routine setup/test authorization. No new paid run, commit or push requested/performed by Codex.
+- Branch/HEAD: `master` / `1a2289cd69ba48685a5f131563e20cf4a9591a90`, one ahead/two behind fetched `origin/master`. Index empty; pending E1/T13 preserved. Claude branch `7a9b438` and stash `8105be6` retained; remote Phase C/D4 docs inspected, not merged. No completed Claude journal entry was present, so reconciliation is grounded in Git/files rather than assumed chat history.
+- Changes: kept guard byte-identical; restored S4 auxiliary configuration, corrected installer probes and ported Claude's four guard tests. Added SQLite accounting and Git worktree modules/tests, corrected envelope token parsing, and added trusted driver isolation/cancellation checks. Updated AGENTS, ADR 0005, contracts, CONTEXT/handoff and experiment reports. See the file groups and `ACCOUNTING.md` above.
+- Validation: complete `./scripts/check.ps1` exit 0; 91 Python tests, 0 skipped, 63.981 s; both visuals; Node 5/6/7 and portal; eval selftest; 25 install rows; graph 511/92/5 pending/0 errors. `git diff --check` passed. Red cases and log location are in `VALIDATION.md`.
+- Measurement: reread six complete legacy streams with source hashes; 1,311,288 tokens and US$2.857086 estimated known subtotal. Seventh stream unresolved; billing/complete total unknown. No new model run or quality certification.
+- Host changes: installed updated Swarm driver and merged settings with pinned Python 3.12.14; backup `.claude/settings.json.pre-omniharness-5`. No new package. Docker 4.85.0 hidden start failed on the inaccessible inference socket; exact backup rename failed too, no object/data removed or reset. Linux engine/OS acceptance unavailable.
+- Remaining: native hook delivery; provider-side caps and coordinator/executor wiring; OS containment, then E1 live controls/B8/B9. Local unit/integration success is not live swarm certification. All E1/T13 source/docs remain uncommitted; no staging or cleanup performed.
+- Resume here: recover Docker through a supported nondestructive repair or an explicitly approved host restart; then execute adversarial OS containment checks before wiring paid dispatch. If the next owner request is commit-only, review/checkpoint the validated local slice with these limitations; do not start Phase C or a paid benchmark.
+
+### 2026-09-21 — Codex — standing commits, native allowance and real containment
+
+- Authority: owner explicitly said to continue, change the no-commit rule, commit, and remove the generic paid-agent approval restriction for native GPT Astra agents using the existing allowance. Additional-charge services and publication remain outside that amendment.
+- Starting HEAD: `1a2289c`, dirty E1/T13 delivery and empty index. Prepared the whole reviewed local package for a checkpoint; no remote merge/push or stash application. Proposed subject: `feat(harness): harden evals, add swarm accounting and verify containment`.
+- Changes: updated AGENTS/Swarm skill/ADR to distinguish native allowance work from external paid calls; removed the generic commit ask from the fragment and added explicit backed-up migration `install.py --task-commits`. Added a regression test preserving other native permissions. Added `harness/sandbox_probe.py`, a fixed model-free acceptance check in disposable real Git worktrees and a restricted Docker process, plus hashed evidence in `docs/experiments/sandbox-containment-2026-09.json`.
+- Host: settings backup `.claude/settings.json.pre-omniharness-6`. Recovered Docker by preserving socket-only directories at `%LOCALAPPDATA%/Docker/run.pre-omniharness-20260921`, `run.pre-omniharness-20260921-2`, and `%LOCALAPPDATA%/docker-secrets-engine.pre-omniharness-20260921`. No secret contents were read, machine restarted, or Docker data reset/deleted. Engine 29.6.2. Official Python image pinned at `sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9`; first pull failed EOF, second succeeded. Image and recovery backups retained.
+- Validation: full `scripts/check.ps1` exit 0, zero skips, including both visual methods; exact count/time in `VALIDATION.md`. Live containment: 12/12 checks, 1.297 s, exit 0; distinct worktree output, source/sibling unchanged, outside sentinels inaccessible, network/root writes denied, Docker socket absent, non-root/zero capabilities/no-new-privileges/seccomp. Container removed by its exact fixture ID; no existing container touched. No model called by this probe.
+- Limits: native agent tool calls are not yet routed through this container profile; a fixed process check cannot close S3's native executor or E1 control adapter. The historical usage audit remains unchanged and billing is not independently reconciled. Unknown usage limits benchmark claims, not authority to perform ordinary native work.
+- Resume: inspect current HEAD/cleanliness and use this checkpoint; wire coordinator execution and native usage evidence, preserving the tested containment profile and per-role/retry accounting. Do not recreate the no-commit or per-native-agent paid-call barriers. Document the actual delivery SHA in the next normal journal entry; it cannot be embedded in its own commit.

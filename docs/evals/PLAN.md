@@ -8,7 +8,7 @@ Make an evaluation record suitable for comparison: it must distinguish an invali
 
 ## Where we are
 
-T1 local corrections are complete: missing links created, interpreter explicit, hook configuration/probes checked, Detour empty answers rejected, process/result failures disqualifying, process metadata retained for rescoring. See `../experiments/codex-parity-2026-09.md`. The historical comparator and usage schema have not yet been upgraded.
+T1 is committed as `1a2289c`, including required visual dependencies and 41/41 Python tests with no skips. E1's record contract, comparator and offline fixtures are implemented; see `RECORDS.md` and `../experiments/eval-integrity-2026-09.md`. E2 and T13 remain subsequent work.
 
 ## E1: comparable and auditable records
 

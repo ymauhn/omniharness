@@ -74,7 +74,7 @@ class Guard(unittest.TestCase):
             self.assertEqual(self.guard(cmd), 2, cmd)
 
     def test_allows(self):
-        for cmd in ("ls -la", "git push --force-with-lease origin main"):
+        for cmd in ("ls -la", "git status"):
             self.assertEqual(self.guard(cmd), 0, cmd)
 
 
@@ -86,7 +86,7 @@ class Install(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="omni-home-").replace("\\", "/")
         self.repo = self.tmp + "/repo"
-        for d in ("scripts", "harness", "gauntlet", "scout", ".agents"):
+        for d in ("scripts", "harness", "gauntlet", "scout", "swarm", ".agents"):
             shutil.copytree(f"{REPO}/{d}", f"{self.repo}/{d}", ignore=shutil.ignore_patterns("__pycache__"))
         for f_ in ("AGENTS.md", "CLAUDE.md"):
             shutil.copyfile(f"{REPO}/{f_}", f"{self.repo}/{f_}")
@@ -121,6 +121,7 @@ class Install(unittest.TestCase):
         self.assertEqual(read(self.home + "/.claude/workflows/gauntlet-driver.js"),
                          read(REPO + "/gauntlet/gauntlet.workflow.js"))
         self.assertEqual(read(self.home + "/.claude/workflows/scout-driver.js"), read(REPO + "/scout/scout.workflow.js"))
+        self.assertEqual(read(self.home + "/.claude/workflows/swarm-driver.js"), read(REPO + "/swarm/swarm.workflow.js"))
         with open(self.home + "/.claude/settings.json", encoding="utf-8") as f:
             merged = json.load(f)
         with open(REPO + "/harness/settings.json", encoding="utf-8") as f:
@@ -133,6 +134,10 @@ class Install(unittest.TestCase):
         self.assertTrue(cmd.startswith('"' + sys.executable.replace("\\", "/") + '" '), cmd)
         self.assertIn(self.repo + "/harness/guard_bash.py", cmd)  # the installer resolves its own checkout
         self.assertNotIn("{{", cmd)
+        for event in ("SessionStart", "PostToolUse"):
+            command = merged["hooks"][event][0]["hooks"][0]["command"]
+            self.assertTrue(command.startswith('"' + sys.executable.replace("\\", "/") + '" '), command)
+            self.assertIn(self.repo + "/harness/hooks/verify.py", command)
         self.assertNotIn("_comment", merged)
         with open(self.home + "/.claude/settings.json.pre-omniharness", encoding="utf-8") as f:
             self.assertEqual(json.load(f)["permissions"], {"ask": ["Bash(foo:*)"]})
@@ -145,14 +150,16 @@ class Install(unittest.TestCase):
         self.assertEqual(self.run_install().returncode, 0)
         settings = self.home + "/.claude/settings.json"
         original = json.loads(read(settings))
-        for drift in ("ask", "deny", "missing hook", "wrong matcher", "stale python"):
+        for drift in ("ask", "deny", "allow", "missing hook", "wrong matcher", "stale python", "SessionStart", "PostToolUse"):
             cur = json.loads(json.dumps(original))
-            if drift in ("ask", "deny"):
+            if drift in ("ask", "deny", "allow"):
                 cur["permissions"][drift] = []
             elif drift == "missing hook":
                 cur["hooks"]["PreToolUse"] = []
             elif drift == "wrong matcher":
                 cur["hooks"]["PreToolUse"][0]["matcher"] = "Write"
+            elif drift in ("SessionStart", "PostToolUse"):
+                cur["hooks"][drift] = []
             else:
                 cur["hooks"]["PreToolUse"][0]["hooks"][0]["command"] = 'python "' + self.repo + '/harness/guard_bash.py"'
             with self.subTest(drift=drift):
@@ -173,17 +180,39 @@ class Install(unittest.TestCase):
         settings = self.home + "/.claude/settings.json"
         cur = json.loads(read(settings))
         pre = cur["hooks"]["PreToolUse"]
+        pre[0]["matcher"] = "Bash"
         pre[0]["hooks"][0]["command"] = 'python "' + self.repo + '/harness/guard_bash.py"'
         other = {"type": "command", "command": "unrelated-hook"}
         pre[0]["hooks"].append(other)
+        cur["hooks"]["PostToolUse"][0]["hooks"].append(other)
         with open(settings, "w", encoding="utf-8") as f:
             json.dump(cur, f)
         r = self.run_install()
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(json.loads(read(settings + ".pre-omniharness-2")), cur)
         new = json.loads(read(settings))
-        self.assertIn(other, new["hooks"]["PreToolUse"][0]["hooks"])
+        self.assertEqual(new["hooks"]["PreToolUse"][0]["matcher"], "Bash")
+        self.assertEqual(new["hooks"]["PreToolUse"][1], {"matcher": "Bash", "hooks": [other]})
+        self.assertEqual(new["hooks"]["PostToolUse"][1], {"matcher": "Write|Edit|MultiEdit", "hooks": [other]})
         self.assertEqual(self.run_install("--check").returncode, 0)
+
+    def test_explicit_commit_policy_migration_preserves_other_permissions(self):
+        self.assertEqual(self.run_install().returncode, 0)
+        settings = self.home + "/.claude/settings.json"
+        cur = json.loads(read(settings))
+        cur["permissions"]["ask"].extend(["Bash(git commit:*)", "Bash(git commit --amend:*)"])
+        with open(settings, "w", encoding="utf-8") as f:
+            json.dump(cur, f)
+        self.assertEqual(self.run_install("--dry-run", "--task-commits").returncode, 0)
+        self.assertEqual(json.loads(read(settings)), cur)
+        self.assertEqual(self.run_install("--task-commits").returncode, 0)
+        new = json.loads(read(settings))
+        self.assertNotIn("Bash(git commit:*)", new["permissions"]["ask"])
+        self.assertIn("Bash(git commit --amend:*)", new["permissions"]["ask"])
+        self.assertIn("Bash(git push:*)", new["permissions"]["ask"])
+        self.assertIn("Bash(foo:*)", new["permissions"]["ask"])
+        self.assertEqual(new["permissions"]["deny"], cur["permissions"]["deny"])
+        self.assertEqual(json.loads(read(settings + ".pre-omniharness-2")), cur)
 
     def test_conflict_triage_then_adopt(self):
         real = self.home + "/.claude/skills/thesis-review"

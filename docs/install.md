@@ -1,6 +1,6 @@
 # Installing OmniHarness
 
-User-scope install: the repository stays where you cloned it and the hosts reach it through junctions and one copied file. Nothing is deleted; anything that would be replaced is renamed with a `.pre-omniharness` suffix, and only under `--adopt`. Rationale: [adr/0002](adr/0002-roots-and-user-scope-install.md).
+User-scope install: the repository stays where you cloned it and the hosts reach it through junctions and copied workflow drivers. Nothing is deleted; conflicting link targets are preserved under a `.pre-omniharness` suffix with `--adopt`, and changed settings are backed up. Rationale: [adr/0002](adr/0002-roots-and-user-scope-install.md).
 
 `<repo>` below is the absolute path of the checkout (on the reference machine `C:/Users/Yeonatan/master_team`; in Git Bash `/c/Users/Yeonatan/master_team`). `~` is your home directory.
 
@@ -23,9 +23,10 @@ All flags of `scripts/install.py`:
 | Flag | Effect |
 |---|---|
 | (none) | Plan, then apply. Exits 1 with a numbered triage list if any target exists and is not ours. |
-| `--check` | Read-only drift check: junctions, driver bytes, ask/deny lists, the Bash hook and local guard allow/block probes. The probe commands are JSON data, never executed. Exit 0 when all pass. |
+| `--check` | Read-only drift check: junctions, driver bytes, ask/deny/allow lists, all three hook events and local quiet-pass/hard-block probes. PreToolUse is Bash-only and never asks. Probe commands are data, never executed. Exit 0 when all pass; this does not certify live interception. |
 | `--dry-run` | Print the plan and the manual lines, write nothing. |
 | `--adopt` | Rename conflicting targets to `<path>.pre-omniharness` (then `-2`, `-3` if taken) before linking. |
+| `--task-commits` | With the owner's standing commit authority, remove only the legacy `Bash(git commit:*)` ask entry; preserve specific amend/push rules and every other permission. Preview with `--dry-run`; changes get the normal settings backup. |
 | `--no-agents` | Skip the `~/.agents/skills/<name>` junctions (Codex/Hermes side). |
 | `--home <dir>` | Use another home directory (the tests use a temp dir). |
 
@@ -63,8 +64,8 @@ The installer refuses to run when `OMNIHARNESS_SANDBOX=1` is set (benchmark sand
    What it does, in order:
    1. Renames any existing target that is not already a junction to us: `<path>` becomes `<path>.pre-omniharness`. Without `--adopt` the script prints `1. <path>: real directory; would be renamed to ...` and exits 1.
    2. Creates junctions (`cmd /c mklink /J`, no admin needed): `~/.claude/skills/<name>` and `~/.agents/skills/<name>` for every directory under `<repo>/.agents/skills/`, and `~/.claude/skills/gauntlet-loop` to `<repo>/gauntlet`.
-   3. Copies `<repo>/gauntlet/gauntlet.workflow.js` to `~/.claude/workflows/gauntlet-driver.js` if the bytes differ (the Workflow registry only reads `*.js` from that directory, so this file cannot be a link).
-   4. Union-merges `harness/settings.json` into `~/.claude/settings.json`: appends missing `deny` and `ask` entries and installs the `PreToolUse` Bash guard with the installing interpreter's absolute path. An existing Bash guard for this checkout is upgraded to that interpreter; unrelated hooks and settings are retained. Every changed settings file is backed up to the next available `.pre-omniharness` name before writing.
+   3. Copies the Gauntlet, Scout and Swarm workflow files to their `*-driver.js` names in `~/.claude/workflows/` when bytes differ. Swarm live execution requires the accounting adapter documented in [T13](t13/README.md); installing the driver does not certify that adapter.
+   4. Union-merges `harness/settings.json`: appends missing `deny`, `ask` and narrow read-only `allow` entries and installs `PreToolUse`, `SessionStart` and `PostToolUse` hooks with the current interpreter's absolute path. Only this checkout's hooks are upgraded; unrelated hooks retain their matchers. Every changed settings file is backed up to the next available `.pre-omniharness` name. Native ask/deny rules remain authoritative over envelope allows. Auxiliary checks, activation and path limits are documented in [S4](t13/SEEN.md).
    5. Prints the manual lines.
 
 5. **Add the two lines by hand.** The script prints them and never writes them:
@@ -80,7 +81,7 @@ Nothing to install: Codex reads `~/.agents/skills` natively, and step 4 already 
 
 - Instructions: Codex reads the `AGENTS.md` chain from `~/.codex/AGENTS.md` down to the cwd, 32 KiB cap. To use the harness rules in a project, add `@<repo>/AGENTS.md` (or a copy of the file) to that project's `AGENTS.md`, or to `~/.codex/AGENTS.md` for every project.
 - Gauntlet: not available (Codex has no Workflow tool). The `gauntlet-loop` skill is not linked under `~/.agents/skills` on purpose.
-- Gate: Codex reads a same-shaped `~/.codex/hooks.json`, but the harness does not write it. The "HITL gate" section of `AGENTS.md` is the enforcement.
+- Gate: this harness does not install or certify a native Codex hook. Follow `AGENTS.md` and the manual envelope procedure in [T13](t13/README.md); do not infer parity from Claude's settings format.
 - On the reference machine `codex.exe` 0.151.0-alpha.7.1 lives under `%LOCALAPPDATA%\OpenAI\Codex\bin\` and is not on PATH; call it by full path or add that directory to PATH.
 
 ## Hermes (manual)
@@ -111,7 +112,7 @@ python evals/run.py selftest
 
 Expected: `--check` prints `OK` on every row and exits 0; the unittest run is green (it also runs the installer against a temporary home, so it proves the installer itself); `test_driver.js` runs the driver body with a stub agent in under a second, and the second invocation proves the installed copy; `selftest` prints `selftest ok: regress [1, 1, 0]; empty and garbage streams fail`.
 
-Inside Claude Code: `/gauntlet-loop`, `thesis-review`, `omniharness` and `skills-graph` appear in the skill list, and a `git push` or `curl` in Bash prompts before running.
+Inside Claude Code, verify skill discovery and actual interception separately. Push is an envelope hard stop; curl remains covered by the native ask list. A local probe is not a live host check.
 
 ## Uninstall
 
@@ -153,4 +154,4 @@ The harness rules are opt-in. Nothing is imported into `~/.claude/CLAUDE.md`; in
 - Codex: `$omniharness`
 - Hermes: invoke the `omniharness` skill by name
 
-The skill reads `AGENTS.md` and `CONTEXT.md`, runs `python scripts/install.py --check` and `python evals/run.py regress`, reports in five lines, and offers the install only when a row fails. It never writes to your global instructions, never commits, never deletes, never starts a paid run.
+The skill reads the rules/context, checks installation and regressions, and offers the three-mode session menu. Only an explicit owner answer creates an envelope. See [T13](t13/README.md) for status, mode changes, explain and host limitations. Activation never starts a paid run or commits changes.

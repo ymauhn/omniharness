@@ -2,6 +2,8 @@
 
 Integrity qualification (2026-09-20): the B5 control grader previously accepted empty answers, and the runner could approve a failed process. Two stored B5 control records have process exit 1; their historical PASS labels below are not evidence of valid completed controls. The new runner rejects these states and requires process provenance for offline rescoring. Original records and numbers are retained as history, not calibrated evolutionary fitness. See `experiments/codex-parity-2026-09.md` and `evals/PLAN.md` before using the regression alerts or claiming a measured lift.
 
+E1 audit: all eight original records remain unchanged. Four attempts are invalid (including the B3 control's error result despite reported exit 0), and four are unverified because original provenance is insufficient; none is a certified comparable baseline. The B2 aggregate counts are not output-token measurements. See `experiments/eval-history-2026-09.json`, `experiments/eval-integrity-2026-09.md` and the implemented comparison policy in `evals/RECORDS.md`.
+
 First measured run of the three canonical benchmarks on the reference machine (Windows 11, Claude Code 2.1.267, subscription auth, Python 3.12.10, Node 24.19). Raw records live in `evals/results/` (gitignored, one JSON per run); this page keeps the numbers a contributor needs to know whether their change regressed something. Reproduce with the commands in `recipes/first-hour.md` and `recipes/code-audit-gauntlet.md`.
 
 ## B1: l3-gates (Layer 3 gates)

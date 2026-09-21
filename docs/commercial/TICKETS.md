@@ -1,5 +1,7 @@
 # Tickets: the commercial phase (R1 + R2)
 
+Current checkpoint ticket (2026-09-21): [T13-H1 — Claude review, commit and return handoff to Codex](../t13/TICKET-HANDOFF-CLAUDE.md). Read it before changing or committing the pending E1/T13 work. T1 is committed; E1 and T13 S1/S2/S4 plus the S3 offline core are implemented locally. S3 live acceptance and S5–S7 remain open. Current AGENTS.md task-scoped autonomy supersedes the historical blanket network/install confirmation wording below.
+
 Spec: `spec.md`. Plan gate record: `grilling.md`. Onboarding for the executing host: `../handoff-codex.md`. Format per ticket: round, blocked by, `ready-for-agent`, owner steps (only the owner can do these; the agent stops and asks), acceptance (checkable), files, host note (Claude Code vs Codex vs Hermes). Take tickets in order unless the blocking edges allow otherwise. Every gated command (network, installs, `git commit`, `git push`) names its cost and waits for the yes.
 
 ## T1 · Host parity check on Codex (R1 · blocked by: none · ready-for-agent: yes)

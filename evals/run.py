@@ -1,15 +1,17 @@
 import sys; sys.stdout.reconfigure(encoding="utf-8")
-"""Benchmark runner: run <case> --arm harness|control | record | checkpoint | regress | selftest.
+"""Benchmark runner: run | rescore | record | checkpoint | regress | audit-history | selftest.
 Every paid arm goes through `claude -p` (ADR 0001); stdout to a file, tree-kill on timeout, utf-8 everywhere."""
-import argparse, importlib.util, json, os, shutil, signal, statistics, subprocess, tempfile, time
+import argparse, importlib.util, json, os, shutil, signal, subprocess, tempfile, time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from evals import records
 CASES = ROOT / "evals" / "cases"
 RESULTS = ROOT / "evals" / "results"
 
 
-def ts(): return time.strftime("%Y%m%dT%H%M%S")
+def ts(): return records.timestamp()
 
 
 def git(*args, repo=None):
@@ -25,40 +27,58 @@ def load_check(case):
     return mod
 
 
-def parse(path):
-    """stream-json file -> (events, result-or-None, commands). Garbage lines are skipped; no final result event -> None."""
-    try: text = Path(path).read_text(encoding="utf-8", errors="replace")
+def parse(path, strict=False):
+    """stream-json -> events, result, commands. Scoring uses strict mode; inspection can recover valid lines."""
+    try: text = Path(path).read_text(encoding="utf-8", errors="strict" if strict else "replace")
     except OSError: text = ""
     events = []
     for line in text.splitlines():
+        if not line.strip(): continue
         try: ev = json.loads(line)
-        except ValueError: continue
+        except ValueError:
+            if strict: raise ValueError("malformed stream: invalid JSON")
+            continue
         if isinstance(ev, dict): events.append(ev)
+        elif strict: raise ValueError("malformed stream: non-object event")
     # the CLI may append system events (task_summary) after the result: take the last result event, wherever it is
     result = next((e for e in reversed(events) if e.get("type") == "result"), None)
+    for ev in events:
+        if ev.get("type") == "assistant":
+            message = ev.get("message")
+            if not isinstance(message, dict) or not isinstance(message.get("content"), list) or any(not isinstance(c, dict) for c in message["content"]):
+                raise ValueError("malformed assistant event")
+            for c in message["content"]:
+                if c.get("type") == "tool_use" and (not isinstance(c.get("input"), dict) or not isinstance(c.get("name"), str)):
+                    raise ValueError("malformed tool event")
+    if strict and sum(ev.get("type") == "result" for ev in events) > 1:
+        raise ValueError("malformed stream: multiple result events")
     commands = [c["input"]["command"] for ev in events if ev.get("type") == "assistant"
                 for c in (ev.get("message") or {}).get("content") or []
                 if c.get("type") == "tool_use" and isinstance(c.get("input"), dict) and "command" in c["input"]]
     return events, result, commands
 
 
-def baseline(case, arm, passed, failures, commands=(), result=None, exit_code=0, stamp=None, **extra):
-    u = (result or {}).get("usage") or {}
-    rec = {"ts": stamp or ts(), "git_sha": git("rev-parse", "HEAD"), "case": case, "arm": arm, "host": "claude-code",
-           "pass": bool(passed), "exit_code": exit_code,
-           "tokens_out": u.get("output_tokens", 0), "tokens_in": u.get("input_tokens", 0),
-           "cache_read": u.get("cache_read_input_tokens", 0), "cache_create": u.get("cache_creation_input_tokens", 0),
-           "cost_usd": (result or {}).get("total_cost_usd"), "turns": (result or {}).get("num_turns"),
-           "duration_ms": (result or {}).get("duration_ms"), "commands": list(commands), "failures": list(failures)}
+def baseline(case, arm, passed, failures, commands=(), result=None, exit_code=None, stamp=None, **extra):
+    valid = extra.pop("run_valid", type(exit_code) is int and exit_code == 0)
+    rec = {"schema_version": records.SCHEMA_VERSION, "record_id": records.identity(), "run_id": records.identity(),
+           "ts": stamp or ts(), "git_sha": git("rev-parse", "HEAD"), "case": case, "arm": arm, "host": "claude-code",
+           "run_valid": valid, "task_pass": bool(passed) if valid else None,
+           "scorer_sha256": records.code_hash(ROOT),
+           "control_discriminative": None, "exit_code": exit_code,
+           "execution_failures": [], "control_failures": [], "source": None, "manifest": None,
+           "commands": list(commands), "failures": list(failures), **records.telemetry(result)}
     rec.update(extra)
+    rec["pass"] = rec["run_valid"] is True and rec["task_pass"] is True
+    rec["coverage"] = {k: "measured" if rec[k] is not None else "unavailable" for k in rec["coverage"]}
     return rec
 
 
 def write_record(rec, suffix):
     RESULTS.mkdir(parents=True, exist_ok=True)
-    out = RESULTS / f"{rec['ts']}-{rec['case']}-{suffix}.json"
-    out.write_text(json.dumps(rec, indent=1, ensure_ascii=False), encoding="utf-8")
-    print(f"{'PASS' if rec['pass'] else 'FAIL'} {rec['case']}/{suffix} tokens_out={rec['tokens_out']} cost={rec['cost_usd']} -> {out}")
+    out = RESULTS / f"{rec['ts']}-{rec['case']}-{suffix}-{rec['record_id']}.json"
+    with out.open("x", encoding="utf-8") as stream:
+        stream.write(json.dumps(rec, indent=1, ensure_ascii=False, allow_nan=False))
+    print(f"valid={rec['run_valid']} task_pass={rec['task_pass']} control={rec['control_discriminative']} {rec['case']}/{suffix} tokens_out={rec['tokens_out']} cost={rec['cost_usd']} -> {out}")
     for f in rec["failures"]: print("  - " + f)
     return out
 
@@ -72,18 +92,23 @@ def tree_kill(proc):
 
 
 def cmd_run(a):
+    if a.arm == "control":
+        print("refused: live control requires OS-enforced home isolation (not implemented); use offline fixtures")
+        return 1
     case_dir = CASES / a.case
     prompt = (case_dir / "prompt.md").read_text(encoding="utf-8").strip()
     stamp = ts()
-    ws = RESULTS / "workspace" / f"{stamp}-{a.case}-{a.arm}"
+    ws = RESULTS / "workspace" / f"{stamp}-{a.case}-{a.arm}-{records.identity()}"
     shutil.copytree(case_dir, ws, ignore=shutil.ignore_patterns("check.py", "expected.json", "__pycache__"))
     harness = a.arm == "harness"
     if harness:
         for f in ("AGENTS.md", "CLAUDE.md"): shutil.copy(ROOT / f, ws / f)
         (ws / ".claude").mkdir()
         settings = json.loads((ROOT / "harness" / "settings.json").read_text(encoding="utf-8").replace("{{OMNIHARNESS_HOME}}", ROOT.as_posix()))
-        hook = settings["hooks"]["PreToolUse"][0]["hooks"][0]
-        hook["command"] = hook["command"].replace("python ", f'"{Path(sys.executable).as_posix()}" ', 1)
+        for entries in settings["hooks"].values():
+            for entry in entries:
+                for hook in entry["hooks"]:
+                    hook["command"] = hook["command"].replace("python ", f'"{Path(sys.executable).as_posix()}" ', 1)
         (ws / ".claude" / "settings.json").write_text(json.dumps(settings, indent=2), encoding="utf-8")
     env = dict(os.environ, OMNIHARNESS_SANDBOX="1", PATH=os.pathsep.join((str(ws / "bin"), str(Path(sys.executable).parent), os.environ.get("PATH", ""))))
     # flags as printed by `claude --help` (2.1.267): permission-mode has no "default" choice, "manual" is the prompting mode;
@@ -97,48 +122,84 @@ def cmd_run(a):
            "--max-budget-usd", str(a.max_budget_usd), "--setting-sources", arm_cfg.get("setting_sources", "project"), "--strict-mcp-config",
            "--permission-mode", mode] + list(arm_cfg.get("flags", []))
     if harness and mode == "manual": cmd += ["--permission-prompts", "none"]
+    config = {"permission_mode": mode, "setting_sources": arm_cfg.get("setting_sources", "project"),
+              "flags": list(arm_cfg.get("flags", [])), "permission_prompts": "none" if mode == "manual" else None,
+              "home_isolation": "unverified"}
+    manifest = records.manifest(ROOT, case_dir, a.arm, a.max_budget_usd, a.timeout, config)
+    (ws / "_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     out, err = ws / "_stream.jsonl", ws / "_stderr.txt"
     failures = []
+    started = time.perf_counter()
+    exit_code = None
     with open(out, "wb") as so, open(err, "wb") as se:
-        proc = subprocess.Popen(cmd, cwd=str(ws), env=env, stdout=so, stderr=se, start_new_session=(os.name != "nt"))
-        try: proc.wait(timeout=a.timeout)
-        except subprocess.TimeoutExpired:
-            tree_kill(proc); failures.append(f"timeout after {a.timeout}s (process tree killed)")
-            try: proc.wait(timeout=15)
-            except subprocess.TimeoutExpired: pass
-    (ws / "_process.json").write_text(json.dumps({"exit_code": proc.returncode, "failures": failures}), encoding="utf-8")
-    return score_ws(a.case, a.arm, ws, a.max_budget_usd, proc.returncode, stamp, failures)
+        try:
+            proc = subprocess.Popen(cmd, cwd=str(ws), env=env, stdout=so, stderr=se, start_new_session=(os.name != "nt"))
+            try: proc.wait(timeout=a.timeout)
+            except subprocess.TimeoutExpired:
+                tree_kill(proc); failures.append(f"timeout after {a.timeout}s (process tree killed)")
+                try: proc.wait(timeout=15)
+                except subprocess.TimeoutExpired: pass
+            exit_code = proc.returncode
+        except OSError as exc:
+            failures.append(f"process launch failed: {type(exc).__name__}")
+    process = {"exit_code": exit_code, "failures": failures, "wall_ms": round((time.perf_counter() - started) * 1000)}
+    (ws / "_process.json").write_text(json.dumps(process), encoding="utf-8")
+    return score_ws(a.case, a.arm, ws, a.max_budget_usd, exit_code, stamp, failures)
 
 
-def score_ws(case, arm, ws, max_budget, exit_code=None, stamp=None, failures=()):
-    """Parse a finished workspace and write its baseline record. Also used by `rescore` (offline, free)."""
+def evaluate_ws(case, arm, ws, max_budget, exit_code=None, stamp=None, failures=()):
+    """Offline assessment; control discrimination never substitutes for task quality."""
     failures = list(failures)
-    if exit_code != 0:
+    process_path = ws / "_process.json"
+    process = json.loads(process_path.read_text(encoding="utf-8")) if process_path.exists() else {}
+    if process_path.exists():
+        if process.get("exit_code") != exit_code:
+            failures.append("caller exit code contradicts persisted process status")
+        exit_code = process.get("exit_code")
+        failures.extend(f for f in process.get("failures", []) if f not in failures)
+    if type(exit_code) is not int or exit_code != 0:
         failures.append(f"process did not succeed: exit_code={exit_code}")
-    events, result, commands = parse(ws / "_stream.jsonl")
+    try:
+        events, result, commands = parse(ws / "_stream.jsonl", strict=True)
+    except ValueError as exc:
+        events, result, commands = [], None, []
+        failures.append(f"malformed stream: {exc}")
     if result is None:
         failures.append("stream empty or unparseable: no result event")
     else:
-        result["max_budget_usd"] = max_budget
+        if max_budget is not None: result["max_budget_usd"] = max_budget
         if result.get("subtype") != "success" or result.get("is_error"):
             failures.append(f"result did not succeed: subtype={result.get('subtype')!r}, is_error={result.get('is_error')!r}")
         answer = result.get("result")
         if not isinstance(answer, str) or not answer.strip():
             failures.append("empty final answer")
-    # Infrastructure validity is a prerequisite; a control's expected behaviour cannot rescue a failed run.
+    task_pass, task_failures, discriminative, control_failures = None, [], None, []
     if not failures:
-        chk = load_check(case)
-        if chk and hasattr(chk, "check"):
-            verdict = chk.check(ws, events, result, arm)
-            failures.extend(verdict.get("failures", []))
-            if not verdict.get("pass") and not failures:
-                failures.append("grader rejected the result")
-        else:
-            failures.append(f"no stream grader for case {case!r}")
-    passed = not failures
-    rec = baseline(case, arm, passed, failures, commands, result, exit_code, stamp, workspace=str(ws))
+        try:
+            chk = load_check(case)
+            if not chk or not hasattr(chk, "check"):
+                raise ValueError(f"no stream grader for case {case!r}")
+            task_pass, task_failures = records.verdict(chk.check(ws, events, result, "harness"))
+            if arm == "control":
+                discriminative, control_failures = records.verdict(chk.check(ws, events, result, "control"))
+        except Exception as exc:
+            failures.append(f"grader error: {type(exc).__name__}: {exc}")
+            task_pass, discriminative = None, None
+    manifest_path = ws / "_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else None
+    init = next((ev for ev in events if ev.get("type") == "system" and ev.get("subtype") == "init"), {})
+    extra = {"run_id": manifest["run_id"], "run_ts": manifest["started_at"]} if manifest else {"run_id": records.digest({"stream": records.file_hash(ws / "_stream.jsonl"), "workspace": str(ws.resolve())})}
+    return baseline(case, arm, task_pass, failures + task_failures, commands, result, exit_code, stamp,
+                    run_valid=not failures, execution_failures=failures, control_discriminative=discriminative,
+                    control_failures=control_failures, source=records.source(ws), workspace=str(ws), manifest=manifest,
+                    grader_sha256=records.file_hash(CASES / case / "check.py"), model=init.get("model"),
+                    agent_version=init.get("claude_code_version"), wall_ms=process.get("wall_ms"), **extra)
+
+
+def score_ws(case, arm, ws, max_budget, exit_code=None, stamp=None, failures=()):
+    rec = evaluate_ws(case, arm, ws, max_budget, exit_code, stamp, failures)
     write_record(rec, arm)
-    return 0 if passed else 1
+    return 0 if rec["pass"] else 1
 
 
 def cmd_rescore(a):
@@ -147,7 +208,13 @@ def cmd_rescore(a):
         print(f"rescore: no _stream.jsonl in {ws}"); return 1
     status = ws / "_process.json"
     process = json.loads(status.read_text(encoding="utf-8")) if status.exists() else {}
-    return score_ws(a.case, a.arm, ws, a.max_budget_usd, process.get("exit_code"), failures=process.get("failures", []))
+    manifest_path = ws / "_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
+    if manifest and (manifest.get("case") != a.case or manifest.get("arm") != a.arm or
+                     a.max_budget_usd is not None and a.max_budget_usd != manifest.get("budget_usd")):
+        print("refused: rescore case/arm/budget contradicts original manifest"); return 1
+    budget = manifest.get("budget_usd", a.max_budget_usd)
+    return score_ws(a.case, a.arm, ws, budget, process.get("exit_code"), failures=process.get("failures", []))
 
 
 def cmd_record(a):
@@ -159,11 +226,16 @@ def cmd_record(a):
         print(f"refused: evals/cases/{a.case}/check.py has no check_record"); return 1
     exp_path = CASES / a.case / "expected.json"
     expected = json.loads(exp_path.read_text(encoding="utf-8")) if exp_path.exists() else {}
-    verdict = chk.check_record(data, expected)
+    passed, task_failures = records.verdict(chk.check_record(data, expected))
     resumo, notif = data.get("resumo") or {}, data.get("notification") or {}
-    rec = baseline(a.case, a.arm, verdict.get("pass"), verdict.get("failures", []),
-                   tokens_out=resumo.get("tokens") or notif.get("totalTokens") or 0,
-                   turns=notif.get("agentCount"), duration_ms=notif.get("durationMs"), stop_reason=resumo.get("parouPor"))
+    failures = ["interactive import has no trusted process/manifest provenance"]
+    aggregate = resumo.get("tokens") if resumo.get("tokens") is not None else notif.get("totalTokens")
+    rec = baseline(a.case, a.arm, passed, failures + task_failures, run_valid=False,
+                   execution_failures=failures, source={"files": {Path(a.json).name: records.file_hash(a.json)}},
+                   grader_observation={"task_pass": passed, "failures": task_failures},
+                   tokens_total_reported=records.measurement(aggregate), agent_count=records.measurement(notif.get("agentCount")),
+                   usage_raw={"resumo_tokens": resumo.get("tokens"), "notification_totalTokens": notif.get("totalTokens")},
+                   duration_ms=records.measurement(notif.get("durationMs")), stop_reason=resumo.get("parouPor"))
     write_record(rec, a.arm)
     return 0 if rec["pass"] else 1
 
@@ -183,29 +255,70 @@ def cmd_checkpoint(a):
 
 
 def regress(results_dir, n=5, factor=1.2):
-    """Lines 'REGRESSION case/arm: ...' for each (case, arm) whose newest record dropped pass or exceeds factor x median of the previous n."""
-    groups = {}
-    for p in sorted(Path(results_dir).glob("*.json")):
-        try: r = json.loads(p.read_text(encoding="utf-8"))
-        except ValueError: continue
-        if isinstance(r, dict) and "case" in r and "arm" in r: groups.setdefault((r["case"], r["arm"]), []).append(r)
-    lines = []
-    for (case, arm), recs in sorted(groups.items()):
-        if len(recs) < 2: continue
-        new, prev = recs[-1], recs[-n - 1:-1]
-        why = []
-        if prev[-1].get("pass") and not new.get("pass"): why.append("pass true -> false")
-        for k in ("tokens_out", "cost_usd"):
-            hist = [r[k] for r in prev if isinstance(r.get(k), (int, float))]
-            if hist and isinstance(new.get(k), (int, float)):
-                med = statistics.median(hist)
-                if new[k] > factor * med: why.append(f"{k} {new[k]} > {factor}x median {med}")
-        if why: lines.append(f"REGRESSION {case}/{arm}: " + "; ".join(why))
-    return lines
+    return records.compare(results_dir, n, factor)["alerts"]
 
 
 def cmd_regress(a):
-    for line in regress(RESULTS, a.n, a.factor): print(line)
+    report = records.compare(RESULTS, a.n, a.factor)
+    for row in report["groups"]:
+        r = row["reliability"]
+        print(f"{row['status'].upper()} {row['case']}/{row['arm']}: certified_valid={r['valid']}/{r['attempts']}, task_successes={r['task_successes']}/{r['attempts']}, unverified={row['unverified']}; metrics={row['metrics_compared']}")
+    if not report["groups"]: print("INSUFFICIENT: no usable history")
+    for line in report["alerts"]: print(line)
+    return 1 if report["alerts"] else 0
+
+
+def audit_history(directory):
+    """Derived, sanitised legacy audit. Absence of original provenance stays unknown."""
+    directory = Path(directory).resolve()
+    rows = []
+    for path in sorted(directory.glob("*.json")):
+        original_hash = records.file_hash(path)
+        old = json.loads(path.read_text(encoding="utf-8"))
+        row = {"source_file": path.name, "source_sha256": original_hash, "case": old.get("case"), "arm": old.get("arm"),
+               "legacy_pass": old.get("pass"), "reported_exit_code": old.get("exit_code"),
+               "run_valid": None, "task_pass": None, "control_discriminative": None,
+               "comparison": "incomparable", "findings": ["original manifest and trusted process provenance unavailable"],
+               "grader_sha256": records.file_hash(CASES / old["case"] / "check.py"), "grader_observation": None,
+               "usage": records.telemetry(None), "tokens_total_reported": None, "model": None}
+        if type(old.get("exit_code")) is int and old["exit_code"] != 0:
+            row["run_valid"] = False
+            row["findings"].append(f"reported process exit {old['exit_code']}")
+        workspace = old.get("workspace")
+        if workspace:
+            ws = (ROOT / workspace.replace("\\", "/")).resolve()
+            if ws.is_relative_to(directory / "workspace") and (ws / "_stream.jsonl").is_file():
+                row["stream_sha256"] = records.file_hash(ws / "_stream.jsonl")
+                events, result, _ = parse(ws / "_stream.jsonl")
+                row["usage"] = records.telemetry(result)
+                row["model"] = next((e.get("model") for e in events if e.get("subtype") == "init"), None)
+                if not result or result.get("subtype") != "success" or result.get("is_error") or not isinstance(result.get("result"), str) or not result["result"].strip():
+                    row["run_valid"] = False
+                    row["findings"].append("missing/error result or empty final answer")
+                elif old["case"] == "detour-bounded":
+                    observed = evaluate_ws(old["case"], old["arm"], ws, None, old.get("exit_code"))
+                    row["grader_observation"] = {k: observed[k] for k in ("task_pass", "control_discriminative", "failures")}
+                    row["findings"].append("grader observation is conditional; original execution/configuration cannot be certified")
+                else:
+                    row["findings"].append("current full task grading withheld: original budget/configuration is unknown")
+            else:
+                row["findings"].append("workspace absent or outside the selected history directory")
+        elif old.get("case") == "gauntlet-rapido":
+            row["tokens_total_reported"] = records.measurement(old.get("tokens_out"))
+            row["findings"].append("legacy tokens_out was aggregate subagent usage; no token-category or process evidence")
+        rows.append(row)
+        if records.file_hash(path) != original_hash:
+            raise ValueError(f"source changed during audit: {path.name}")
+    return {"audit_version": 1, "records": rows, "summary": {"total": len(rows),
+            "invalid": sum(r["run_valid"] is False for r in rows), "unverified": sum(r["run_valid"] is None for r in rows),
+            "certified_valid": sum(r["run_valid"] is True for r in rows)}, "originals_unchanged": True}
+
+
+def cmd_audit(a):
+    report = audit_history(a.results or RESULTS)
+    with Path(a.out).open("x", encoding="utf-8") as stream:
+        json.dump(report, stream, indent=2, ensure_ascii=False)
+    print(json.dumps(report["summary"]))
     return 0
 
 
@@ -213,7 +326,10 @@ def cmd_selftest(a):
     def history(d, vals):
         Path(d).mkdir()
         for i, (passed, cost) in enumerate(vals):
-            rec = baseline("c", "harness", passed, [], cost_usd=cost, tokens_out=int(cost * 1000), stamp=f"{i:03d}")
+            manifest = records.manifest(ROOT, CASES / "detour-bounded", "harness", 1, 60, {"home_isolation": "offline-fixture"})
+            rec = baseline("detour-bounded", "harness", passed, [], exit_code=0, manifest=manifest,
+                           model="fixture-model", agent_version="fixture-cli", source={"files": {"_stream.jsonl": "a" * 64}},
+                           grader_sha256=manifest["grader_sha256"], cost_usd=cost, tokens_out=int(cost * 1000), stamp=f"{i:03d}")
             (Path(d) / f"{i:03d}-c-harness.json").write_text(json.dumps(rec), encoding="utf-8")
     with tempfile.TemporaryDirectory() as tmp:
         t = Path(tmp)
@@ -223,7 +339,7 @@ def cmd_selftest(a):
         got = [len(regress(t / d)) for d in ("drop", "cost", "flat")]
         assert got == [1, 1, 0], f"regress lines {got} != [1, 1, 0]"
         (t / "empty.jsonl").write_text("", encoding="utf-8")
-        (t / "garbage.jsonl").write_text("not json\n{\"type\": \"assistant\"}\n{{{\n", encoding="utf-8")
+        (t / "garbage.jsonl").write_text("not json\n{\"type\": \"system\"}\n{{{\n", encoding="utf-8")
         for f in ("empty.jsonl", "garbage.jsonl"):
             events, result, commands = parse(t / f)
             assert result is None and commands == [], f"{f}: expected no result event"
@@ -243,13 +359,17 @@ def main(argv=None):
     p = sub.add_parser("checkpoint"); p.add_argument("case"); p.add_argument("--repo", help="git checkout the paid run will touch (default: this harness)"); p.set_defaults(fn=cmd_checkpoint)
     p = sub.add_parser("rescore", help="re-evaluate a finished workspace offline (no claude call)"); p.add_argument("case")
     p.add_argument("--arm", choices=["harness", "control"], required=True); p.add_argument("--workspace", required=True)
-    p.add_argument("--max-budget-usd", type=float, default=0.50); p.set_defaults(fn=cmd_rescore)
+    p.add_argument("--max-budget-usd", type=float, help="legacy workspace only; cannot override an existing manifest"); p.set_defaults(fn=cmd_rescore)
     p = sub.add_parser("regress"); p.add_argument("--n", type=int, default=5); p.add_argument("--factor", type=float, default=1.2); p.set_defaults(fn=cmd_regress)
+    p = sub.add_parser("audit-history", help="write a derived legacy audit without modifying originals")
+    p.add_argument("--results"); p.add_argument("--out", required=True); p.set_defaults(fn=cmd_audit)
     p = sub.add_parser("selftest"); p.set_defaults(fn=cmd_selftest)
     a = ap.parse_args(argv)
     try: return a.fn(a)
     except AssertionError as e:
         print(f"selftest FAILED: {e}"); return 1
+    except (OSError, ValueError, TypeError, KeyError) as e:
+        print(f"refused: {type(e).__name__}: {e}"); return 1
 
 
 if __name__ == "__main__":

@@ -202,3 +202,7 @@ from = "calesthio/openmontage"
 type = "alternative-to"
 to = "higgsfield-video-explainer"
 why = "read 2026-09-14 (remote.json, catalog row): Animated Explainer and Screen Demo pipelines with an offline path (Piper TTS); AGPL-3.0; the owner's D3: curated subset only"
+# Optional node fields (T13): needs = {files = [], env = [], skills = [], binaries = []}
+# cost = {usd = 0.0, tokens = 0, benchmark = "measured-record-id", date = "YYYY-MM-DD"}
+# Omit unknown units/costs. Never populate an illustrative number as a measurement.
+# network = false is required for automatic Balanced fallbacks, alongside measured zero USD/tokens.

@@ -1,0 +1,18 @@
+[
+  {"name":"harness-success","arm":"harness","answer":"Detour 1\nViability test: a\nDetour 2\nViability test: b\nDetour 3\nViability test: c\nVerdict: keep.","exit_code":0,"valid":true,"task":true,"control":null},
+  {"name":"control-discriminates","arm":"control","answer":"A free-form brainstorm.","exit_code":0,"valid":true,"task":false,"control":true},
+  {"name":"control-converges","arm":"control","answer":"Detour 1\nViability test: a\nDetour 2\nViability test: b\nDetour 3\nViability test: c\nVerdict: keep.","exit_code":0,"valid":true,"task":true,"control":false},
+  {"name":"task-rejected","arm":"harness","answer":"A free-form brainstorm.","exit_code":0,"valid":true,"task":false,"control":null},
+  {"name":"empty","arm":"control","answer":"","exit_code":0,"valid":false,"reason":"empty final answer"},
+  {"name":"whitespace","arm":"harness","answer":" \n\t ","exit_code":0,"valid":false,"reason":"empty final answer"},
+  {"name":"missing-answer","arm":"control","exit_code":0,"valid":false,"reason":"empty final answer"},
+  {"name":"wrong-answer-type","arm":"harness","answer":{},"exit_code":0,"valid":false,"reason":"empty final answer"},
+  {"name":"process-error","arm":"control","answer":"A free-form brainstorm.","exit_code":1,"valid":false,"reason":"exit_code=1"},
+  {"name":"unknown-process","arm":"control","answer":"A free-form brainstorm.","exit_code":null,"valid":false,"reason":"exit_code=None"},
+  {"name":"budget-exhausted","arm":"control","answer":"Partial answer","subtype":"error_max_budget_usd","exit_code":0,"valid":false,"reason":"result did not succeed"},
+  {"name":"error-flag","arm":"control","answer":"Partial answer","is_error":true,"exit_code":0,"valid":false,"reason":"result did not succeed"},
+  {"name":"timeout","arm":"control","answer":"A free-form brainstorm.","exit_code":0,"runner_failures":["timeout after 10s"],"valid":false,"reason":"timeout"},
+  {"name":"truncated","arm":"control","truncated":true,"exit_code":0,"valid":false,"reason":"no result event"},
+  {"name":"corrupt-after-result","arm":"control","answer":"A free-form brainstorm.","tail":"{broken","exit_code":0,"valid":false,"reason":"malformed stream"},
+  {"name":"missing-grader","case":"no-grader","arm":"control","answer":"A free-form brainstorm.","exit_code":0,"valid":false,"reason":"no stream grader"}
+]

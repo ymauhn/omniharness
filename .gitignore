@@ -12,6 +12,7 @@ _gauntlet_*
 graphify-out/
 *.log
 __pycache__/
+.omniharness/
 *.pyc
 .claude/settings.local.json
 

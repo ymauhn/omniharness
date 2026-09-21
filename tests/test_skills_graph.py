@@ -75,7 +75,8 @@ class Synthetic(unittest.TestCase):
         self.assertEqual(self.run_cli("build", "--out", str(self.tmp / "out")), 0)
         self.assertTrue((self.tmp / "out" / "graph.json").is_file() and (self.tmp / "out" / "graph.md").is_file())
         self.assertEqual(self.run_cli("check"), 0)                       # a dangling endpoint warns, does not fail
-        (self.data / "skills-graph.toml").open("a", encoding="utf-8").write('\n[[edge]]\nfrom = "alpha"\ntype = "bogus"\nto = "beta"\n')
+        with (self.data / "skills-graph.toml").open("a", encoding="utf-8") as stream:
+            stream.write('\n[[edge]]\nfrom = "alpha"\ntype = "bogus"\nto = "beta"\n')
         self.assertEqual(self.run_cli("check"), 1)
 
     def test_propose_approve_reject(self):
@@ -93,13 +94,58 @@ class Synthetic(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.run_cli("propose", "a", "bogus", "b", "--evidence", "x")
 
+    def test_measured_routes_needs_and_only_approved_alternatives(self):
+        g = sg.build(str(self.home), str(self.root), str(self.data))
+        for node in g["nodes"]:
+            if node["id"] in ("alpha", "beta", "gamma"):
+                node["description"] = "shared task"
+                node["cost"] = {"usd": {"alpha": 2, "beta": 0, "gamma": 1}[node["id"]], "tokens": 0,
+                                "benchmark": "fixture-only", "date": "2026-09-21"}
+        g["edges"] += [{"from": "alpha", "to": "beta", "type": "alternative-to", "source": "proposal:9"},
+                       {"from": "alpha", "to": "gamma", "type": "alternative-to", "source": "curated"}]
+        self.assertEqual([n["id"] for _, n in sg.route(g, "shared task")], ["beta", "gamma", "alpha"])
+        self.assertEqual([n["id"] for n in sg.alternatives(g, "alpha", self.root)], ["gamma"])
+        gamma = next(n for n in g["nodes"] if n["id"] == "gamma")
+        gamma["needs"] = {"files": ["missing.txt"], "env": ["OMNI_TEST_ABSENT"], "skills": ["ghost"], "binaries": ["no-such-omni-binary"]}
+        self.assertEqual(len(sg.unmet(gamma["needs"], g, self.root)), 4)
+        self.assertEqual(sg.alternatives(g, "alpha", self.root), [])
+
+    def test_plan_second_step_failure_modes_and_unknown_cost(self):
+        g = {"nodes": [{"id": "a", "ring": "installed"}, {"id": "b", "ring": "installed", "network": False,
+                      "cost": {"usd": 0, "tokens": 0, "benchmark": "offline-fixture", "date": "2026-09-21"}}],
+             "edges": [{"from": "a", "to": "b", "type": "alternative-to", "source": "curated"}]}
+        plan = {"steps": [{"id": "1", "skill": "a", "status": "done"}, {"id": "2", "skill": "a", "status": "failed"}]}
+        for mode, expected in (("strict", "ask"), ("balanced", "reroute"), ("swarm", "reroute")):
+            report = sg.plan_status(g, plan, self.root, mode, "usd", 2)
+            self.assertEqual((report["step"], report["action"], report["alternative"]), ("2", expected, "b"))
+        plan["steps"][1]["stop"] = "owner milestone"
+        self.assertEqual(sg.plan_status(g, plan, self.root, "swarm", "usd", 2)["action"], "ask")
+        del plan["steps"][1]["stop"]
+        g["nodes"][1]["cost"] = {"usd": 0}  # no measurement provenance
+        self.assertEqual(sg.plan_status(g, plan, self.root, "swarm", "usd", 2)["action"], "ask")
+        plan["steps"][1]["status"] = "pending"
+        plan["steps"][1]["needs"] = {"files": ["ready.txt"]}
+        self.assertEqual(sg.plan_status(g, plan, self.root, "balanced", "usd", 2)["action"], "blocked")
+
+    def test_plan_cli_and_failed_alternative_are_bounded(self):
+        import contextlib
+        import io
+        plan = self.root / "PLAN.md"
+        plan.write_text('```omniharness-plan\n{"steps":[{"id":"2","skill":"alpha","status":"failed","attempted":["beta"]}]}\n```')
+        with (self.data / "skills-graph.toml").open("a") as stream:
+            stream.write('\n[[edge]]\nfrom="alpha"\nto="beta"\ntype="alternative-to"\n')
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.assertEqual(self.run_cli("plan-status", str(plan), "--mode", "swarm", "--remaining", "2"), 0)
+        self.assertEqual(json.loads(output.getvalue())["action"], "detour")
+
 
 class RealRepo(unittest.TestCase):
     def test_build_reference_checkout(self):
         """The shipped TOML must resolve against the repo's own skills; edges to skills this machine lacks only warn."""
         with tempfile.TemporaryDirectory() as out:
             self.assertEqual(sg.main(["build", "--out", out]), 0)
-            g = json.load(open(Path(out) / "graph.json", encoding="utf-8"))
+            g = json.loads((Path(out) / "graph.json").read_text(encoding="utf-8"))
         ids = {n["id"] for n in g["nodes"]}
         self.assertTrue({"skills-graph", "omniharness", "thesis-review", "impeccable", "magic-mcp"} <= ids)
         self.assertTrue(any(e["type"] == "guided-by" and e["from"] == "magic-mcp" for e in g["edges"]))

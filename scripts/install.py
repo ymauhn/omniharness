@@ -17,7 +17,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__))).replace("\\", "/")
 IS_WIN = os.name == "nt"
 # Claude-only Workflow drivers: (source in the repo, installed name in ~/.claude/workflows). meta.name must match the file stem.
-DRIVERS = (("gauntlet/gauntlet.workflow.js", "gauntlet-driver.js"), ("scout/scout.workflow.js", "scout-driver.js"))
+DRIVERS = (("gauntlet/gauntlet.workflow.js", "gauntlet-driver.js"), ("scout/scout.workflow.js", "scout-driver.js"), ("swarm/swarm.workflow.js", "swarm-driver.js"))
 
 
 def is_link(p):
@@ -80,31 +80,36 @@ def load_fragment():
     with open(REPO + "/harness/settings.json", encoding="utf-8") as f:
         frag = json.loads(f.read().replace("{{OMNIHARNESS_HOME}}", REPO))
     frag.pop("_comment", None)
-    hook = frag["hooks"]["PreToolUse"][0]["hooks"][0]
     python = sys.executable.replace("\\", "/")
-    hook["command"] = hook["command"].replace("python ", f'"{python}" ', 1)
+    for entries in frag["hooks"].values():
+        for entry in entries:
+            for hook in entry["hooks"]:
+                hook["command"] = hook["command"].replace("python ", f'"{python}" ', 1)
     return frag
 
 
-def merged_settings(path):
+def merged_settings(path, task_commits=False):
     frag = load_fragment()
     cur = {}
     if os.path.isfile(path):
         with open(path, encoding="utf-8") as f:
             cur = json.load(f)
     perms = cur.setdefault("permissions", {})
-    for key in ("deny", "ask"):
+    for key in ("deny", "ask", "allow"):
         lst = perms.setdefault(key, [])
         lst.extend(e for e in frag["permissions"][key] if e not in lst)
-    pre = cur.setdefault("hooks", {}).setdefault("PreToolUse", [])
-    # Upgrade this checkout's existing hook without changing hooks owned by other projects.
-    for entry in pre:
-        if entry.get("matcher") == "Bash":
-            for hook in entry.get("hooks", []):
-                if f'{REPO}/harness/guard_bash.py' in hook.get("command", "").replace("\\", "/"):
-                    hook["command"] = frag["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
-    if not any("guard_bash.py" in h.get("command", "") for e in pre for h in e.get("hooks", [])):
-        pre.extend(frag["hooks"]["PreToolUse"])
+    if task_commits:
+        # Explicit owner-authorised migration only; never erase unrelated rules.
+        perms["ask"] = [rule for rule in perms["ask"] if rule != "Bash(git commit:*)"]
+    owned = (f"{REPO}/harness/guard_bash.py", f"{REPO}/harness/hooks/verify.py")
+    for event, wanted in frag["hooks"].items():
+        # Relocate only our hooks; retain unrelated commands and their matchers.
+        remaining = []
+        for entry in cur.setdefault("hooks", {}).get(event, []):
+            hooks = [h for h in entry.get("hooks", []) if not any(p in h.get("command", "").replace("\\", "/") for p in owned)]
+            if hooks:
+                remaining.append({**entry, "hooks": hooks})
+        cur["hooks"][event] = wanted + remaining
     return cur
 
 
@@ -125,23 +130,25 @@ def check(home, links, drivers, settings):
         with open(settings, encoding="utf-8") as f:
             have = json.load(f)
     frag = load_fragment()
-    for key in ("ask", "deny"):
+    for key in ("ask", "deny", "allow"):
         rows.append((key, settings, all(e in have.get("permissions", {}).get(key, []) for e in frag["permissions"][key])))
     wanted = frag["hooks"]["PreToolUse"][0]["hooks"][0]
-    wired = any(e.get("matcher") == "Bash" and wanted in e.get("hooks", [])
+    wired = any(e.get("matcher") == frag["hooks"]["PreToolUse"][0]["matcher"] and wanted in e.get("hooks", [])
                 for e in have.get("hooks", {}).get("PreToolUse", []))
     rows.append(("hook", settings, wired))
+    for event in ("SessionStart", "PostToolUse"):
+        rows.append((event, settings, all(entry in have.get("hooks", {}).get(event, []) for entry in frag["hooks"][event])))
     # Probe only our trusted hook, never execute an arbitrary command found in user settings.
     guard_ok = wired
     if wired:
-        for command, expected in (("git status", 0), ("git push --force origin main", 2)):
+        for command, expected in (("git status", 0), ("git push --force origin main", 2), ("unclassified-command", 0)):
             r = subprocess.run([sys.executable, REPO + "/harness/guard_bash.py"],
                                input=json.dumps({"tool_input": {"command": command}}),
                                capture_output=True, text=True, timeout=10)
-            guard_ok = guard_ok and r.returncode == expected
+            guard_ok = guard_ok and r.returncode == expected and not r.stdout.strip() and (expected != 2 or bool(r.stderr.strip()))
     rows.append(("guard", "local allow/block probes (no shell commands executed)", guard_ok))
     for kind, path, ok in rows:
-        print(f"{'OK  ' if ok else 'FAIL'}  {kind:9}{path}")
+        print(f"{'OK  ' if ok else 'FAIL'}  {kind:12} {path}")
     return 0 if all(r[2] for r in rows) else 1
 
 
@@ -151,6 +158,7 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--adopt", action="store_true")
+    ap.add_argument("--task-commits", action="store_true", help="remove the legacy blanket git-commit ask after owner authorisation; preserve all other permissions")
     ap.add_argument("--no-agents", action="store_true", help="skip the ~/.agents/skills junctions")
     a = ap.parse_args()
     if os.environ.get("OMNIHARNESS_SANDBOX") == "1":
@@ -176,8 +184,11 @@ def main():
     plan = [f"rename {l} -> {free_backup(l)}" for l, _ in conflicts]
     plan += [f"junction {l} -> {t}" for l, t in links if (l, t) in conflicts or not os.path.lexists(l)]
     plan += [f"copy {src} -> {dst}" for src, dst in drivers if not (os.path.isfile(dst) and filecmp.cmp(src, dst, shallow=False))]
-    new = merged_settings(settings)
-    old = json.load(open(settings, encoding="utf-8")) if os.path.isfile(settings) else None
+    new = merged_settings(settings, a.task_commits)
+    old = None
+    if os.path.isfile(settings):
+        with open(settings, encoding="utf-8") as stream:
+            old = json.load(stream)
     if new != old:
         plan.append(f"merge harness/settings.json -> {settings}" + (f" (backup {free_backup(settings)})" if old else ""))
     print("Plan:" if plan else "Nothing to do.")
