@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "research_date_local": "2026-09-22",
+  "timezone": "America/Sao_Paulo",
+  "kind": "research_observations_not_benchmark",
+  "repository": {
+    "branch": "master",
+    "baseline_sha": "8e6c20ee9952e5f1314f9ba19b28296280b41f05",
+    "initial_worktree_clean": true,
+    "ahead_existing_origin_ref": 2,
+    "behind_existing_origin_ref": 2,
+    "remote_merged": false
+  },
+  "research_usage": {
+    "native_subagents": 3,
+    "tokens": null,
+    "estimated_usd": null,
+    "billed_usd": null,
+    "coverage": "unavailable_as_attributed_receipts",
+    "authority": "owner standing task approval and native Codex/Astra allowance classification"
+  },
+  "historical_validation": {
+    "date": "2026-09-21",
+    "rerun_for_this_research": false,
+    "python_passed": 92,
+    "python_skipped": 0,
+    "docker_process_checks_passed": 12,
+    "native_agent_container_integration_verified": false,
+    "source": "../../t13/VALIDATION.md"
+  },
+  "local_protocol_check": {
+    "command": "codex app-server generate-json-schema --out <temporary-directory>",
+    "cli_version": "0.155.0-alpha.9.2",
+    "exit_code": 0,
+    "warning": "Could not create PATH aliases: Could not find home directory",
+    "schema_file": "v2/ThreadTokenUsageUpdatedNotification.json",
+    "schema_sha256": "aba4f6c7e4a19b2b842c08ee793b57000c07dafd57b922ad0d8e7c76609108c2",
+    "required_notification_fields": ["threadId", "turnId", "tokenUsage"],
+    "usage_scopes": ["last", "total"],
+    "breakdown_fields": ["cacheWriteInputTokens", "cachedInputTokens", "inputTokens", "outputTokens", "reasoningOutputTokens", "totalTokens"],
+    "schema_default_is_not_measured_usage": true,
+    "model_started_by_check": false,
+    "live_event_delivery_verified": false,
+    "descendant_coverage_verified": false
+  },
+  "published_page": {
+    "url": "https://ymauhn.github.io/omniharness/",
+    "method": "public urllib HTTP read without credentials; normal sandbox escalation after initial WinError 10013",
+    "status": 200,
+    "bytes": 162450,
+    "sha256": "df9d3adbfbfc0797dcc128cd36a86be4db4619937ee6babe0c8454eabe5fb0db",
+    "old_b5_validity_claim_present": true,
+    "old_per_call_confirmation_copy_present": true,
+    "manual_member_access_copy_present": true,
+    "raw_body_persisted": false,
+    "provenance": "landing_research tool output; sanitized observation transcribed by coordinator"
+  },
+  "local_page_probe": {
+    "target": "site/public/index.html",
+    "runtime": "Python 3.12 with installed Playwright/Chromium",
+    "color_scheme": "light",
+    "reduced_motion": "reduce",
+    "viewports": [
+      {"width": 390, "height": 844, "page_height_px": 19979, "copy_top_px": 888, "install_guide_top_px": 967, "horizontal_overflow_px": 0, "javascript_errors": 0, "clipboard_forced_rejection_label": "COPIED"},
+      {"width": 1440, "height": 1000, "page_height_px": 13010, "copy_top_px": null, "install_guide_top_px": 871, "horizontal_overflow_px": 0, "javascript_errors": 0, "clipboard_forced_rejection_label": "COPIED"}
+    ],
+    "forms": 0,
+    "meta_tags_observed": ["charset", "viewport", "description"],
+    "full_visual_suite_rerun": false,
+    "conversion_rate_measured": false,
+    "core_web_vitals_measured": false,
+    "provenance": "landing_research Playwright tool output; no raw JSON/script persisted by probe",
+    "screenshot_note": "Temporary mobile screenshot taken after clicking, so not first-fold evidence; not used for measured positions"
+  },
+  "social_collection": {
+    "platform": "X",
+    "mode": "public_search_index",
+    "direct_post_reads_succeeded": 0,
+    "selected_indexed_posts": [
+      "https://x.com/yoonholeee/status/2038640635482456118/photo/1",
+      "https://x.com/lihanc02/status/2042302344906621289/photo/1",
+      "https://x.com/systematicls/status/2038241033755168959"
+    ],
+    "complete_threads_verified": false,
+    "september_coverage_verified": false,
+    "credentials_or_paid_api_used": false
+  }
+}

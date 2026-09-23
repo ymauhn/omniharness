@@ -8,7 +8,7 @@ Make an evaluation record suitable for comparison: it must distinguish an invali
 
 ## Where we are
 
-T1 is committed as `1a2289c`, including required visual dependencies and 41/41 Python tests with no skips. E1's record contract, comparator and offline fixtures are implemented; see `RECORDS.md` and `../experiments/eval-integrity-2026-09.md`. E2 and T13 remain subsequent work.
+T1 is committed as `1a2289c`, including required visual dependencies and its 41/41 Python tests with no skips. E1's record contract, comparator and offline fixtures are implemented in the later E1/T13 checkpoint `8e6c20e`; see `RECORDS.md` and `../experiments/eval-integrity-2026-09.md`. T13 local S1/S2/S4 and S3 primitives are implemented, with native executor/usage integration and live controls still open. The complete September 21 battery passed 92/92 Python tests without skips. E2 remains future work. The [September 22 integration proposal](../research/harness-evolution-2026-09/PLAN.md) adds a concrete next seam: reconcile this runner's main-loop telemetry with whole-tree provider receipts before B8/B9, and demonstrate Claude and Codex separately against the same acceptance corpus.
 
 ## E1: comparable and auditable records
 
