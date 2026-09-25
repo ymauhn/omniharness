@@ -8,6 +8,8 @@ import { PtyCoordinator } from './pty.mjs';
 import { CatalogService } from './catalog-service.mjs';
 import { ClassifierService } from './classifier-service.mjs';
 import { classifyPrompt, classifierError } from './copilot-classification.mjs';
+import { TerminalOutputBuffer } from './terminal-output.mjs';
+import { createWorkflowService } from './workflows.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
@@ -44,12 +46,18 @@ async function body(request) {
 export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omniforge-lab'), repoRoot = REPO_ROOT, token = randomBytes(24).toString('hex'), catalog = new CatalogService({ repoRoot, dataDir }), classifier = new ClassifierService({ repoRoot }) } = {}) {
   const cookieName = `OmniForgeAuth_${randomBytes(8).toString('hex')}`;
   const store = new WorkspaceStore(dataDir);
+  let workflows;
+  try { workflows = createWorkflowService({ store }); }
+  catch (error) { store.close(); throw error; }
   const shells = new PtyCoordinator(store);
+  const terminalOutput = new TerminalOutputBuffer();
   const clients = new Set();
   const skills = listSkills(repoRoot);
   const state = () => {
-    const snapshot = store.snapshot();
-    delete snapshot.notes; // note bodies are fetched for one selected project
+    const { schema, projects, sessions, tasks, memoryRevision, layout, workflowRegistry } = store.data;
+    // Do not clone private note/workflow history for every public state event.
+    const snapshot = structuredClone({ schema, projects, sessions, tasks, memoryRevision, layout });
+    snapshot.workflowRevision = (workflowRegistry?.workflows ?? []).reduce((sum, row) => sum + row.revision, 0) + (workflowRegistry?.runs?.length ?? 0);
     return { ...snapshot, skills };
   };
   const broadcast = (name, data) => {
@@ -62,8 +70,9 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
     }
   };
   shells.on('terminal', event => {
-    // Bound each SSE write; slow consumers are disconnected above, never queued indefinitely.
-    for (let index = 0; index < event.text.length; index += 8192) broadcast('terminal', { ...event, text: event.text.slice(index, index + 8192) });
+    const { projectId } = store.session(event.sessionId);
+    // Replay and SSE share exact frames; slow consumers reconnect by cursor.
+    for (const frame of terminalOutput.append({ ...event, projectId })) broadcast('terminal', frame);
   });
   shells.on('closed', () => broadcast('state', state()));
   shells.on('state', () => broadcast('state', state()));
@@ -91,7 +100,7 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
       if (request.method === 'GET' && url.pathname === '/pane-scope.mjs') {
         return send(response, 200, fs.readFileSync(path.join(HERE, 'pane-scope.mjs'), 'utf8'), 'text/javascript; charset=utf-8');
       }
-      if (request.method === 'GET' && ['/copilot.mjs', '/copilot.css', '/copilot-provider.mjs'].includes(url.pathname)) {
+      if (request.method === 'GET' && ['/copilot.mjs', '/copilot.css', '/copilot-provider.mjs', '/memory-panel.mjs', '/memory-panel.css', '/workflow-panel.mjs', '/workflow-panel.css', '/terminal-grid.mjs', '/terminal-grid.css'].includes(url.pathname)) {
         return send(response, 200, fs.readFileSync(path.join(HERE, url.pathname.slice(1)), 'utf8'), url.pathname.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8');
       }
       const vendorFiles = {
@@ -104,6 +113,19 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
         return send(response, 200, fs.readFileSync(path.join(HERE, 'node_modules', file), 'utf8'), type);
       }
       if (request.method === 'GET' && url.pathname === '/api/state') return send(response, 200, state());
+      if (request.method === 'GET') {
+        const result = workflows.handle({ method: request.method, url });
+        if (result) return send(response, result.status, result.body);
+      }
+      const outputRoute = url.pathname.match(/^\/api\/sessions\/([^/]+)\/output$/);
+      if (request.method === 'GET' && outputRoute) {
+        const projectId = url.searchParams.get('projectId');
+        const cursor = url.searchParams.get('after') ?? '0';
+        if (!projectId || !/^\d+$/.test(cursor) || !Number.isSafeInteger(Number(cursor))) return send(response, 400, { error: 'Escopo ou cursor de saída inválido' });
+        const session = store.session(outputRoute[1]);
+        if (session.projectId !== projectId) return send(response, 404, { error: 'Sessão não encontrada neste projeto' });
+        return send(response, 200, terminalOutput.read(session.id, projectId, Number(cursor)));
+      }
       if (request.method === 'GET' && url.pathname === '/api/copilot/status') return send(response, 200, classifier.status());
       if (request.method === 'GET' && url.pathname === '/api/skills') {
         const q = url.searchParams.get('q') ?? '';
@@ -130,9 +152,9 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
         return send(response, 200, { projectId, sessionId, notes, memoryRevision: store.data.memoryRevision });
       }
       const memoryHistory = url.pathname.match(/^\/api\/memory\/([^/]+)\/history$/);
-      if (request.method === 'GET' && memoryHistory) return send(response, 200, { history: store.noteHistory(memoryHistory[1], {
+      if (request.method === 'GET' && memoryHistory) return send(response, 200, store.noteHistoryPage(memoryHistory[1], {
         scope: url.searchParams.get('scope'), projectId: url.searchParams.get('projectId'), sessionId: url.searchParams.get('sessionId'),
-      }) });
+      }, { offset: Number(url.searchParams.get('offset') ?? 0), limit: Number(url.searchParams.get('limit') ?? 20) }));
       if (request.method === 'GET' && url.pathname === '/api/context') return send(response, 200, store.contextBriefFor(url.searchParams.get('sessionId'), 4000, url.searchParams.get('projectId') ?? undefined));
       if (request.method === 'GET' && url.pathname === '/api/inventory') {
         const project = store.project(url.searchParams.get('projectId'));
@@ -148,6 +170,11 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
       }
       if (request.method !== 'POST') return send(response, 404, { error: 'Rota não encontrada' });
       const input = await body(request);
+      const workflowResult = workflows.handle({ method: request.method, url, input });
+      if (workflowResult) {
+        if (workflowResult.changed) broadcast('state', state());
+        return send(response, workflowResult.status, workflowResult.body);
+      }
       let output;
       let changed = true;
       if (['/api/copilot/enable', '/api/copilot/disable'].includes(url.pathname)) {

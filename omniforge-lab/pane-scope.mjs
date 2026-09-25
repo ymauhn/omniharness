@@ -1,9 +1,11 @@
+export const MAX_PANES = 8;
+
 export function sessionsForProject(sessions, projectId) {
   return sessions.filter(session => session.projectId === projectId);
 }
 
 export function reconcilePaneSessions(sessions, projectId, panes) {
-  if (!Array.isArray(panes) || panes.length !== 2) throw new Error('Two pane identities are required');
+  if (!Array.isArray(panes) || panes.length < 1 || panes.length > MAX_PANES) throw new Error('Between one and eight pane identities are required');
   const eligible = sessionsForProject(sessions, projectId);
   const allowed = new Set(eligible.map(session => session.id));
   const seen = new Set();
@@ -25,8 +27,8 @@ export function selectPaneSession(sessions, projectId, panes, index, id) {
   }
   const next = [...panes];
   const previous = next[index];
-  const other = 1 - index;
-  if (id && next[other] === id) next[other] = previous && previous !== id ? previous : null;
+  const other = next.findIndex((value, position) => position !== index && value === id);
+  if (id && other >= 0) next[other] = previous && previous !== id ? previous : null;
   next[index] = id || null;
   return reconcilePaneSessions(sessions, projectId, next);
 }
