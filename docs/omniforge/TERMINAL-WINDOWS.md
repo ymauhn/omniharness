@@ -1,0 +1,11 @@
+# Terminal windows and bounded replay
+
+The terminal-grid checkpoint is being integrated under [WORKSPACE-FLOWS-CHECKPOINT](WORKSPACE-FLOWS-CHECKPOINT.md). It extends the existing interactive host PTYs; no terminal view is a contained agent worker.
+
+`GET /api/sessions/:id/output?projectId=...&after=N` requires the local owner authentication and exact project/session match. The response carries `sessionId`, `projectId`, `epoch`, `firstSequence`, `nextSequence`, `truncated` and ordered `chunks`. Sequence numbers begin at 1; `after` is exclusive and `nextSequence` is the next number to allocate. Each live `terminal` SSE frame has the same identity/content as replay. A client merges by epoch and sequence, drops duplicates and detects missing output.
+
+The buffer retains at most 256 KiB of UTF-8 text and 512 frames per session, 2 MiB of text across 32 session buffers, with at most 8,192 UTF-16 characters per frame and no introduced surrogate-pair split. These are text/frame bounds, not an exact measurement of JavaScript heap overhead. Output stays in memory only; restarting the server loses it. An epoch changes after restart or complete session-buffer eviction. `truncated=true` identifies dropped history or a cursor beyond the current buffer's end. A future cursor returns the current retained frames to allow a reset. This is recent output recovery, not a complete persisted transcript or a terminal-screen snapshot.
+
+Closing a pane must only remove that view. The separate shell-stop action retains the existing `shell encerrado` guarantee and known orphan-descendant limitation. Opening another same-origin window reuses the app authentication cookie; launch tokens must not be copied into its URL. Project/session identifiers are selection hints, not authority. Window layouts may be independent while task state and scoped memory are shared.
+
+Behavior evidence currently includes bounded/Unicode/cursor/restart tests and authenticated HTTP/SSE agreement with synthetic terminal events, without starting a model. The final integrated grid and real-terminal test counts belong in [T13 validation](../t13/VALIDATION.md). Visual resizing, multiple monitors and real keyboard behavior remain explicit final-round V-01 checks; no unavailable test is counted as a pass.
