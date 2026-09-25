@@ -1,5 +1,31 @@
 # T13 validation record
 
+## 2026-09-25 — Workflows, terminal windows and memory controls
+
+Base `17230c093f933c8cd943216a80bc02eea4530079` after PR #5, branch `codex/mvp-workspace-flows`; documentation backup `9e7a8b74e530d16e5ef673ee8c5964817d841d76` was pushed before closing implementation. Owner requests normal continuation and an interruption-ready [handoff](../omniforge/LATEST-CHECKPOINT.md), with nonblocking visual/provider acceptance deferred.
+
+- Final `pwsh -NoProfile -File ./scripts/check.ps1`: **282/282 Python in 89.655 s**, **130/130 Lab in 18.421 s**, **7/7 mascot in 0.058 s**, zero failures or skips. Both existing portal visual methods, other Node scenarios and eval selftest passed. Aggregate exit **1 solely from the two owner-preserved Claude ask/deny differences**, 27/29 installation rows. Separate graph: **546 nodes / 100 edges / 5 proposals / 0 errors**. `git diff --check` passed. Log `%TEMP%/omniharness-mvp-workspace-final-20260925.log`; existing ConPTY `AttachConsole failed` helper stderr remains visible.
+- Saved workflows: five original non-executable suggestions, exact project scope, validated acyclic dependencies, immutable versions/digests, atomic ancestor task creation, pinned snapshots and idempotent request IDs. UI copy/compose actions do not send terminal input or launch models. Explicit task creation starts open tasks; user-supplied review flags are assertions, not authority. 24/24 focused workflow/API tests pass. Unconfirmed IDs survive project switches in one page, not reload; inspect history after reload before creating a new run.
+- Terminals: 1–8 panes, tab/project layouts, resizing and token-free same-origin windows. Root replay is volatile and bounded (256 KiB text/512 frames per session, 2 MiB/32 buffers globally); exact HTTP/SSE frames and project identity, cursor/epoch, Unicode and visible loss semantics. Stale SSE cannot wipe confirmed replay; quiet-stream catch-up is coalesced and stops on errors. Closing a pane does not kill its shell. This is not durable full-screen restoration or managed-worker containment.
+- Memory: connected scoped edit/history/archive controls, preserved conflict drafts and focus, paginated history before cloning (46-revision red, then pages 20/20/6). Complete note-list/store growth remains a separate scalability limit. Generic state no longer clones private note/workflow histories. Two actual-page integration checks failed before wiring; final 18/18 integration seams pass. DOM fixtures are not browser visual evidence.
+- Independent final reviews: memory/replay and Workflows by `/root/codex_tool_bridge` plus `/root/mvp_accounting_review_a`; grid by `/root/codex_tool_bridge` plus `/root/workspace_final_review`; root integration by the latter two, each with 18/18 focused tests. Each reviewer was read-only and did not author its reviewed slice. Grid author is `/root/mvp_accounting_review_a`, workflow original author `/root/mvp_scope_audit`, root authored memory/replay and integration. Reviewers received actual diffs, source and acceptance constraints. Repair counts: memory 2, workflow 3, grid 3; the original two-cycle default was exceeded only for documented narrow focus/reset-visibility closure while feature expansion paused. [Detailed record](../omniforge/WORKSPACE-FLOWS-CHECKPOINT.md) preserves intermediate failures and reassessments.
+- Earlier restricted root expansion: 28/29, zero skips, Unicode PTY cleanup failure at PID 31504; grid restricted full run 83/84 at PID 36968, then normal-host 85/85 before later grid repairs. Read-only inspection found neither failed-attempt PID still running. Final integrated normal-host run above supersedes runtime acceptance, not the retained failure record. No broad process kill or browser workaround.
+
+Final runtime SHA-256:
+
+| File | SHA-256 |
+|---|---|
+| `omniforge-lab/index.html` | `207af7acf7c8d2e0028d146323be1136d0cee2dd5229c0f9d96460a6989d2d34` |
+| `omniforge-lab/server.mjs` | `533f461a98d80bab2abb7c97bae92aa0d80b0da0ce658cc1523c2543b2d66300` |
+| `omniforge-lab/core.mjs` | `58780391e0eede8fffebcc7805a9e0735c451fbb1350f198c1fdb941b942c0fd` |
+| `omniforge-lab/workflows.mjs` | `c3bfcf9d7a60e42e2f679cfd8ea3471ee0e1320a525685a6d2f426dfa91856d4` |
+| `omniforge-lab/workflow-panel.mjs` | `e87e19cbf41408b7ff184e4772ad3cb918b45d72d5f0c7205eb005302469ff80` |
+| `omniforge-lab/memory-panel.mjs` | `44f9a288dcce15622dc2cacc7eb323102be081e02edfa07177b901b4be84ae6d` |
+| `omniforge-lab/terminal-grid.mjs` | `48322338ca69d7d01249d6f51980705f63953f711909670402196e2cad4d8b5f` |
+| `omniforge-lab/terminal-output.mjs` | `e08e693af8de3ce413489baea1912838ce49ccfa8e7780df5dc15874c53fbe20` |
+
+No paid provider call, API key, model dispatch, clean-user install, calibrated quality/GA result, release or native managed execution is certified by this checkpoint. Delegate token/dollar usage remains unavailable. V-01 through V-06 and the complete release contract remain active; next implementation is arsenal task/UI integration.
+
 ## 2026-09-25 — resident Laya and versioned arsenal checkpoint
 
 Base `af369b248d7cda94a0bd38c36af9373df4809839` (merged [PR #4](https://github.com/ymauhn/omniharness/pull/4)), branch `codex/mvp-local-assistance`. The owner's full-MVP authority and deferred-validation amendment apply. This checkpoint adds the local worker lifecycle, authenticated composer routing and original five-pillar profile registry; it is not full MVP or native managed-executor acceptance.

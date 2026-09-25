@@ -287,6 +287,13 @@ export class WorkspaceStore {
     return structuredClone(this.boundNote(id, selection).history);
   }
 
+  noteHistoryPage(id, selection, { offset = 0, limit = 20 } = {}) {
+    const note = this.boundNote(id, selection);
+    if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 50) fail('Página de histórico inválida');
+    return { noteId: id, offset, limit, total: note.history.length, hasMore: offset + limit < note.history.length,
+      history: structuredClone(note.history.slice(offset, offset + limit)) };
+  }
+
   notesFor({ projectId = null, sessionId = null, includeArchived = false } = {}) {
     if (projectId !== null) this.project(projectId);
     if (sessionId !== null && this.session(sessionId).projectId !== projectId) fail('Sessão e projeto não coincidem');

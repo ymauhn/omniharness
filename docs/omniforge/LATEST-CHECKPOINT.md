@@ -1,54 +1,44 @@
 # Resume here: full OmniForge MVP
 
-Updated September 25, 2026. **Active implementation, not a completed MVP.** The owner explicitly asked to continue normally as the weekly allowance approaches its limit and to keep an interruption-ready handoff. A read-only account query observed 75% weekly usage / 25% remaining at this checkpoint; this is account-wide, not attribution to this task. No reset credit was redeemed or purchase made.
+Updated September 25, 2026. **Workspace checkpoint validated; complete MVP still active.** The owner asked to continue normally while retaining an interruption-ready handoff near the weekly credit limit. A read-only account query observed 25% weekly allowance remaining at the earlier checkpoint; that is account-wide, not task attribution. No reset was redeemed or credit purchased.
 
-## Git anchor and delivered work
+## Start here
 
-- Repository: `C:/Users/Yeonatan/master_team`; remote `ymauhn/omniharness`.
-- Current integration branch: `codex/mvp-workspace-flows`, base/HEAD `17230c093f933c8cd943216a80bc02eea4530079`. **Inspect actual Git status first**; source below is currently uncommitted and must not be overwritten by stale worktree copies.
-- Last reviewed implementation commit: `fcef707743aa03d24448a28364b1659a037afe0f`; [PR #5](https://github.com/ymauhn/omniharness/pull/5) merged at the base above. Earlier [PR #3](https://github.com/ymauhn/omniharness/pull/3) and [PR #4](https://github.com/ymauhn/omniharness/pull/4) are merged.
-- Delivered checkpoints: complete installed-skill discovery/search backend and connected catalog; scoped versioned memory backend; modern/pixel SVG mascot and pause/selection Copilot; typed Laya/JEV adapters, actually installed local Laya with explicit composer activation/unload; five original agent profiles, versioned arsenal and installed Agent Forge skill. These do not complete provider/vault, arsenal task UI or the whole MVP.
-- Last complete integrated runner at that anchor: **282/282 Python, 69/69 Lab, 7/7 mascot**, zero skips. Aggregate exit 1 solely for two owner-preserved Claude `ask`/`deny` differences (27/29 install rows conform). Exact logs, hashes, independent reviews and real Laya limitations are in [T13 validation](../t13/VALIDATION.md). Local Laya HTTP lifecycle passed; positive prompt abstentions remain, so no calibrated quality claim.
+1. Read this file, root AGENTS.md and [T13 handoff](../t13/TICKET-HANDOFF-CLAUDE.md); inspect actual Git status/log before editing.
+2. Current branch: `codex/mvp-workspace-flows`, implementation base `17230c093f933c8cd943216a80bc02eea4530079` (merged PR #5). Documentation backup `9e7a8b74e530d16e5ef673ee8c5964817d841d76` is pushed. Runtime changes are now validated and awaiting their scoped commit/PR in this checkpoint; use Git for the newer actual identity if resuming after that operation.
+3. **Root is the source of truth.** Worktree `_intake/mvp-terminal-grid` lacks the final memory/Workflows index wiring; `_intake/mvp-workflows` lacks several root repairs. Do not copy either over root. Preserve worktrees, old backups and stash `8105be6`.
+4. If the scoped runtime commit/PR is not yet present, inspect staged scope, commit reviewed files, push this branch, create/attach/merge the exact reviewed head and update this pointer with identities. No force push, unrelated PR #2 changes or deployment.
 
-## Current unfinished workspace checkpoint
+## Delivered and verified
 
-Acceptance/reference hashes and writer ownership: [WORKSPACE-FLOWS-CHECKPOINT](WORKSPACE-FLOWS-CHECKPOINT.md).
+- Earlier merged [PR #3](https://github.com/ymauhn/omniharness/pull/3), [PR #4](https://github.com/ymauhn/omniharness/pull/4) and [PR #5](https://github.com/ymauhn/omniharness/pull/5): complete installed-skill discovery/search backend and connected catalog; scoped versioned memory; modern/pixel mascot with pause/selected-text Copilot; typed Laya/JEV adapters; installed local resident Laya with explicit load/unload; five original agent profiles, versioned arsenal and installed Agent Forge.
+- Current source: Workflows tab with five original suggestions, saved per-project revisions/DAGs, copy/insert into composer, explicit atomic ancestor-task creation and task-version snapshots. No automatic model dispatch or task-success claim.
+- Current source: one to eight terminal panes, adjustable columns/rows, independent per-window/project layouts, another same-origin window, bounded Unicode-safe replay shared with SSE, stale-epoch protection and visible output loss. Closing a pane keeps its shell.
+- Current source: connected memory edit/history/archive controls, session/archive filters, optimistic write conflicts, retained drafts, paginated history and async scope/focus guards.
+- Final `scripts/check.ps1`: **282/282 Python (89.655 s), 130/130 Lab (18.421 s), 7/7 mascot (0.058 s), zero skips**. Existing portal visual methods, other Node scenarios and eval selftest passed. Aggregate exit **1 solely for the two owner-preserved Claude ask/deny differences**; 27/29 installation rows conform. Separate graph check: 546 nodes, 100 edges, 5 proposals, 0 errors.
+- Full log: `%TEMP%/omniharness-mvp-workspace-final-20260925.log`. [Validation](../t13/VALIDATION.md) and [checkpoint record](WORKSPACE-FLOWS-CHECKPOINT.md) retain failed attempts, review identities, repair cycles, hashes and limitations. All final component reviews and both root wiring reviews passed. No source changed after the full suite; documentation changes do not imply a new runtime pass.
 
-| Work | Source of truth now | Evidence and next step |
-|---|---|---|
-| Replay output | Root `omniforge-lab/terminal-output.mjs`, server route/SSE and two tests | Bounded volatile buffers, epoch/cursors, exact scope/auth; 5 focused replay/API tests passed. First independent reviewer found no replay blocker. Second review pending. |
-| Memory edit/history/archive | Root `memory-panel.mjs/.css`, two tests, core `noteHistoryPage`, server/test changes | Draft/conflict/project race controls implemented. Review repair 1 paginates history: initial red `46 !== 20`, then 9 memory/server checks passed. UI still needs index wiring and final reviews. |
-| Saved Workflows | Root `workflows.mjs`, `workflow-panel.mjs/.css`, three workflow test files; original writer worktree is stale after root repairs | Original 16/16 tests; root repair 1 fixed old-project busy state and in-flight archive editing, then workflow+API tests 20/20. **Three findings below still require repair 2.** |
-| Dynamic terminal UI | **Not yet copied to root:** `_intake/mvp-terminal-grid`, branch `codex/mvp-terminal-grid`, base `fcef707` | Six frozen files: index.html, pane-scope.mjs, terminal-grid.mjs/.css, test/terminal-grid.test.mjs and terminal-grid-controller.test.mjs. Final author full Lab 85/85, zero skips with normal host permissions; actual root-buffer/client replay compatibility passed. Independent review pending, then integrate the six files, add static routes and merge memory/Workflows UI wiring. |
+## Exact next implementation slice
 
-Open Workflows findings from independent `/root/codex_tool_bridge` review, **do not lose these**:
+**Connect the existing arsenal to the Lab and selected task identity.** Reuse `harness/agent_arsenal.py`, `harness/agent_profiles.json`, [AGENT-ARSENAL](AGENT-ARSENAL.md) and the Agent Forge skill; do not build a second registry.
 
-1. Completing a task-create request for node A after selecting node B disables B's shared `taskButton`. Bind completion to its original selection/button or freeze selection.
-2. Confirmed request IDs never retire, preventing deliberate new runs. Project switching clears uncertain IDs, allowing duplicate tasks after a lost response. Preserve uncertain identity across switches; retire only confirmed success and distinguish a new run from a retry. Add regressions.
-3. Version verification hashes `validateWorkflow(storedDefinition)`, which trims strings. A stored prompt changed from `P` to ` P ` is accepted under the old digest. Check exact stored/canonical content integrity and retain a tamper regression.
+- Add authenticated bounded API/UI to inspect built-in and saved profiles, review/activate versions, disable/rollback, and deliberately pin a reviewed profile to a chosen project task.
+- A task pin is context, not executor admission. Keep native managed execution unavailable until V-04 passes.
+- Derivation accepts explicitly selected, sanitized session excerpts and cites them. Do not discover/export private chats automatically. The owner-selected real derivation remains a later human acceptance step if no material is selected.
+- Freeze observable acceptance, leave meaningful tests, obtain independent reviews and update this checkpoint before proceeding.
 
-Grid review 1 subsequently found two pending replay repairs: if a new epoch has the same last sequence as the old cursor, an empty replay can hide retained output; refetch from zero when the reset cursor still precedes `nextSequence - 1`. Client trimming at 120,000 characters must also mark truncation visibly. Both were reproduced against the actual root buffer, with 18 existing focused tests passing; passing those tests did not catch these cases. Writer scope is still the isolated grid worktree.
+Then retain the full [release contract](V1-RELEASE-CONTRACT.md): optional OS-vault API keys/JEV controls and truthful quota/usage UI; capability graph hover/focus help; generated asset-link checker and requested repair workflow; real Claude/Codex integration with complete accounting and verified cancellation/isolation; Windows packaging and Goose comparison; five real pillar demonstrations and calibrated graph-weighted eval/evolution. Templates, metadata and mocks do not close these requirements. Payments remain deferred.
 
-Root API workflow integration exists: constructor validates service and releases the workspace lock on failure; authenticated GET/POST routes; generic state excludes raw note/workflow history and supplies `workflowRevision`. **Index wiring remains:** mount the memory panel, add Workflows navigation/panel, refresh its library when this revision changes without overwriting drafts, and serve grid assets. Before overwriting index from the grid worktree verify root index is still unchanged.
+## Limits a continuation must preserve
 
-## Precise resumption order
+- Python runtime: `C:/Users/Yeonatan/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe` (3.12.14); check.ps1 selects it. Node/npm, Playwright/Chromium and test dependencies are installed. Never skip installable coverage.
+- Preserve user Claude permission customizations. Do not run blanket installer `--adopt` merely to force all installation rows green.
+- Earlier restricted PTY cleanup attempts failed (root PID 31504; grid PID 36968), then read-only inspection found neither still running. Final normal-host suite passes. Existing `AttachConsole failed` helper stderr remains visible.
+- Browser navigation is platform-denied despite owner consent. Do not retry through another backend/CDP/Playwright. DOM seams and HTTP tests are not visual evidence. V-01 retains keyboard, themes, multi-monitor, motion and performance checks.
+- Managed-agent admission stays closed: all-role tool confinement, orphan-descendant cancellation and complete whole-tree usage are unverified. Interactive PTYs/native collaboration remain usable; do not call them contained managed swarms.
+- Local Laya lifecycle passed, but positive technical prompts abstained. Quality and warm-up accounting remain uncalibrated/incomplete. JEV offline adapter tests pass; account/key/credit live tests wait in V-02.
+- Uncertain workflow request IDs survive project switches in the current page, not reload. Inspect saved task snapshots after a lost response/reload before deliberately starting another run. No automatic retry or dispatch.
+- History replies are paginated; the complete note-list endpoint and durable note history still grow with use. Terminal replay is volatile recent text, not durable/full-screen recovery.
+- Native delegate usage/cost is unavailable, not zero. Account quota changes are not task receipts. New paid-provider charges, private uploads and production deployment need their applicable authority; scoped repo commits/pushes/PRs/merges and routine work are already authorized.
 
-1. Read this file, `AGENTS.md`, [T13 handoff](../t13/TICKET-HANDOFF-CLAUDE.md), then current Git status/diff. Preserve all worktrees and unrelated work. Current dirty root is intentional.
-2. Repair the three Workflows findings with red/green regressions; this is repair cycle 2 for that slice. Get independent rechecks before accepting it.
-3. Collect grid review and second memory/replay review; integrate only the six frozen grid files, then wire the root modules. Original workflows worktree `_intake/mvp-workflows` is reference-only after root repairs; do not copy it again.
-4. Run focused tests, two independent source reviews of final changed slices/integration, then the complete runner. Save exact pass/fail/skip counts and known host differences. Commit the reviewed scoped checkpoint, push a branch, create/attach/merge the exact reviewed PR head, and update this pointer with SHAs.
-5. Continue full contract: arsenal task selection and chosen-session derivation, optional API-key vault/JEV controls and honest quota/usage UI, richer capability/help graphs, generated link-checker/repair workflow, Windows packaging/Goose comparison, five real pillar demonstrations and calibrated eval/evolution. Existing templates/backend fixtures alone do not pass those product scenarios.
-
-## Validation and host facts that matter
-
-- Python: `C:/Users/Yeonatan/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe` (3.12.14). `scripts/check.ps1` selects the configured runtime. Node/npm and Playwright/Chromium are installed; installable missing dependencies are work, never skipped coverage.
-- Latest interim root focused expansion: 28/29 passed, zero skips; only the known PowerShell Unicode PTY cleanup failed under restricted command permissions (PID 31504). This is **not** a green suite. Later 9/9 memory/server checks passed. Repeat the final complete runner using the already-authorized ordinary host escalation, as previous passing checkpoints did.
-- Grid author first full run: missing local worktree `node-pty`; `npm ci` installed four lockfile dependencies. Restricted retry 83/84, one PTY cleanup failure (PID 36968). Normal-host final 85/85. Existing `AttachConsole failed` helper diagnostics remain visible despite passing cleanup assertions; no PTY implementation was changed.
-- Read-only inspection after both restricted failures found neither PID 31504 nor 36968 still running. No broad process kill was issued.
-- Current reviews: `/root/mvp_scope_audit` reviews terminal grid only (did not author it); `/root/mvp_accounting_review_a` reviews root memory/replay only (did not author them). `/root/codex_tool_bridge` provided first root review and first Workflows review; its findings above are pending recheck. Each source slice needs two independent final reviews; the writer does not count.
-- Browser navigation remains denied by platform review despite owner consent. Do not retry via another backend/CDP/Playwright. Node DOM fixtures and HTTP tests are functional seams, **not visual evidence**. V-01 in [VALIDATION-PENDING](VALIDATION-PENDING.md) tracks final visuals, keyboard and multi-monitor acceptance.
-- Native managed-agent admission remains closed: all-role tool confinement, orphan-descendant cancellation and whole-tree usage are not certified. Interactive PTYs and native approved collaboration remain usable; do not label them contained managed swarms.
-- Preserve current user Claude permission customizations; never run blanket `install.py --adopt` to force a green check. Keep unknown provider/delegate tokens and dollars unknown. Do not use account-wide quota deltas as per-task billing.
-- Owner permits scoped commits/pushes/PRs/merges and ordinary implementation/research/dependencies without repeated questions. New paid-provider charges, private uploads and production deployment retain their separate boundaries. JEV account/credit tests may wait; its functional configurable adapter/UI remains required. Payments remain deferred.
-
-Every continuation updates this file and the T13 journal with changed paths, tests, unresolved findings, source/commit identities and the next executable step. Keep the full objective in [V1-RELEASE-CONTRACT](V1-RELEASE-CONTRACT.md); do not silently shrink it to the last checkpoint.
+Every continuation updates this pointer and the T13 journal with actual commits, changed paths, test results, unresolved findings and the next executable step. Keep [VALIDATION-PENDING](VALIDATION-PENDING.md) current; never silently shrink the MVP to the last completed slice.

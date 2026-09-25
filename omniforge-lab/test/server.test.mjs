@@ -200,4 +200,17 @@ test('memory API versions competing writes, denies mismatched scopes and explici
   // A local owner token may explicitly select another project; this is scoped retrieval, not OS isolation.
   const other = await (await post('/api/memory', { scope: 'project', projectId: b.id, source: 'owner', text: 'B_OWNER_SELECTED_FACT' })).json();
   assert.equal((await (await get(`/api/memory?projectId=${b.id}`)).json()).notes[0].id, other.id);
+  for (let revision = 1; revision < 46; revision++) app.store.updateNote(other.id, {
+    scope: 'project', projectId: b.id, expectedRevision: revision, source: 'history fixture', text: `revision ${revision + 1}`,
+  });
+  const pageRoute = `/api/memory/${other.id}/history?scope=project&projectId=${b.id}`;
+  const firstPage = await (await get(pageRoute)).json();
+  assert.equal(firstPage.history.length, 20);
+  assert.equal(firstPage.total, 46); assert.equal(firstPage.hasMore, true);
+  const middlePage = await (await get(`${pageRoute}&offset=20&limit=20`)).json();
+  assert.deepEqual(middlePage.history.map(version => version.revision), Array.from({ length: 20 }, (_, index) => index + 21));
+  const lastPage = await (await get(`${pageRoute}&offset=40&limit=20`)).json();
+  assert.equal(lastPage.history.length, 6); assert.equal(lastPage.hasMore, false);
+  for (const invalid of ['limit=0', 'limit=51', 'offset=-1', 'offset=1.5']) assert.equal((await get(`${pageRoute}&${invalid}`)).status, 400);
+  assert.equal(app.store.noteHistory(other.id, { scope: 'project', projectId: b.id }).length, 46, 'pagination preserves durable audit history');
 });
