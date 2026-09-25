@@ -127,7 +127,7 @@ def recover_claude_attempt(evidence_root, attempt_id):
 
 def run_claude_attempt(cli_executable, prompt, *, cwd, evidence_root, attempt_id,
                        role, timeout, billing_channel, approved_settings_sha256=None,
-                       cancel_event=None):
+                       cancel_event=None, restricted_mcp_config=None, session_id=None):
     """One print-mode input via stdin; no resume, inherited secrets or shell."""
     worker = Path(cwd).resolve(strict=True)
     if billing_channel != "native-allowance":
@@ -142,10 +142,26 @@ def run_claude_attempt(cli_executable, prompt, *, cwd, evidence_root, attempt_id
         raise ValueError("one nonempty prompt is required")
     if not isinstance(role, str) or not role or len(role) > 64 or not role.replace("-", "").replace("_", "").isalnum():
         raise ValueError("role must be a bounded name")
-    session = str(uuid.uuid4())
+    if session_id is not None:
+        try:
+            if str(uuid.UUID(session_id)) != session_id:
+                raise ValueError
+        except (TypeError, AttributeError, ValueError):
+            raise ValueError("session_id must be a canonical UUID") from None
+    session = session_id or str(uuid.uuid4())
     command = [str(cli), "-p", "--session-id", session, "--output-format", "stream-json",
-               "--verbose", "--setting-sources", "project", "--strict-mcp-config",
-               "--permission-mode", "manual", "--permission-prompts", "none"]
+               "--verbose", "--strict-mcp-config", "--permission-mode", "manual",
+               "--permission-prompts", "none"]
+    if restricted_mcp_config is not None:
+        config = Path(restricted_mcp_config)
+        if (not config.is_absolute() or not config.is_file()
+                or config.resolve() != config or config.resolve().is_relative_to(worker)):
+            raise ValueError("reviewed MCP config must be a regular coordinator file outside the worker")
+        command.extend(["--restricted", "--tools", "", "--mcp-config", str(config),
+                        "--allowedTools", "mcp__omni_worker__worker_command",
+                        "--no-chrome", "--disable-slash-commands", "--max-turns", "12"])
+    else:
+        command.extend(["--setting-sources", "project"])
     environment = {key: value for key, value in os.environ.items() if key.upper() in _ENV_KEYS}
     _preflight_auth(str(cli), worker, environment)
     run_attempt(command, cwd=worker, evidence_root=evidence_root, attempt_id=attempt_id,

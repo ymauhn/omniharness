@@ -27,6 +27,8 @@ try {
         & node $test
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
+    & npm --prefix omniforge-lab test
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     & $Python evals/run.py selftest
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     & $Python scripts/install.py --check

@@ -44,9 +44,11 @@ class ClaudeNativeTests(unittest.TestCase):
         script = self.base / "fake_cli.py"
         script.write_text(FAKE_CLI, encoding="utf-8")
         self.fixture_script = script
+        self.commands = []
 
     def run_fake(self, prompt="answer", attempt="one", **options):
         def fixture_process(command, **kwargs):
+            self.commands.append(command)
             self.assertEqual(command[0], sys.executable)
             self.assertEqual(command.count("--session-id"), 1)
             self.assertNotIn(prompt, command)
@@ -161,6 +163,29 @@ class ClaudeNativeTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     self.run_fake(attempt=f"redirect-{index}", approved_settings_sha256=approved)
                 self.assertFalse((self.evidence / f"redirect-{index}").exists())
+
+    def test_restricted_mcp_route_disables_host_tools_and_pins_one_config(self):
+        config = self.base / "mcp.json"
+        config.write_text('{"mcpServers": {}}', encoding="utf-8")
+        result = self.run_fake(restricted_mcp_config=config,
+                               session_id="00000000-0000-4000-8000-000000000001")
+        self.assertTrue(result["receipt"]["usage_complete"])
+        command = self.commands[-1]
+        for flag in ("--restricted", "--tools", "--strict-mcp-config",
+                     "--mcp-config", "--allowedTools", "--no-chrome",
+                     "--disable-slash-commands", "--max-turns"):
+            self.assertIn(flag, command)
+        self.assertEqual(command[command.index("--tools") + 1], "")
+        self.assertEqual(command[command.index("--mcp-config") + 1], str(config))
+        self.assertEqual(command[command.index("--allowedTools") + 1],
+                         "mcp__omni_worker__worker_command")
+        self.assertEqual(command[command.index("--session-id") + 1],
+                         "00000000-0000-4000-8000-000000000001")
+        inside = self.worker / "mcp.json"
+        inside.write_text('{}')
+        with self.assertRaises(ValueError):
+            self.run_fake(attempt="two", restricted_mcp_config=inside)
+        self.assertFalse((self.evidence / "two").exists())
 
     def test_auth_preflight_rejects_non_subscription_modes_without_launch(self):
         good = {"loggedIn": True, "authMethod": "claude.ai", "apiProvider": "firstParty",
