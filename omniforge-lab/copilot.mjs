@@ -1,5 +1,6 @@
 // Original Companion Studio robot and draft safety, adapted for the local composer.
-// No model calls, execution, HTML from metadata, or persistent draft storage.
+// Local classifier is explicit opt-in; no skill execution or persistent draft storage.
+import { mountClassifierControls, utf8Excerpt } from './copilot-provider.mjs';
 const strings = value => Array.isArray(value) ? value.filter(item => typeof item === 'string') : [];
 const boundary = (text, index) => Number.isInteger(index) && index >= 0 && index <= text.length &&
   !(index > 0 && /[\uD800-\uDBFF]/.test(text[index - 1]) && /[\uDC00-\uDFFF]/.test(text[index] || ''));
@@ -220,7 +221,10 @@ export function mountCopilot({root,draft,api,getProjectId,getNotes,openSkills}) 
   const skinChoice = select(settingFields,'Visual',[['modern','Robô moderno'],['pixel','Robô pixel']]);
   const motion = select(settingFields,'Movimento',[['system','Seguir sistema'],['off','Sem animações']]);
   add(settings,'p','microcopy','Preferências por projeto neste navegador. Rascunhos não são salvos aqui.');
-  add(root,'p','cp-provider','Local determinístico · templates + metadados · sem LLM');
+  const provider = mountClassifierControls({root:settings,api,getProjectId,onChange:()=>{
+    model.cancel(); requestBusy=false; clearTimeout(pauseTimer); hidePanel(); savePreferences(); updateActions();
+  }});
+  add(root,'p','cp-provider','Templates locais · metadados + Laya opcional · sem envio remoto');
   const actions = add(root,'div','cp-actions'); actions.setAttribute('role','group'); actions.setAttribute('aria-label','Ações no prompt');
   const scope = add(root,'p','microcopy','Selecione um trecho no pedido, ou peça uma sugestão.');
   const panel = add(root,'div','cp-panel'); panel.hidden = true;
@@ -252,10 +256,11 @@ export function mountCopilot({root,draft,api,getProjectId,getNotes,openSkills}) 
     mode.value = ['off','discreet','active'].includes(saved?.mode) ? saved.mode : 'discreet';
     skin = saved?.skin === 'pixel' ? 'pixel' : 'modern'; skinChoice.value = skin;
     motion.value = saved?.motion === 'off' ? 'off' : 'system'; model.setMode(mode.value); renderRobot();
+    provider.setMode(saved?.provider);
     expression('resting','Aqui quando precisar.',false); updateActions();
   }
   function savePreferences() {
-    if (model.projectId) try { localStorage.setItem(`omniforge-copilot:${model.projectId}`,JSON.stringify({mode:mode.value,skin,motion:motion.value})); } catch { /* Storage unavailable: current page still works. */ }
+    if (model.projectId) try { localStorage.setItem(`omniforge-copilot:${model.projectId}`,JSON.stringify({mode:mode.value,skin,motion:motion.value,provider:provider.mode()})); } catch { /* Storage unavailable: current page still works. */ }
   }
   function sync() {
     const changedProject = model.projectId !== getProjectId();
@@ -318,12 +323,15 @@ export function mountCopilot({root,draft,api,getProjectId,getNotes,openSkills}) 
     if (kind !== 'skills') { showProposal(captured,localTemplate(kind,text,contextExcerpt(getNotes(),model.projectId)),{clarify:'Estruturar pedido',context:'Citar contexto',research:'Pesquisa e termos'}[kind]); return; }
     requestBusy = true; expression('thinking','Consultando metadados locais…',false);
     try {
-      const params = new URLSearchParams({q:clipped(text,1000),host:'codex',ring:'installed',limit:'3',offset:'0'});
+      const query = utf8Excerpt(text);
+      const params = new URLSearchParams({q:query,host:'codex',ring:'installed',limit:'3',offset:'0'});
       const result = catalogResponse(await api(`/api/skills?${params}`));
       if (!model.current(captured) || !isVisible() || passive && document.activeElement !== draft) return;
-      const candidates = candidateSkills(result.rows); panel.replaceChildren(); panel.hidden = false;
+      const ranked = await provider.classify({text:query,rows:candidateSkills(result.rows),snapshotId:result.snapshot_id,projectId:captured.projectId});
+      if (!model.current(captured) || !isVisible() || passive && document.activeElement !== draft) return;
+      const candidates = ranked.rows; panel.replaceChildren(); panel.hidden = false;
       add(panel,'strong','',passive ? 'Pausa boa para revisar seu pedido' : 'Candidatos locais');
-      add(panel,'p','microcopy',`${coverageText(result)}. Correspondência lexical; confira a adequação.`);
+      add(panel,'p','microcopy',`${coverageText(result)}. ${ranked.label}`);
       if (!candidates.length) add(panel,'p','','Não encontrei uma skill instalada com correspondência. Posso ajudar a estruturar o pedido.');
       for (const row of candidates) {
         const card = add(panel,'article','cp-skill'); add(card,'strong','',row.name);

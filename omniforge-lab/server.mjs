@@ -6,6 +6,8 @@ import { randomBytes } from 'node:crypto';
 import { WorkspaceStore, inventoryAssets, listSkills } from './core.mjs';
 import { PtyCoordinator } from './pty.mjs';
 import { CatalogService } from './catalog-service.mjs';
+import { ClassifierService } from './classifier-service.mjs';
+import { classifyPrompt, classifierError } from './copilot-classification.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
@@ -39,7 +41,7 @@ async function body(request) {
   catch { const error = new Error('JSON inválido'); error.status = 400; throw error; }
 }
 
-export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omniforge-lab'), repoRoot = REPO_ROOT, token = randomBytes(24).toString('hex'), catalog = new CatalogService({ repoRoot, dataDir }) } = {}) {
+export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omniforge-lab'), repoRoot = REPO_ROOT, token = randomBytes(24).toString('hex'), catalog = new CatalogService({ repoRoot, dataDir }), classifier = new ClassifierService({ repoRoot }) } = {}) {
   const cookieName = `OmniForgeAuth_${randomBytes(8).toString('hex')}`;
   const store = new WorkspaceStore(dataDir);
   const shells = new PtyCoordinator(store);
@@ -89,7 +91,7 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
       if (request.method === 'GET' && url.pathname === '/pane-scope.mjs') {
         return send(response, 200, fs.readFileSync(path.join(HERE, 'pane-scope.mjs'), 'utf8'), 'text/javascript; charset=utf-8');
       }
-      if (request.method === 'GET' && ['/copilot.mjs', '/copilot.css'].includes(url.pathname)) {
+      if (request.method === 'GET' && ['/copilot.mjs', '/copilot.css', '/copilot-provider.mjs'].includes(url.pathname)) {
         return send(response, 200, fs.readFileSync(path.join(HERE, url.pathname.slice(1)), 'utf8'), url.pathname.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8');
       }
       const vendorFiles = {
@@ -102,6 +104,7 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
         return send(response, 200, fs.readFileSync(path.join(HERE, 'node_modules', file), 'utf8'), type);
       }
       if (request.method === 'GET' && url.pathname === '/api/state') return send(response, 200, state());
+      if (request.method === 'GET' && url.pathname === '/api/copilot/status') return send(response, 200, classifier.status());
       if (request.method === 'GET' && url.pathname === '/api/skills') {
         const q = url.searchParams.get('q') ?? '';
         const host = url.searchParams.get('host');
@@ -147,7 +150,14 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
       const input = await body(request);
       let output;
       let changed = true;
-      if (url.pathname === '/api/skills/refresh') { output = await catalog.refresh(); changed = false; }
+      if (['/api/copilot/enable', '/api/copilot/disable'].includes(url.pathname)) {
+        if (Object.keys(input).length) return send(response, 400, { error: 'Configuração local inválida' });
+        try { output = await classifier[url.pathname.endsWith('/enable') ? 'enable' : 'disable'](); }
+        catch (error) { throw classifierError(error); }
+        changed = false;
+      }
+      else if (url.pathname === '/api/copilot/classify') { output = await classifyPrompt({ input, store, catalog, classifier }); changed = false; }
+      else if (url.pathname === '/api/skills/refresh') { output = await catalog.refresh(); changed = false; }
       else if (url.pathname === '/api/projects') output = store.addProject(input);
       else if (url.pathname === '/api/sessions') {
         output = store.addSession(input);
@@ -192,10 +202,8 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
     async close() {
       for (const client of clients) client.end();
       clients.clear();
-      let shutdownError = null;
-      await catalog.close?.();
-      try { await shells.closeAll(); }
-      catch (error) { shutdownError = error; }
+      const shutdowns = await Promise.allSettled([catalog.close?.(), classifier.close(), shells.closeAll()]);
+      const shutdownError = shutdowns.find(result => result.status === 'rejected')?.reason;
       await new Promise(resolve => server.close(resolve));
       store.close();
       if (shutdownError) throw shutdownError;
@@ -207,7 +215,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const app = createOmniForgeServer({ dataDir: process.env.OMNIFORGE_DATA_DIR || path.join(REPO_ROOT, '.omniforge-lab') });
   const url = await app.listen(Number(process.env.OMNIFORGE_PORT || 0));
   console.log(`OmniForge Lab: ${url}`);
-  console.log('Candidato local: terminais PTY, sem execução de modelo. Ctrl+C encerra as sessões.');
+  console.log('Candidato local: PTYs e Copilot; Laya exige ativação. Ctrl+C encerra as sessões.');
   const shutdown = async () => { await app.close(); process.exit(0); };
   process.once('SIGINT', shutdown);
   process.once('SIGTERM', shutdown);
