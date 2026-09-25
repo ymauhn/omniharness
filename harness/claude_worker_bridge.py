@@ -11,7 +11,7 @@ import sys
 import uuid
 from pathlib import Path
 
-from harness.claude_broker import SERVER, TOOL_NAME
+from harness.claude_broker import SERVER, TOOL_NAME, broker_bootstrap, source_hashes
 from harness.claude_native import run_claude_attempt
 from harness.claude_tool_inventory import inspect_init
 from harness.container_worker import ATTEMPT
@@ -137,8 +137,11 @@ def run_claude_worker_attempt(cli_executable, prompt, *, container_worker,
     bridge_dir = root / "_bridge" / attempt_id
     bridge_dir.mkdir(parents=True)  # no replay of an uncertain attempt
     events = bridge_dir / "events.jsonl"
+    code_root = Path(__file__).resolve().parent.parent
+    pins = source_hashes(code_root)
     binding = {
         "schema_version": 1, "attempt_id": attempt_id, "session_id": session,
+        "source_sha256": pins,
         "source": str(container_worker.worktrees.source),
         "workers": str(container_worker.worktrees.workers),
         "record": container_worker.record,
@@ -151,9 +154,7 @@ def run_claude_worker_attempt(cli_executable, prompt, *, container_worker,
     binding_path = bridge_dir / "binding.json"
     _save_new(binding_path, binding)
     digest = hashlib.sha256(binding_path.read_bytes()).hexdigest()
-    code_root = Path(__file__).resolve().parent.parent
-    python_code = ("import sys; sys.path.insert(0, " + repr(str(code_root))
-                   + "); from harness.claude_broker import main; raise SystemExit(main())")
+    python_code = broker_bootstrap(code_root, binding_path, digest, pins)
     mcp = {"mcpServers": {SERVER: {"type": "stdio", "command": str(python),
                                  "args": ["-I", "-u", "-c", python_code,
                                           "--binding", str(binding_path), "--sha256", digest]}}}

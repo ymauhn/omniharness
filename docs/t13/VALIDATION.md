@@ -1,5 +1,13 @@
 # T13 validation record
 
+## 2026-09-25 — broker source consistency and all-role Swarm admission
+
+Validated source `322337b0c8c83bf98111c031f4130eaab622f8e0` on `codex/mvp-executor-boundary`; detailed [native bridge checkpoint](NATIVE-BRIDGE-CHECKPOINT.md). The bounded source pins cover three named Python modules and absence of `harness/__init__.py`, with fresh cache prefix before broker import. Every Swarm role now requires a per-attempt OS-proof callback, matching worker identity and complete whole-tree usage receipt; duplicate reservation identities stop before dispatch. Independent reviews found the malicious cached `.pyc`, package initializer, A/B worker identity and duplicate lease gaps, then rechecked their adversarial fixes. This is an offline coordinator/bridge validation, not an authenticated all-role agent or billed-usage result.
+
+- Focused Claude broker tests **24/24**, Swarm driver **10/10** scenarios, and model-free MCP→Docker reprobe **26/26** on the normal host passed; no model was invoked. An earlier restricted-sandbox probe failed before broker startup on Docker pipe access and preserved `%TEMP%/omni-worker-acceptance-claude-broker-x2ib5zde` (`cid:null`, `phase:unknown`).
+- Final `scripts/check.ps1`: **288/288 Python in 89.051 s, 150/150 Lab, 7/7 mascot**, zero skips; other Node/portal/eval checks passed. Log `%TEMP%/omniharness-native-boundary-final-20260925.log`, SHA-256 `c5fc3418fc55d7f2a4e56048d56826002cf6076bca042ea39822011235264e88`. The installed Swarm driver was updated with backup `C:/Users/Yeonatan/.claude/workflows/swarm-driver.js.pre-omniharness-20260925-190827`. Installation is **27/29**; only the owner's preserved Claude `ask`/`deny` rows differ, so aggregate exit 1. Separate graph check: **546 nodes / 100 edges / 5 proposals / 0 errors**. An earlier full run, before driver synchronization, showed a third install drift; it is not the final result.
+- No complete Codex descendant usage, real effective tool inventory, per-role containment, verified PTY orphan cancellation or live bounded task was established. [V-04](../omniforge/VALIDATION-PENDING.md) remains open. Native delegate token and cost attribution remain unknown.
+
 ## 2026-09-25 — isolated guided demo and scoped graph help
 
 Branch `codex/mvp-guided-demo` started clean at merged [PR #7](https://github.com/ymauhn/omniharness/pull/7) SHA `ed8923646c3e13b1f00b2edbad4a094c0d0b468a`; documentation-first checkpoint `4b53101`. This slice adds a fresh synthetic OmniHarness demo launch path and hover/keyboard help for graph nodes. It does not start a model or certify a managed executor, human visual result or product installer.

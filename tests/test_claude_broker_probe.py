@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+from harness.claude_broker import source_hashes
 from harness.claude_broker_probe import (_broker_process, _mcp_input, _parse_mcp_output,
                                          _preserve_fixture, _tool_result)
 
@@ -62,6 +63,7 @@ class ClaudeBrokerProbeTests(unittest.TestCase):
                          ["python", "-I", "-c"])
 
     def test_broker_process_stops_on_any_communication_error(self):
+        pins = source_hashes(Path(__file__).resolve().parent.parent)
         for error in (OSError("pipe failed"), subprocess.TimeoutExpired("broker", 90)):
             with self.subTest(error=type(error).__name__):
                 child = Mock()
@@ -69,8 +71,14 @@ class ClaudeBrokerProbeTests(unittest.TestCase):
                 with patch("harness.claude_broker_probe.subprocess.Popen", return_value=child), \
                      patch("harness.claude_broker_probe._terminate_tree", return_value=[]) as stop:
                     with self.assertRaises(type(error)):
-                        _broker_process(Path("binding"), "a" * 64, b"{}\n", Path("."))
+                        _broker_process(Path("binding"), "a" * 64, pins, b"{}\n", Path("."))
                     stop.assert_called_once_with(child)
+
+    def test_broker_process_requires_complete_source_pins_before_launch(self):
+        with patch("harness.claude_broker_probe.subprocess.Popen") as launch:
+            with self.assertRaisesRegex(ValueError, "source pins missing"):
+                _broker_process(Path("binding"), "a" * 64, {}, b"{}\n", Path("."))
+            launch.assert_not_called()
 
     def test_unknown_worker_stop_preserves_probe_fixture(self):
         self.assertTrue(_preserve_fixture(create_uncertain=False, state_exists=True,
