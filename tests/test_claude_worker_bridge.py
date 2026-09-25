@@ -1,15 +1,22 @@
 """Fail-closed Claude/container binding fixtures; no authenticated model calls."""
 import hashlib
 import json
+import subprocess
 import sys
 import tempfile
+import time
 import unittest
+from dataclasses import FrozenInstanceError
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from harness.claude_broker import PACKAGE_INIT, SOURCE_FILES
-from harness.claude_worker_bridge import _verify_events, run_claude_worker_attempt
+from harness.claude_worker_bridge import (
+    _verify_events, cancel_prepared_claude_worker_attempt,
+    prepare_claude_worker_attempt, run_claude_worker_attempt,
+    run_prepared_claude_worker_attempt,
+)
 
 
 class FakeContainer:
@@ -33,16 +40,37 @@ class FakeContainer:
                           hashlib.sha256(json.dumps(["python", "-V"]).encode()).hexdigest(),
                           "exit_code": 0}]
         self.phase = "cancelled"
+        self.container_removed = True
         self.started = []
         self.stopped = []
+        self.state = None
 
     def start(self, attempt_id):
         self.started.append(attempt_id)
-        return {"phase": "running"}
+        self.state = {"attempt_id": attempt_id, "phase": "running", "cid": "b" * 64,
+                      "nonce": "c" * 32, "name": "omni-worker-" + "c" * 32,
+                      "deadline_unix": time.time() + self.lifetime_seconds}
+        return dict(self.state)
+
+    def _load(self, attempt_id):
+        if self.state is None or self.state["attempt_id"] != attempt_id:
+            raise ValueError("missing fake worker state")
+        return dict(self.state), self.root / "empty-docker-config", self.root / "state.json"
+
+    def _audit(self):
+        return None
+
+    def _inspect(self, config, state, *, running):
+        if not running or state != self.state:
+            raise ValueError("fake worker identity changed")
 
     def cancel(self, attempt_id):
         self.stopped.append(attempt_id)
-        return {"phase": self.phase, "commands": self.commands}
+        if self.state["phase"] == "cancelled":
+            return {**self.state, "commands": self.commands}
+        self.state["phase"] = self.phase
+        self.state["container_removed"] = self.container_removed
+        return {**self.state, "commands": self.commands}
 
 
 class ClaudeWorkerBridgeTests(unittest.TestCase):
@@ -53,7 +81,12 @@ class ClaudeWorkerBridgeTests(unittest.TestCase):
         self.worker = FakeContainer(self.base)
         self.process_root = self.base / "process-evidence"
 
-    def attempt(self, *, init_tools=None, broker_events=True, usage=True,
+    def prepare(self):
+        return prepare_claude_worker_attempt(
+            container_worker=self.worker, process_evidence_root=self.process_root,
+            attempt_id="one", role="implementer", timeout=60)
+
+    def attempt(self, *, prepared=None, init_tools=None, broker_events=True, usage=True,
                 process_ok=True, tamper_stream=False, claude_tool_events=True,
                 tool_name="mcp__omni_worker__worker_command", tool_result=True):
         def native(cli, prompt, **args):
@@ -116,9 +149,122 @@ class ClaudeWorkerBridgeTests(unittest.TestCase):
                                 "session_id": args["session_id"],
                                 "total_tokens": 19 if usage else None}}
         with patch("harness.claude_worker_bridge.run_claude_attempt", side_effect=native):
-            return run_claude_worker_attempt(sys.executable, "fixture task",
-                    container_worker=self.worker, process_evidence_root=self.process_root,
-                    attempt_id="one", role="implementer", timeout=60)
+            args = {"container_worker": self.worker,
+                    "process_evidence_root": self.process_root,
+                    "attempt_id": "one", "role": "implementer", "timeout": 60}
+            if prepared is not None:
+                return run_prepared_claude_worker_attempt(
+                    prepared, sys.executable, "fixture task", **args)
+            return run_claude_worker_attempt(sys.executable, "fixture task", **args)
+
+    def test_prepare_pins_exact_worker_before_model_launch(self):
+        with patch("harness.claude_worker_bridge.run_claude_attempt") as native:
+            prepared = self.prepare()
+        native.assert_not_called()
+        self.assertEqual(self.worker.started, ["one"])
+        self.assertEqual(self.worker.stopped, [])
+        self.assertEqual(prepared.cid, "b" * 64)
+        self.assertEqual(prepared.nonce, "c" * 32)
+        binding = json.loads(prepared.binding_path.read_text())
+        self.assertEqual((binding["attempt_id"], binding["session_id"],
+                          binding["cid"], binding["nonce"]),
+                         ("one", prepared.session_id, prepared.cid, prepared.nonce))
+        self.assertEqual(prepared.mcp_config_path.parent, prepared.binding_path.parent)
+        with self.assertRaises(FrozenInstanceError):
+            prepared.cid = "d" * 64
+        stopped = cancel_prepared_claude_worker_attempt(prepared)
+        self.assertEqual(stopped["phase"], "cancelled")
+        self.assertEqual(self.worker.stopped, ["one"])
+
+    def test_prepared_worker_runs_once_with_pinned_session(self):
+        prepared = self.prepare()
+        result = self.attempt(prepared=prepared)
+        self.assertTrue(result["bridge_verified"])
+        self.assertEqual(self.worker.started, ["one"])
+        self.assertEqual(self.worker.stopped, ["one"])
+        with self.assertRaisesRegex(ValueError, "already used"):
+            self.attempt(prepared=prepared)
+        self.assertEqual(self.worker.stopped, ["one"])
+
+    def test_misbound_or_stale_preparation_cancels_owned_worker(self):
+        for changed in ("attempt_id", "worker", "record", "deadline", "mcp"):
+            with self.subTest(changed=changed):
+                self.setUp()
+                prepared = self.prepare()
+                args = {"container_worker": self.worker,
+                        "process_evidence_root": self.process_root,
+                        "attempt_id": "one", "role": "implementer", "timeout": 60}
+                if changed == "attempt_id":
+                    args["attempt_id"] = "other"
+                elif changed == "worker":
+                    other_root = self.base / "other"
+                    other_root.mkdir()
+                    args["container_worker"] = FakeContainer(other_root)
+                elif changed == "record":
+                    self.worker.record["task"] = "other"
+                elif changed == "deadline":
+                    self.worker.state["deadline_unix"] = time.time() + 1
+                else:
+                    prepared.mcp_config_path.write_text("{}")
+                with patch("harness.claude_worker_bridge.run_claude_attempt") as native:
+                    with self.assertRaises(ValueError):
+                        run_prepared_claude_worker_attempt(
+                            prepared, sys.executable, "fixture task", **args)
+                native.assert_not_called()
+                self.assertEqual(self.worker.stopped, ["one"])
+
+    def test_changed_durable_cid_never_stops_a_different_container(self):
+        prepared = self.prepare()
+        self.worker.state["cid"] = "d" * 64
+        with patch("harness.claude_worker_bridge.run_claude_attempt") as native:
+            with self.assertRaises(BaseExceptionGroup) as caught:
+                run_prepared_claude_worker_attempt(
+                    prepared, sys.executable, "fixture task", container_worker=self.worker,
+                    process_evidence_root=self.process_root, attempt_id="one",
+                    role="implementer", timeout=60)
+        native.assert_not_called()
+        self.assertIn("stop unconfirmed", str(caught.exception))
+        self.assertEqual(self.worker.stopped, [])
+
+    def test_prepare_refuses_changed_durable_identity_without_wrong_stop(self):
+        original_load = self.worker._load
+
+        def changed_load(attempt_id):
+            state, config, path = original_load(attempt_id)
+            state["cid"] = "d" * 64
+            return state, config, path
+
+        with patch.object(self.worker, "_load", side_effect=changed_load):
+            with self.assertRaises(BaseExceptionGroup) as caught:
+                self.prepare()
+        self.assertIn("stop unconfirmed", str(caught.exception))
+        self.assertEqual(self.worker.started, ["one"])
+        self.assertEqual(self.worker.stopped, [])
+
+    def test_prepared_stop_unknown_is_not_reported_as_cancelled(self):
+        prepared = self.prepare()
+        self.worker.phase = "unknown"
+        stopped = cancel_prepared_claude_worker_attempt(prepared)
+        self.assertEqual(stopped["phase"], "unknown")
+        self.assertEqual(self.worker.stopped, ["one"])
+
+    def test_pre_marked_cancelled_without_removal_is_unconfirmed(self):
+        prepared = self.prepare()
+        self.worker.state["phase"] = "cancelled"
+        with self.assertRaisesRegex(RuntimeError, "exact worker stop unconfirmed"):
+            cancel_prepared_claude_worker_attempt(prepared)
+        self.assertEqual(self.worker.stopped, ["one"])
+
+    def test_prepared_timeout_stops_exact_worker(self):
+        prepared = self.prepare()
+        with patch("harness.claude_worker_bridge.run_claude_attempt",
+                   side_effect=subprocess.TimeoutExpired(["claude"], 60)):
+            with self.assertRaises(subprocess.TimeoutExpired):
+                run_prepared_claude_worker_attempt(
+                    prepared, sys.executable, "fixture task", container_worker=self.worker,
+                    process_evidence_root=self.process_root, attempt_id="one",
+                    role="implementer", timeout=60)
+        self.assertEqual(self.worker.stopped, ["one"])
 
     def test_one_bound_tool_call_and_complete_receipt(self):
         result = self.attempt()

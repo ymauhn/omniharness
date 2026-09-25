@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 from harness.claude_broker import (PACKAGE_INIT, SOURCE_FILES, Broker, broker_bootstrap, main,
                                    serve, source_hashes)
+from harness.container_worker import ContainerWorker
 
 
 class FakeWorker:
@@ -48,6 +49,36 @@ class ClaudeBrokerTests(unittest.TestCase):
         self.request("initialize", {"protocolVersion": "2025-06-18",
                                     "clientInfo": {"name": "fixture", "version": "1"}})
         self.request("notifications/initialized", request_id=None)
+
+    def worker_binding(self):
+        root = Path(self.temp.name)
+        work = root / "worker"
+        work.mkdir()
+        docker = root / "docker.exe"
+        docker.touch()
+        evidence = root / "evidence"
+        state_path = evidence / "attempt_1" / "state.json"
+        state_path.parent.mkdir(parents=True)
+        cid, nonce = "a" * 64, "b" * 32
+        image = "python@sha256:" + "c" * 64
+        endpoint = "unix:///var/run/docker.sock"
+        state = {"schema_version": 1, "attempt_id": "attempt_1", "worker": str(work),
+                 "image": image, "endpoint": endpoint, "cid": cid, "nonce": nonce,
+                 "name": "omni-worker-" + nonce, "phase": "running"}
+        binding = {"schema_version": 1, "source_sha256": {}, "source": str(root / "source"),
+                   "workers": str(root / "workers"), "record": {"path": str(work)},
+                   "worker_evidence_root": str(evidence), "docker": str(docker),
+                   "image": image, "endpoint": endpoint, "lifetime_seconds": 300,
+                   "attempt_id": "attempt_1", "session_id": "session_1",
+                   "events_path": str(root / "broker-main-events.jsonl"),
+                   "cid": cid, "nonce": nonce}
+        return binding, state, state_path
+
+    def run_main_binding(self, binding):
+        path = Path(self.temp.name) / "binding.json"
+        path.write_text(json.dumps(binding), encoding="utf-8")
+        return main(["--binding", str(path),
+                     "--sha256", hashlib.sha256(path.read_bytes()).hexdigest()])
 
     def test_one_tool_only_dispatches_bounded_argv_into_fixed_attempt(self):
         self.initialize()
@@ -106,6 +137,73 @@ class ClaudeBrokerTests(unittest.TestCase):
         self.assertEqual(responses[1]["result"]["tools"][0]["name"], "worker_command")
         self.assertEqual(responses[2]["error"]["code"], -32600)
         self.assertEqual(self.worker.calls, [])
+
+    def test_missing_or_invalid_worker_identity_rejected_before_worker_setup(self):
+        original, _, _ = self.worker_binding()
+        for key, value in (("cid", None), ("nonce", None),
+                           ("cid", "not-a-cid"), ("nonce", "not-a-nonce")):
+            with self.subTest(key=key, value=value):
+                binding = dict(original)
+                if value is None:
+                    del binding[key]
+                else:
+                    binding[key] = value
+                with patch("harness.claude_broker._verify_source_hashes"), \
+                     patch("harness.claude_broker.Worktrees") as worktrees, \
+                     patch("harness.claude_broker.Broker") as broker, \
+                     patch("harness.claude_broker.serve") as service:
+                    with self.assertRaisesRegex(ValueError, "CID or nonce missing or invalid"):
+                        self.run_main_binding(binding)
+                    worktrees.assert_not_called()
+                    broker.assert_not_called()
+                    service.assert_not_called()
+
+    def test_durable_worker_identity_and_live_inspection_gate_service(self):
+        binding, original, state_path = self.worker_binding()
+        mutations = (("cid", "d" * 64), ("nonce", "e" * 32),
+                     ("name", "omni-worker-other"), ("phase", "cancelled"),
+                     ("cid", None), ("nonce", None))
+        for key, value in mutations:
+            with self.subTest(key=key, value=value):
+                state = dict(original)
+                if value is None:
+                    del state[key]
+                else:
+                    state[key] = value
+                state_path.write_text(json.dumps(state), encoding="utf-8")
+                with patch("harness.claude_broker._verify_source_hashes"), \
+                     patch("harness.claude_broker.Worktrees"), \
+                     patch.object(ContainerWorker, "_inspect") as inspect, \
+                     patch("harness.claude_broker.Broker") as broker, \
+                     patch("harness.claude_broker.serve") as service:
+                    with self.assertRaisesRegex(ValueError, "differs from durable running state"):
+                        self.run_main_binding(binding)
+                    inspect.assert_not_called()
+                    broker.assert_not_called()
+                    service.assert_not_called()
+
+        state_path.write_text(json.dumps(original), encoding="utf-8")
+        with patch("harness.claude_broker._verify_source_hashes"), \
+             patch("harness.claude_broker.Worktrees"), \
+             patch.object(ContainerWorker, "_inspect", side_effect=ValueError("Docker identity changed")), \
+             patch("harness.claude_broker.Broker") as broker, \
+             patch("harness.claude_broker.serve") as service:
+            with self.assertRaisesRegex(ValueError, "Docker identity changed"):
+                self.run_main_binding(binding)
+            broker.assert_not_called()
+            service.assert_not_called()
+
+        with patch("harness.claude_broker._verify_source_hashes"), \
+             patch("harness.claude_broker.Worktrees"), \
+             patch.object(ContainerWorker, "_inspect") as inspect, \
+             patch("harness.claude_broker.Broker") as broker, \
+             patch("harness.claude_broker.serve") as service:
+            self.assertEqual(self.run_main_binding(binding), 0)
+            inspect.assert_called_once()
+            self.assertEqual(inspect.call_args.kwargs, {"running": True})
+            self.assertEqual(inspect.call_args.args[1], original)
+            broker.assert_called_once()
+            service.assert_called_once()
 
     def test_source_tampering_or_missing_file_blocks_broker_before_service(self):
         root = Path(self.temp.name) / "checkout"
@@ -203,7 +301,7 @@ class ClaudeBrokerTests(unittest.TestCase):
                                 "--binding", str(binding), "--sha256", digest],
                                capture_output=True, text=True, check=False)
         self.assertNotEqual(child.returncode, 0)
-        self.assertIn("KeyError: 'source'", child.stderr)  # source modules loaded; fixture has no worker binding
+        self.assertIn("broker worker CID or nonce missing or invalid", child.stderr)
         self.assertFalse(marker.exists())
         self.assertFalse(list(root.glob("_broker_pycache_*")))
 

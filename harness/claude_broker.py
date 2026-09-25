@@ -8,11 +8,12 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 import uuid
 from pathlib import Path
 
-from harness.container_worker import ContainerWorker
+from harness.container_worker import CID, ContainerWorker
 from harness.swarm_worktrees import Worktrees
 
 
@@ -234,12 +235,22 @@ def main(argv=None):
     if not isinstance(binding, dict) or binding.get("schema_version") != 1:
         raise ValueError("unsupported broker binding")
     _verify_source_hashes(binding.get("source_sha256"))
+    cid, nonce = binding.get("cid"), binding.get("nonce")
+    if (not isinstance(cid, str) or not CID.fullmatch(cid)
+            or not isinstance(nonce, str) or not re.fullmatch(r"[0-9a-f]{32}", nonce)):
+        raise ValueError("broker worker CID or nonce missing or invalid")
     worktrees = Worktrees(binding["source"], binding["workers"])
     worker = ContainerWorker(worktrees, binding["record"],
                              evidence_root=binding["worker_evidence_root"],
                              docker=binding["docker"], image=binding["image"],
                              endpoint=binding["endpoint"],
                              lifetime_seconds=binding["lifetime_seconds"])
+    state, config, _ = worker._load(binding["attempt_id"])
+    if (state.get("cid") != cid or state.get("nonce") != nonce
+            or state.get("name") != "omni-worker-" + nonce
+            or state.get("phase") != "running"):
+        raise ValueError("broker worker identity differs from durable running state")
+    worker._inspect(config, state, running=True)
     broker = Broker(worker, attempt_id=binding["attempt_id"],
                     session_id=binding["session_id"], events_path=binding["events_path"])
     serve(broker, sys.stdin.buffer, sys.stdout.buffer)
