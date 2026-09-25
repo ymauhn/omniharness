@@ -1,6 +1,6 @@
 # Resume here: full OmniForge MVP
 
-Updated September 25, 2026. **Arsenal UI merged; isolated guided demo and graph help source validated, integration pending; complete MVP still active.** The owner asked to continue normally while retaining an interruption-ready handoff near the weekly credit limit. The latest read-only account query observed **11% weekly allowance remaining** (earlier 25%/14%/12%); this is account-wide, not task attribution. No reset was redeemed or credit purchased. The owner may continue with Claude using this file and the current checkpoint; that does not reduce the MVP scope.
+Updated September 25, 2026. **Arsenal UI merged; isolated guided demo and graph help committed as `3dbd104`, PR integration pending; complete MVP still active.** The owner asked to continue normally while retaining an interruption-ready handoff near the weekly credit limit. The latest read-only account query observed **11% weekly allowance remaining** (earlier 25%/14%/12%); this is account-wide, not task attribution. No reset was redeemed or credit purchased. The owner may continue with Claude using this file and the current checkpoint; that does not reduce the MVP scope.
 
 ## Start here
 
