@@ -15,6 +15,7 @@ import time
 import uuid
 from pathlib import Path
 
+from .claude_broker import broker_bootstrap, source_hashes
 from .claude_native import _ENV_KEYS
 from .claude_worker_bridge import _verify_events
 from .container_worker import ContainerWorker
@@ -88,10 +89,9 @@ def _git(root, source, *args):
                           check=True).stdout.strip()
 
 
-def _broker_process(binding_path, binding_digest, request_bytes, cwd):
+def _broker_process(binding_path, binding_digest, source_sha256, request_bytes, cwd):
     code_root = Path(__file__).resolve().parent.parent
-    code = ("import sys;sys.path.insert(0," + repr(str(code_root))
-            + ");from harness.claude_broker import main;raise SystemExit(main())")
+    code = broker_bootstrap(code_root, binding_path, binding_digest, source_sha256)
     command = [sys.executable, "-I", "-u", "-c", code,
                "--binding", str(binding_path), "--sha256", binding_digest]
     environment = {key: value for key, value in os.environ.items() if key.upper() in _ENV_KEYS}
@@ -161,6 +161,7 @@ def probe(*, docker, image, endpoint):
         attempt = "canary"
         events = root / "broker-events.jsonl"
         binding = {"schema_version": 1, "attempt_id": attempt, "session_id": session,
+                   "source_sha256": source_hashes(Path(__file__).resolve().parent.parent),
                    "source": str(host.source), "workers": str(host.workers), "record": own,
                    "worker_evidence_root": str(evidence), "docker": str(worker.docker),
                    "image": image, "endpoint": endpoint,
@@ -174,7 +175,8 @@ def probe(*, docker, image, endpoint):
             os.fsync(stream.fileno())
         digest = hashlib.sha256(binding_path.read_bytes()).hexdigest()
         worker.start(attempt)
-        exit_code, stdout, stderr = _broker_process(binding_path, digest, _mcp_input(paths), work)
+        exit_code, stdout, stderr = _broker_process(binding_path, digest,
+                                                    binding["source_sha256"], _mcp_input(paths), work)
         process_exited = True
         checks["mcp_process_exited_zero"] = exit_code == 0
         checks["mcp_stderr_empty"] = not stderr

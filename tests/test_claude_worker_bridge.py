@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from harness.claude_broker import PACKAGE_INIT, SOURCE_FILES
 from harness.claude_worker_bridge import _verify_events, run_claude_worker_attempt
 
 
@@ -71,6 +72,13 @@ class ClaudeWorkerBridgeTests(unittest.TestCase):
             binding = json.loads(binding_path.read_text())
             self.assertEqual(binding["attempt_id"], "one")
             self.assertEqual(binding["session_id"], args["session_id"])
+            self.assertEqual(set(binding["source_sha256"]), set(SOURCE_FILES))
+            code_root = Path(__file__).resolve().parent.parent
+            for relative, digest in binding["source_sha256"].items():
+                if relative == PACKAGE_INIT and digest is None:
+                    self.assertFalse((code_root / relative).exists())
+                else:
+                    self.assertEqual(digest, hashlib.sha256((code_root / relative).read_bytes()).hexdigest())
             if broker_events:
                 events = Path(binding["events_path"])
                 stream = [{"event": "server_started", "attempt_id": "one",

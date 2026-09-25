@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import sys
+import uuid
 from pathlib import Path
 
 from harness.container_worker import ContainerWorker
@@ -20,6 +21,70 @@ TOOL = "worker_command"
 TOOL_NAME = "mcp__omni_worker__worker_command"
 _MAX_REQUEST = 65536
 _MAX_VISIBLE = 32768
+PACKAGE_INIT = "harness/__init__.py"
+SOURCE_FILES = (PACKAGE_INIT, "harness/claude_broker.py",
+                "harness/container_worker.py", "harness/swarm_worktrees.py")
+
+
+def source_hashes(code_root):
+    """Hash the finite project source files executed by this broker process."""
+    root = Path(code_root).resolve(strict=True)
+    hashes = {}
+    for relative in SOURCE_FILES:
+        path = root / relative
+        try:
+            if relative == PACKAGE_INIT and not path.exists() and not path.is_symlink():
+                hashes[relative] = None  # absence is pinned: creation must fail closed
+                continue
+            if not path.is_file() or path.resolve(strict=True) != path:
+                raise ValueError("broker executable source missing or redirected: " + relative)
+            hashes[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+        except OSError as error:
+            raise ValueError("broker executable source missing or unreadable: " + relative) from error
+    return hashes
+
+
+def _verify_source_hashes(pins):
+    if not isinstance(pins, dict) or set(pins) != set(SOURCE_FILES):
+        raise ValueError("broker executable source pins missing or incomplete")
+    if pins != source_hashes(Path(__file__).resolve().parent.parent):
+        raise ValueError("broker executable source differs from coordinator pins")
+
+
+def broker_bootstrap(code_root, binding_path, binding_digest, pins):
+    """Check source bytes before importing the broker, then let main check again."""
+    if (not isinstance(pins, dict) or set(pins) != set(SOURCE_FILES)
+            or any(not (relative == PACKAGE_INIT and value is None)
+                   and (not isinstance(value, str) or len(value) != 64
+                        or any(char not in "0123456789abcdef" for char in value))
+                   for relative, value in pins.items())):
+        raise ValueError("broker executable source pins missing or invalid")
+    cache_prefix = Path(binding_path).parent / ("_broker_pycache_" + uuid.uuid4().hex)
+    return "\n".join([
+        "import hashlib, pathlib, sys, types",
+        f"_root = pathlib.Path({str(code_root)!r})",
+        f"_binding = pathlib.Path({str(binding_path)!r}).read_bytes()",
+        f"if hashlib.sha256(_binding).hexdigest() != {binding_digest!r}: raise ValueError('broker binding changed after coordinator setup')",
+        f"_pins = {pins!r}",
+        "for _relative, _digest in _pins.items():",
+        "    _path = _root / _relative",
+        "    if _digest is None:",
+        "        if _path.exists() or _path.is_symlink(): raise ValueError('broker package initializer appeared after coordinator setup')",
+        "        continue",
+        "    if not _path.is_file() or _path.resolve(strict=True) != _path or hashlib.sha256(_path.read_bytes()).hexdigest() != _digest:",
+        "        raise ValueError('broker executable source missing or changed: ' + _relative)",
+        f"_cache = pathlib.Path({str(cache_prefix)!r})",
+        "if _cache.exists() or _cache.is_symlink(): raise ValueError('broker cache prefix already exists')",
+        "sys.pycache_prefix = str(_cache)",
+        "sys.dont_write_bytecode = True",
+        "sys.path.insert(0, str(_root))",
+        "if _pins['harness/__init__.py'] is None:",
+        "    _package = types.ModuleType('harness')",
+        "    _package.__path__ = [str(_root / 'harness')]",
+        "    sys.modules['harness'] = _package",
+        "from harness.claude_broker import main",
+        "raise SystemExit(main())",
+    ]) + "\n"
 
 
 def _unique_object(pairs):
@@ -168,6 +233,7 @@ def main(argv=None):
     binding = json.loads(data, object_pairs_hook=_unique_object)
     if not isinstance(binding, dict) or binding.get("schema_version") != 1:
         raise ValueError("unsupported broker binding")
+    _verify_source_hashes(binding.get("source_sha256"))
     worktrees = Worktrees(binding["source"], binding["workers"])
     worker = ContainerWorker(worktrees, binding["record"],
                              evidence_root=binding["worker_evidence_root"],
