@@ -1,0 +1,45 @@
+{
+  "backend": "codex-windows-unelevated",
+  "checks": {
+    "codex_home_read_denied": null,
+    "codex_home_write_denied": null,
+    "codex_sandbox_write_denied": null,
+    "codex_tmp_write_denied": null,
+    "coordinator_read_denied": null,
+    "coordinator_write_denied": null,
+    "home_read_denied": null,
+    "home_write_denied": null,
+    "host_artifacts_unchanged": false,
+    "sibling_read_denied": null,
+    "sibling_write_denied": null,
+    "worker_marker_verified": false,
+    "worker_read": null,
+    "worker_write": null
+  },
+  "exit_code": 1,
+  "host_change_class": "launcher-or-unattributed",
+  "issues": [
+    "sandbox command did not finish successfully",
+    "sandbox command wrote to stderr",
+    "exact child report was not observed",
+    "worker marker was not verified",
+    "host artifacts changed or could not be verified"
+  ],
+  "passed": false,
+  "process_state": "finished",
+  "schema_version": 1,
+  "scope": "disposable model-free local command; no live agent or all-role containment",
+  "status": "inconclusive",
+  "stderr_diagnostic": {
+    "bytes": 98,
+    "kind": "elevated-backend-required",
+    "sha256": "c538b352839a27d8d509e7a13123f0f976e1a8ffb9d5dc44409aefe3ad41b496"
+  },
+  "synthetic_changes": [
+    "codex-home/.sandbox/sandbox.2026-09-25.log:added",
+    "codex-home/tmp/arg0:added"
+  ],
+  "wall_seconds": 0.204,
+  "date": "2026-09-25",
+  "probe_sha256": "6dc723f2df1de58098e3b74af5fe60da886d8999dcb7ac21d45f77d75a006456"
+}
