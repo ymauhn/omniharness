@@ -80,6 +80,8 @@ async function run(options = {}, transform = x => x, host = true, settlement = {
   const good = await run()
   assert.equal(good.result.parouPor, 'complete')
   assert.deepEqual(good.calls.map(c => c.label), ['implement:a:0', 'integrate:1', 'implement:b:0', 'integrate:2', 'review'])
+  assert.deepEqual(good.leases, good.calls.map(call =>
+    ({usd: 0.1, tokens: 100, attempt_id: call.label, label: call.label})))
   assert.equal(good.result.usage.tokens, 100)
   assert.equal(good.leases.length, 5)
   assert(good.calls.every(call => call.worker_identity === 'worker-' + call.label))
@@ -141,12 +143,14 @@ async function run(options = {}, transform = x => x, host = true, settlement = {
   assert.deepEqual(cancelled, ['lease-a'])
   console.log('PASS partial wave reservation releases only unstarted leases')
   const duplicateCancels = []
+  const duplicateLabels = []
   const duplicate = await run({tasks: [tasks[0]], tournament: 2}, x => x, {
-    reserve: async () => 'shared-lease',
+    reserve: async cap => { duplicateLabels.push(cap.label); return 'shared-lease' },
     cancel: async lease => duplicateCancels.push(lease),
   })
   assert.equal(duplicate.result.parouPor, 'budget')
   assert.equal(duplicate.calls.length, 0)
+  assert.deepEqual(duplicateLabels, ['implement:a:0', 'implement:a:1'])
   assert.deepEqual(duplicateCancels, ['shared-lease'])
   const reusedCancels = []
   let reuseCount = 0
@@ -167,6 +171,15 @@ async function run(options = {}, transform = x => x, host = true, settlement = {
   assert.equal(tournament.result.parouPor, 'complete')
   assert.equal(tournament.result.winners[0].branch, 'codex/a1')
   assert.equal(tournament.result.usage.tokens, 80)
+  const tournamentWaves = await run({tournament: 2})
+  assert.equal(tournamentWaves.result.parouPor, 'complete')
+  const expectedLabels = ['implement:a:0', 'implement:a:1', 'integrate:1',
+    'implement:b:0', 'implement:b:1', 'integrate:2', 'review']
+  assert.deepEqual(tournamentWaves.leases.map(cap => cap.label), expectedLabels)
+  assert.deepEqual(tournamentWaves.calls.map(call => call.label), expectedLabels)
+  assert(tournamentWaves.leases.every(cap => cap.attempt_id === cap.label &&
+    cap.usd === 0.1 && cap.tokens === 100))
+  assert.equal(new Set(tournamentWaves.leases.map(cap => cap.label)).size, expectedLabels.length)
   console.log('PASS tournament chooses passing candidate and counts losing candidate')
   const exhausted = await run({envelope: {mode: 'swarm', remaining: {usd: 0.01, tokens: 2}}})
   assert.equal(exhausted.result.parouPor, 'budget')
