@@ -2,6 +2,8 @@
 
 ## 2026-09-25 — Workflows, terminal windows and memory controls
 
+Reviewed runtime commit: `9e2282e412fe418e551aeb89b56ed7faeed58304`; [PR #6](https://github.com/ymauhn/omniharness/pull/6). Follow-up handoff identity updates do not alter runtime evidence. The PR initially reported CLEAN/MERGEABLE and no configured GitHub checks; the passing local suite is the recorded validation, not a fictitious remote CI pass.
+
 Base `17230c093f933c8cd943216a80bc02eea4530079` after PR #5, branch `codex/mvp-workspace-flows`; documentation backup `9e7a8b74e530d16e5ef673ee8c5964817d841d76` was pushed before closing implementation. Owner requests normal continuation and an interruption-ready [handoff](../omniforge/LATEST-CHECKPOINT.md), with nonblocking visual/provider acceptance deferred.
 
 - Final `pwsh -NoProfile -File ./scripts/check.ps1`: **282/282 Python in 89.655 s**, **130/130 Lab in 18.421 s**, **7/7 mascot in 0.058 s**, zero failures or skips. Both existing portal visual methods, other Node scenarios and eval selftest passed. Aggregate exit **1 solely from the two owner-preserved Claude ask/deny differences**, 27/29 installation rows. Separate graph: **546 nodes / 100 edges / 5 proposals / 0 errors**. `git diff --check` passed. Log `%TEMP%/omniharness-mvp-workspace-final-20260925.log`; existing ConPTY `AttachConsole failed` helper stderr remains visible.
