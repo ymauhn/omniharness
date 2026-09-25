@@ -1,0 +1,27 @@
+# Checkpoint: isolated OmniHarness guided demo
+
+Updated September 25, 2026. The complete OmniForge MVP objective remains active. This bounded slice makes the integrated Lab reproducible for a real owner/Claude acceptance round without changing the owner's ordinary Lab data or claiming browser, managed-agent, or billing evidence.
+
+## Starting state and authority
+
+- Branch: `codex/mvp-guided-demo`, clean when created from `origin/master` at **`ed8923646c3e13b1f00b2edbad4a094c0d0b468a`**. [PR #7](https://github.com/ymauhn/omniharness/pull/7), the reviewed Arsenal UI, is merged at that commit. Arsenal source `43f95690c157733a424aab75f6b39e7a3aa1c8e1`, docs anchor `c091a509dd9947f4de5efb9b310d46b6a197cc48`.
+- Last full source validation before this slice: `scripts/check.ps1` ran **283 Python, 146 Lab, 7 mascot** tests, all passed without skips; other Node/portal/eval checks passed. The aggregate process exited 1 only because the owner intentionally preserved two Claude `ask`/`deny` settings differing from the repository fragment (27/29 installation rows conform). Log `%TEMP%/omniharness-arsenal-final-20260925.log`; separate skill graph check 546 nodes/100 edges/5 proposals/0 errors. Do not transfer those counts to new demo code without rerunning.
+- Read-only account usage query near this start showed **11% weekly allowance remaining**; it is shared account quota, not attributable task tokens or dollars. One reset credit is available but **has not been redeemed**. The owner wants checkpointed progress, not a pause or scope reduction.
+- Standing task authority includes routine code, dependencies, local commits and scoped Git PR/merge. No additional paid external model, credential access, private upload or product deployment is part of the demo.
+
+## Acceptance for this slice
+
+1. A one-command **foreground** Windows launcher starts a fresh `%TEMP%/omniforge-demo-*` data directory and prints the exact loopback token URL and data directory. It never reads or overwrites the checkout's `.omniforge-lab` state. Re-running yields another isolated state. Ctrl+C requests graceful Lab shutdown; shell termination is not proof that a detached descendant was killed.
+2. The seeded project points to this OmniHarness checkout and has three dependency-linked open tasks, two separate live PTYs (`Build`, `Pesquisa`), and clearly labeled **synthetic** session notes including an accepted decision and a rejected/quoted counterexample. A second project rooted inside the fresh demo data directory has its own project note. Nothing is copied from private chats and no Claude/Codex/JEV/Higgsfield model is dispatched.
+3. Tests verify seeded project/session/task/note scope and that a nonempty store cannot be reseeded. A model-free HTTP/PTy smoke verifies actual launch and token-gated state when host access permits. The full zero-skip repository suite then runs; record any installed-user Claude policy drift separately.
+4. A guided script documents how the owner or Claude checks mascot modern/pixel skins, pause and selected-text actions, project/session memory boundaries, multiple terminal panes, Workflows, graph help, and Arsenal lifecycle; it includes evidence fields and marks visual performance/keyboard results **unverified until observed**. Do not navigate via a browser backend after platform review denied it.
+
+## Work assignment and current resume
+
+- `/root/isolated_demo` owns only `omniforge-lab/demo.mjs`, `omniforge-lab/test/demo.test.mjs`, and `scripts/start_omniforge_demo.ps1`; implementation is in progress. Root reviews and integrates. The guide writer `/root/guided_acceptance` owns only `docs/omniforge/GUIDED-ACCEPTANCE.md`; do not edit that file concurrently.
+- Root owns this checkpoint, `docs/omniforge/LATEST-CHECKPOINT.md`, Lab documentation, T13 continuation and validation. Root will run focused/full tests and an independent review before the next scoped commit/PR.
+- **If interrupted now:** inspect `git status --short --branch` and the two agent-owned file groups above; finish demo/test/guide, run the focused cases and full `scripts/check.ps1`, separately run graph check if installer drift again stops the aggregate. Update this file and [T13 journal](../t13/TICKET-HANDOFF-CLAUDE.md) with exact paths, failures, observed results, source SHA, and next executable task. Never claim a visual pass from HTTP/DOM tests.
+
+## Full MVP gates after this demo
+
+Keep [V1 release contract](V1-RELEASE-CONTRACT.md) and [pending validation register](VALIDATION-PENDING.md): optional secure key/JEV route and real provider observations; truthful credits/costs; UI generated mini-tools/repair and graph help; all-role Claude/Codex tool containment, orphan-descendant cancellation and whole-tree usage; Windows packaging/Goose comparison; five real pillar demonstrations; human-calibrated graph-weighted eval/genetic pilot. Interactive PTYs and native collaboration remain available, but the contained managed-mode admission stays closed. Preserve all ten dirty `_intake/mvp-*` worktrees, backups, and stash `8105be6`; root is authoritative. Payments remain deferred.
