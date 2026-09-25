@@ -144,8 +144,13 @@
     .graph-canvas { position:relative; height:420px; }
     .graph-canvas svg { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
     .graph-node { position:absolute; z-index:1; transform:translate(-50%,-50%); max-width:145px; min-width:76px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface2); color:var(--text); padding:8px; font:10px Consolas,monospace; overflow-wrap:anywhere; box-shadow:var(--shadow); }
+    .graph-node:hover, .graph-node:focus-visible { border-color:var(--accent); }
     .graph-node[data-selected="true"] { border-color:var(--accent); color:var(--accent); }
     .graph-node[data-kind="root"] { border-color:var(--accent); }
+    .graph-help { position:fixed; z-index:30; width:min(290px,calc(100vw - 16px)); max-height:calc(100vh - 16px); overflow:auto; padding:11px 12px; border:1px solid var(--accent); border-radius:var(--radius); background:var(--surface3); color:var(--text); box-shadow:var(--shadow); overflow-wrap:anywhere; }
+    .graph-help strong { display:block; font-size:12px; margin-bottom:5px; }
+    .graph-help p { margin:5px 0 0; font-size:11px; line-height:1.4; }
+    .graph-help small { display:block; margin-top:7px; color:var(--muted); line-height:1.4; }
     .graph-detail { padding:15px; display:grid; align-content:start; gap:11px; }
     .graph-detail dl { margin:0; display:grid; gap:9px; }
     .graph-detail dt { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
@@ -261,7 +266,7 @@
           <div class="heading"><div><span class="eyebrow">03 / Relações com origem</span><h1 id="graphs-title">Memória e grafos</h1><p class="lede">Conhecimento, capacidades e tarefas são vistas distintas conectadas ao mesmo escopo.</p></div></div>
           <div class="tabs" role="tablist" aria-label="Tipos de grafo"><button type="button" role="tab" data-graph="knowledge" aria-selected="true">Conhecimento do projeto</button><button type="button" role="tab" data-graph="capability" aria-selected="false">Capacidades</button><button type="button" role="tab" data-graph="task" aria-selected="false">Tarefas</button></div>
           <div class="graph-layout">
-            <section class="card graph-field" aria-label="Grafo navegável"><div id="graph-canvas" class="graph-canvas"></div></section>
+            <section class="card graph-field" aria-label="Grafo navegável"><div id="graph-canvas" class="graph-canvas"></div><div id="graph-help" class="graph-help" role="tooltip" hidden><strong id="graph-help-title"></strong><p id="graph-help-summary"></p><p id="graph-help-usage"></p><small id="graph-help-docs"></small></div></section>
             <aside class="stack">
               <section class="card graph-detail"><h2 id="graph-title">Conhecimento do projeto</h2><p id="graph-intro"></p><dl><div><dt>Seleção</dt><dd id="graph-selection">—</dd></div><div><dt>Origem</dt><dd id="graph-source">—</dd></div><div><dt>Escopo</dt><dd id="graph-scope">—</dd></div><div><dt>Relação</dt><dd id="graph-relation">—</dd></div></dl><button id="graph-open" type="button" class="secondary" hidden>Abrir item</button></section>
               <section class="card"><div class="card-head"><h2>Memória com escopo</h2></div><form id="memory-form" class="card-body form-grid"><div class="field"><label for="memory-scope">Escopo</label><select id="memory-scope" name="scope"><option value="project">Projeto</option><option value="session">Sessão</option><option value="global">Global</option></select></div><div class="field"><label for="memory-session">Sessão</label><select id="memory-session" name="sessionId"></select></div><div class="field wide"><label for="memory-source">Fonte</label><input id="memory-source" name="source" required maxlength="300" placeholder="decisão manual / caminho do arquivo"></div><div class="field wide"><label for="memory-text">Nota</label><textarea id="memory-text" name="text" required maxlength="4000" placeholder="Decisão, preferência ou evidência com origem..."></textarea></div><div class="wide"><button class="button" type="submit">Guardar nota</button></div></form></section>
@@ -339,7 +344,7 @@
       source.addEventListener('state',event=>{ try { applyState(JSON.parse(event.data)); } catch { toast('Atualização de estado inválida.'); } });
       source.addEventListener('arsenal',event=>{ try { const update=JSON.parse(event.data); if(update.projectId===local.projectId&&local.view==='arsenal')void arsenal.load(); } catch { /* A later explicit refresh remains available. */ } });
     }
-    function showView(view) { if(!['workspace','tasks','workflows','arsenal','graphs','skills','assets'].includes(view)) return; local.view=view; document.querySelectorAll('.view').forEach(el=>{el.hidden=el.id!==`view-${view}`;}); document.querySelectorAll('[data-view]').forEach(el=>{el.setAttribute('aria-current',el.dataset.view===view?'page':'false');}); if(view==='assets' && local.projectId!==local.inventoryProjectId) loadInventory(); if(view==='graphs'){renderGraph();loadMemory();memoryPanel.load();}if(view==='skills')catalog.load();if(view==='workflows')workflows.load();if(view==='arsenal')arsenal.load(); if(view==='workspace')fitTerminals(); else copilot.deactivate(); }
+    function showView(view) { if(!['workspace','tasks','workflows','arsenal','graphs','skills','assets'].includes(view)) return; const leavingGraph=local.view==='graphs'&&view!=='graphs';local.view=view;if(leavingGraph)resetGraphHelp(); document.querySelectorAll('.view').forEach(el=>{el.hidden=el.id!==`view-${view}`;}); document.querySelectorAll('[data-view]').forEach(el=>{el.setAttribute('aria-current',el.dataset.view===view?'page':'false');}); if(view==='assets' && local.projectId!==local.inventoryProjectId) loadInventory(); if(view==='graphs'){renderGraph();loadMemory();memoryPanel.load();}if(view==='skills')catalog.load();if(view==='workflows')workflows.load();if(view==='arsenal')arsenal.load(); if(view==='workspace')fitTerminals(); else copilot.deactivate(); }
     function renderAll() { copilot.sync(); workflows.sync(); arsenal.sync(); renderSidebar(); renderWorkspace(); renderTasks(); renderMemory(); renderSkills(); renderAssets(); renderGraph(); const project=projectById(local.projectId); $('#top-context').textContent=project ? `Projeto: ${project.name}  /  ${project.root}` : 'Adicione uma pasta de projeto para começar'; $('#workspace-scope').textContent=project ? `${project.name} · ${project.root}` : 'Nenhum projeto selecionado'; $('#coord-scope').textContent=project ? `Ações no projeto ${project.name}` : 'Selecione um projeto'; }
     function fillSelect(select,options,selected,placeholder) { select.replaceChildren(); if(placeholder) { const option=make('option','',placeholder); option.value=''; select.append(option); } for(const {value,label} of options){const option=make('option','',label);option.value=value;select.append(option);} select.value=selected || ''; }
     function renderSidebar() { const projects=$('#project-list'); projects.replaceChildren(); if(!local.state.projects.length) one(projects,'p','rail-empty','Nenhum projeto ainda. Adicione uma pasta local.');
@@ -424,40 +429,90 @@
       const dep=$('#task-depends'),selected=new Set([...dep.selectedOptions].map(option=>option.value));dep.replaceChildren();for(const task of tasks){const option=make('option','',task.title);option.value=task.id;option.selected=selected.has(task.id);dep.append(option);} $('#task-form').querySelector('button').disabled=!local.projectId;
     }
     async function loadMemory(){const projectId=local.projectId,request=++local.memoryRequest;if(!projectId){local.notes=[];local.memoryProjectId=null;renderMemory();if(local.view==='graphs')renderGraph();return;}local.memoryProjectId=projectId;try{const result=await api(`/api/memory?projectId=${encodeURIComponent(projectId)}`);if(request!==local.memoryRequest||projectId!==local.projectId)return;local.notes=(Array.isArray(result)?result:asArray(result.notes)).filter(note=>note.scope==='global'||note.scope==='project'&&note.projectId===projectId);renderMemory();if(local.view==='graphs')renderGraph();}catch(error){if(request!==local.memoryRequest||projectId!==local.projectId)return;local.notes=[];local.memoryProjectId=null;renderMemory();if(!local.tokenInvalid)toast(`Memória não carregada: ${error.message}`);}}
-    function visibleNotes() { return local.notes; }
+    function visibleNotes() { return local.notes.filter(note=>note.scope==='global'||note.scope==='project'&&note.projectId===local.projectId||note.scope==='session'&&sessionById(note.sessionId)?.projectId===local.projectId); }
     function renderMemory() { memoryPanel.sync(local.memoryRevision);
       const choices=local.state.sessions.filter(s=>s.projectId===local.projectId).map(s=>({value:s.id,label:s.name}));const memorySelect=$('#memory-session'),memoryChoice=choices.some(item=>item.value===memorySelect.value)?memorySelect.value:choices[0]?.value;fillSelect(memorySelect,choices,memoryChoice,'Selecione sessão');const contextSelect=$('#context-session'),previousContextSession=contextSelect.value,contextChoice=choices.some(item=>item.value===previousContextSession)?previousContextSession:choices[0]?.value;fillSelect(contextSelect,choices,contextChoice,'Selecione sessão');if(contextSelect.value!==previousContextSession)clearContext();updateMemoryScope(); }
     function updateMemoryScope() {const scope=$('#memory-scope').value;$('#memory-session').disabled=scope!=='session';}
     function renderSkills() { catalog.sync(); if(local.view==='skills') catalog.load(); }
     async function loadInventory() {const project=projectById(local.projectId);if(!project){local.inventory=null;local.inventoryProjectId=null;renderAssets();return;}$('#asset-total').textContent='Consultando…';try{const inventory=await api(`/api/inventory?projectId=${encodeURIComponent(project.id)}`);local.inventory=inventory;local.inventoryProjectId=project.id;renderAssets();}catch(error){local.inventory=null;local.inventoryProjectId=null;$('#asset-total').textContent='Falha na consulta';toast(error.message);}}
     function renderAssets() {const project=projectById(local.projectId);$('#asset-project').textContent=project?`${project.name} · ${project.root}`:'Selecione um projeto';const inventory=local.inventoryProjectId===local.projectId?local.inventory:null;const files=asArray(inventory?.files);$('#asset-total').textContent=inventory?`${files.length} arquivo${files.length===1?'':'s'}${inventory.truncated?' · resultado limitado':''}`:'Ainda não consultado';const counts=$('#asset-counts');counts.replaceChildren();for(const [extension,count] of Object.entries(inventory?.counts||{}).sort()){one(counts,'span','scope-badge',`${extension}  ${count}`);}const table=$('#asset-table');table.replaceChildren();const q=$('#asset-search').value.trim().toLowerCase();const matched=files.filter(file=>file.toLowerCase().includes(q));for(const file of matched){const row=one(table,'tr');one(row,'td','',file);one(row,'td','',file.match(/\.[^.]+$/)?.[0]?.toLowerCase()||'—');}if(!matched.length){const row=one(table,'tr');const cell=one(row,'td','',inventory ? (files.length?'Nenhum asset corresponde ao filtro.':'Nenhum asset de mídia encontrado.') : 'Atualize para consultar a pasta do projeto.');cell.colSpan=2;}$('#refresh-assets').disabled=!project;}
-    function makeNode(id,label,kind,source,scope,relation,openView){return{id,label,kind,source,scope,relation,openView};}
+    function makeNode(id,label,kind,source,scope,relation,openView,summary=''){return{id,label,kind,source,scope,relation,openView,summary};}
     function graphModel() {const project=projectById(local.projectId), sessions=local.state.sessions.filter(s=>s.projectId===local.projectId), notes=visibleNotes(), tasks=local.state.tasks.filter(t=>t.projectId===local.projectId), skills=local.state.skills;
       if(local.graph==='capability'){
-        const nodes=[makeNode('catalog','Biblioteca de skills','root','.agents/skills','Compartilhado','Catálogo → skill',null),...skills.slice(0,12).map(s=>makeNode(s.id,s.name||s.id,'skill',s.source||'Origem não informada','Catálogo local','Skill disponível; execução não iniciada','skills'))];
+        const nodes=[makeNode('catalog','Biblioteca de skills','root','.agents/skills','Compartilhado','Catálogo → skill',null,'Skills locais disponíveis para consulta; as arestas indicam inclusão no catálogo.'),...skills.slice(0,12).map(s=>makeNode(s.id,s.name||s.id,'skill',s.source||'Origem não informada','Catálogo local','Skill disponível; execução não iniciada','skills',s.description||'Descrição funcional não informada.'))];
         return{title:'Capacidades',intro:`${Math.min(skills.length,12)} de ${skills.length} skills exibidas. Arestas indicam inclusão no catálogo, sem dependências inferidas.`,nodes,edges:nodes.slice(1).map(n=>['catalog',n.id])};
       }
       if(local.graph==='task'){
         const shownTasks=tasks.slice(0,15);
-        const nodes=[makeNode('project',project?.name||'Projeto não selecionado','root',project?.root||'—',project?.name||'—','Projeto → tarefas',null),...shownTasks.map(t=>makeNode(t.id,t.title,'task','Registro local de tarefas',project?.name||'—',`Estado: ${t.status||'open'}; dependências explícitas`,'tasks'))];
+        const nodes=[makeNode('project',project?.name||'Projeto não selecionado','root',project?.root||'—',project?.name||'—','Projeto → tarefas',null,`${tasks.length} tarefa(s) registradas neste projeto.`),...shownTasks.map(t=>{const dependencies=asArray(t.dependsOn).map(id=>tasks.find(other=>other.id===id)?.title).filter(Boolean);return makeNode(t.id,t.title,'task','Registro local de tarefas',project?.name||'—',`Estado: ${t.status||'open'}; dependências explícitas`,'tasks',`Estado: ${t.status||'open'}. ${dependencies.length?`Depende de ${dependencies.slice(0,3).join(', ')}${dependencies.length>3?' e outras.':'.'}`:'Sem dependências registradas.'}`);})];
         const shown=new Set(nodes.map(n=>n.id));
         const edges=shownTasks.flatMap(task=>{const declared=asArray(task.dependsOn);return declared.length?declared.filter(id=>shown.has(id)).map(id=>[id,task.id]):[['project',task.id]];});
         return{title:'Tarefas',intro:`${shownTasks.length} de ${tasks.length} tarefas exibidas. Arestas representam dependências registradas; tarefas sem dependências ligam-se ao projeto.`,nodes,edges};
       }
       const shownSessions=sessions.slice(0,5), shownNotes=notes.slice(-9), hasGlobal=shownNotes.some(note=>note.scope==='global');
-      const nodes=[makeNode('project',project?.name||'Projeto não selecionado','root',project?.root||'—',project?.name||'—','Projeto → sessões e notas do projeto',null)];
-      if(hasGlobal)nodes.push(makeNode('global','Memória global','root','Notas globais','Todas as sessões','Escopo global → nota',null));
-      nodes.push(...shownSessions.map(s=>makeNode(s.id,s.name,'session',`Sessão ${s.id}`,project?.name||'—','Sessão pertence ao projeto','workspace')));
-      nodes.push(...shownNotes.map(n=>makeNode(n.id,n.text.length>28?`${n.text.slice(0,28)}…`:n.text,'note',n.source,n.scope==='global'?'Global':n.scope==='session'?`Sessão ${sessionById(n.sessionId)?.name||n.sessionId}`:project?.name||'—','Nota registrada com escopo explícito',null)));
+      const nodes=[makeNode('project',project?.name||'Projeto não selecionado','root',project?.root||'—',project?.name||'—','Projeto → sessões e notas do projeto',null,`${sessions.length} sessão(ões) e ${notes.filter(n=>n.scope!=='global').length} nota(s) visíveis deste projeto.`)];
+      if(hasGlobal)nodes.push(makeNode('global','Memória global','root','Notas globais','Todas as sessões','Escopo global → nota',null,`${shownNotes.filter(n=>n.scope==='global').length} nota(s) globais visíveis neste grafo.`));
+      nodes.push(...shownSessions.map(s=>makeNode(s.id,s.name,'session',`Sessão ${s.id}`,project?.name||'—','Sessão pertence ao projeto','workspace',`Sessão deste projeto. Estado: ${statusLabel(s.status)||'não informado'}.`)));
+      nodes.push(...shownNotes.map(n=>makeNode(n.id,n.text.length>28?`${n.text.slice(0,28)}…`:n.text,'note',n.source,n.scope==='global'?'Global':n.scope==='session'?`Sessão ${sessionById(n.sessionId)?.name||n.sessionId}`:project?.name||'—','Nota registrada com escopo explícito',null,n.text)));
       const shown=new Set(nodes.map(node=>node.id));
       const edges=[...shownSessions.map(s=>['project',s.id]),...shownNotes.flatMap(note=>{const owner=note.scope==='global'?'global':note.scope==='session'?note.sessionId:'project';return shown.has(owner)?[[owner,note.id]]:[];})];
       return{title:'Conhecimento do projeto',intro:`${shownNotes.length} de ${notes.length} notas e ${shownSessions.length} de ${sessions.length} sessões exibidas. Arestas mostram somente vínculos de escopo explícitos visíveis.`,nodes,edges};
     }
+    const graphHelpCache=new Map();
+    let graphHelpHover=null,graphHelpFocus=null,graphHelpActive=null,graphHelpSerial=0;
+    function graphText(value,limit=220){const text=typeof value==='string'?value.trim():'';return text.length>limit?`${text.slice(0,limit).trimEnd()}…`:text;}
+    function paintGraphHelp(node,row){
+      const metadata=row?.curation==='current'?row.metadata||{}:{};
+      const description=node.kind==='skill'?metadata.functional_description||node.summary:node.summary;
+      const example=metadata.use_cases?.pt?.[0]||metadata.use_cases?.en?.[0];
+      const when=metadata.when_to_use?.[0];
+      $('#graph-help-title').textContent=node.label;
+      $('#graph-help-summary').textContent=graphText(description||node.relation);
+      const usage=$('#graph-help-usage');
+      usage.textContent=node.kind==='skill'?graphText(example?`Exemplo de uso: ${example}`:when?`Quando usar: ${when}`:'Uso: consulte os exemplos no catálogo e cite a skill pelo nome no pedido.',190):'';
+      usage.hidden=node.kind!=='skill';
+      $('#graph-help-docs').textContent=node.kind==='skill'?`Ajuda: ${graphText(node.source,105)}. Selecione o nó e use “Abrir item” para ver metadados e exemplos.`:`Fonte: ${graphText(node.source,105)} · Escopo: ${graphText(node.scope,65)}.`;
+    }
+    function graphSkillMetadata(node){
+      const source=String(node.source||'').replaceAll('\\','/');
+      if(!source.startsWith('.agents/skills/'))return Promise.resolve(null);
+      if(!graphHelpCache.has(source)){
+        const query=new URLSearchParams({q:node.label,ring:'installed',limit:'50'});
+        const request=Promise.resolve().then(()=>api(`/api/skills?${query}`)).then(result=>{
+          const row=asArray(result.rows).find(item=>item.source_key===`repo:${source}`&&item.curation==='current')||null;
+          if(!row&&graphHelpCache.get(source)===request)graphHelpCache.delete(source);
+          return row;
+        }).catch(()=>{if(graphHelpCache.get(source)===request)graphHelpCache.delete(source);return null;});
+        graphHelpCache.set(source,request);
+      }
+      return graphHelpCache.get(source);
+    }
+    function clearGraphHelp(){for(const id of ['title','summary','usage','docs'])$(`#graph-help-${id}`).textContent='';}
+    function resetGraphHelp(){graphHelpHover=null;graphHelpFocus=null;graphHelpSerial++;graphHelpActive?.button.removeAttribute('aria-describedby');graphHelpActive=null;$('#graph-help').hidden=true;clearGraphHelp();}
+    function positionGraphHelp(button){
+      const panel=$('#graph-help'),rect=button.getBoundingClientRect(),margin=8,width=panel.offsetWidth,height=panel.offsetHeight;
+      // Slightly overlap the anchor so a pointer can enter the scrollable help without crossing a hide-triggering gap.
+      const rightSide=rect.right-2, leftSide=rect.left-width+2;
+      const x=rightSide+width<=window.innerWidth-margin?rightSide:leftSide>=margin?leftSide:Math.max(margin,Math.min(rect.left,window.innerWidth-width-margin));
+      const y=Math.max(margin,Math.min(rect.top,window.innerHeight-height-margin));
+      panel.style.left=`${x}px`;panel.style.top=`${y}px`;
+    }
+    function updateGraphHelp(){
+      const next=graphHelpFocus||graphHelpHover,panel=$('#graph-help');
+      if(graphHelpActive?.button===next?.button)return;
+      graphHelpActive?.button.removeAttribute('aria-describedby');graphHelpActive=next;const serial=++graphHelpSerial;
+      if(!next){panel.hidden=true;clearGraphHelp();return;}
+      const {node,button}=next;
+      paintGraphHelp(node);panel.hidden=false;positionGraphHelp(button);button.setAttribute('aria-describedby','graph-help');
+      if(node.kind==='skill')void graphSkillMetadata(node).then(row=>{if(graphHelpSerial===serial&&graphHelpActive?.button===button&&button.isConnected){paintGraphHelp(node,row);positionGraphHelp(button);}});
+    }
     function placeNodes(nodes,width){const positions=new Map(),columns=width<500?2:width<740?3:4,rest=nodes.slice(1),rows=Math.ceil(rest.length/columns),height=Math.max(420,150+rows*94+40);if(!nodes.length)return{positions,height};positions.set(nodes[0].id,{x:50,y:60/height*100});rest.forEach((node,index)=>{const row=Math.floor(index/columns),column=index%columns,count=Math.min(columns,rest.length-row*columns);positions.set(node.id,{x:12+(column+.5)*76/count,y:(150+row*94)/height*100});});return{positions,height};}
     function renderGraph(){const model=graphModel();local.graphModels[local.graph]=model;$('#graph-title').textContent=model.title;$('#graph-intro').textContent=model.intro;document.querySelectorAll('[data-graph]').forEach(button=>button.setAttribute('aria-selected',String(button.dataset.graph===local.graph)));
-      const canvas=$('#graph-canvas');canvas.replaceChildren();if(model.nodes.length===1){one(canvas,'div','empty',local.graph==='capability'?'Nenhuma skill encontrada no catálogo.':'Adicione dados para visualizar relações.');}
+      const canvas=$('#graph-canvas'),focusedId=canvas.contains(document.activeElement)?document.activeElement?.dataset.graphId:null;resetGraphHelp();canvas.replaceChildren();if(model.nodes.length===1){one(canvas,'div','empty',local.graph==='capability'?'Nenhuma skill encontrada no catálogo.':'Adicione dados para visualizar relações.');}
       const {positions,height}=placeNodes(model.nodes,canvas.clientWidth||850);canvas.style.height=`${height}px`;const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 100 100');svg.setAttribute('preserveAspectRatio','none');svg.setAttribute('aria-hidden','true');for(const [a,b] of model.edges){const start=positions.get(a),end=positions.get(b);if(!start||!end)continue;const line=document.createElementNS('http://www.w3.org/2000/svg','line');for(const [key,value] of [['x1',start.x],['y1',start.y],['x2',end.x],['y2',end.y]])line.setAttribute(key,String(value));line.setAttribute('stroke','var(--accent)');line.setAttribute('stroke-opacity','.55');line.setAttribute('stroke-width','.4');svg.append(line);}canvas.append(svg);
-      for(const node of model.nodes){const pos=positions.get(node.id);const button=one(canvas,'button','graph-node',node.label);button.type='button';button.style.left=`${pos.x}%`;button.style.top=`${pos.y}%`;button.dataset.kind=node.kind;button.dataset.selected=String(local.graphNode===node.id);button.title=node.label;button.addEventListener('click',()=>{local.graphNode=node.id;renderGraphDetail(node);canvas.querySelectorAll('.graph-node').forEach(el=>el.dataset.selected=String(el===button));});}
+      for(const node of model.nodes){const pos=positions.get(node.id);const button=one(canvas,'button','graph-node',node.label);button.type='button';button.style.left=`${pos.x}%`;button.style.top=`${pos.y}%`;button.dataset.kind=node.kind;button.dataset.graphId=node.id;button.dataset.selected=String(local.graphNode===node.id);button.addEventListener('mouseenter',()=>{graphHelpHover={node,button};updateGraphHelp();});button.addEventListener('mouseleave',event=>{if($('#graph-help').contains(event.relatedTarget))return;if(graphHelpHover?.button===button)graphHelpHover=null;updateGraphHelp();});button.addEventListener('focus',()=>{graphHelpFocus={node,button};updateGraphHelp();});button.addEventListener('blur',()=>{if(graphHelpFocus?.button===button)graphHelpFocus=null;updateGraphHelp();});button.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();resetGraphHelp();}});button.addEventListener('click',()=>{local.graphNode=node.id;renderGraphDetail(node);canvas.querySelectorAll('.graph-node').forEach(el=>el.dataset.selected=String(el===button));});}
+      $('#graph-help').onmouseleave=()=>{graphHelpHover=null;updateGraphHelp();};
+      if(focusedId)[...canvas.querySelectorAll('.graph-node')].find(button=>button.dataset.graphId===focusedId)?.focus();
       renderGraphDetail(model.nodes.find(n=>n.id===local.graphNode)||model.nodes[0]); }
     function renderGraphDetail(node){$('#graph-selection').textContent=node?.label||'—';$('#graph-source').textContent=node?.source||'—';$('#graph-scope').textContent=node?.scope||'—';$('#graph-relation').textContent=node?.relation||'—';const open=$('#graph-open');open.hidden=!node?.openView;open.onclick=()=>{if(node?.kind==='skill'){$('#skill-search').value=node.label;catalog.search();}if(node?.kind==='session'){assignPane(0,node.id);renderWorkspace();}showView(node.openView);};}
     const catalog=mountCatalog({root:$('#skill-catalog'),search:$('#skill-search'),list:$('#skill-list'),count:$('#skills-count'),api,fallback:()=>local.state.skills,getProjectId:()=>local.projectId});
