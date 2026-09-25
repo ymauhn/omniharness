@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { WorkspaceStore, inventoryAssets, listSkills } from './core.mjs';
 import { PtyCoordinator } from './pty.mjs';
+import { CatalogService } from './catalog-service.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
@@ -38,7 +39,7 @@ async function body(request) {
   catch { const error = new Error('JSON inválido'); error.status = 400; throw error; }
 }
 
-export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omniforge-lab'), repoRoot = REPO_ROOT, token = randomBytes(24).toString('hex') } = {}) {
+export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omniforge-lab'), repoRoot = REPO_ROOT, token = randomBytes(24).toString('hex'), catalog = new CatalogService({ repoRoot, dataDir }) } = {}) {
   const cookieName = `OmniForgeAuth_${randomBytes(8).toString('hex')}`;
   const store = new WorkspaceStore(dataDir);
   const shells = new PtyCoordinator(store);
@@ -88,6 +89,9 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
       if (request.method === 'GET' && url.pathname === '/pane-scope.mjs') {
         return send(response, 200, fs.readFileSync(path.join(HERE, 'pane-scope.mjs'), 'utf8'), 'text/javascript; charset=utf-8');
       }
+      if (request.method === 'GET' && ['/copilot.mjs', '/copilot.css'].includes(url.pathname)) {
+        return send(response, 200, fs.readFileSync(path.join(HERE, url.pathname.slice(1)), 'utf8'), url.pathname.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8');
+      }
       const vendorFiles = {
         '/vendor/xterm.mjs': ['@xterm/xterm/lib/xterm.mjs', 'text/javascript; charset=utf-8'],
         '/vendor/xterm.css': ['@xterm/xterm/css/xterm.css', 'text/css; charset=utf-8'],
@@ -98,6 +102,24 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
         return send(response, 200, fs.readFileSync(path.join(HERE, 'node_modules', file), 'utf8'), type);
       }
       if (request.method === 'GET' && url.pathname === '/api/state') return send(response, 200, state());
+      if (request.method === 'GET' && url.pathname === '/api/skills') {
+        const q = url.searchParams.get('q') ?? '';
+        const host = url.searchParams.get('host');
+        const ring = url.searchParams.get('ring') ?? 'installed';
+        const limit = Number(url.searchParams.get('limit') ?? 50);
+        const offset = Number(url.searchParams.get('offset') ?? 0);
+        if (q.length > 4096 || host?.length > 120 || !['all', 'installed', 'catalog', 'remote', 'missing', 'unknown'].includes(ring) || !Number.isInteger(limit) || limit < 1 || limit > 50 || !Number.isInteger(offset) || offset < 0 || offset > 6000) return send(response, 400, { error: 'Consulta de catálogo inválida' });
+        return send(response, 200, await catalog.request({ op: 'list', q, host, ring, limit, offset }));
+      }
+      const skillDetail = url.pathname.match(/^\/api\/skills\/([^/]+)$/);
+      if (request.method === 'GET' && skillDetail) {
+        let skillId;
+        try { skillId = decodeURIComponent(skillDetail[1]); }
+        catch { return send(response, 400, { error: 'Identidade de skill inválida' }); }
+        if (skillId.length > 160) return send(response, 400, { error: 'Identidade de skill inválida' });
+        const result = await catalog.request({ op: 'get', skill_id: skillId });
+        return result.row ? send(response, 200, result) : send(response, 404, { error: 'Skill não encontrada' });
+      }
       if (request.method === 'GET' && url.pathname === '/api/memory') {
         const projectId = url.searchParams.get('projectId');
         const sessionId = url.searchParams.get('sessionId');
@@ -125,7 +147,8 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
       const input = await body(request);
       let output;
       let changed = true;
-      if (url.pathname === '/api/projects') output = store.addProject(input);
+      if (url.pathname === '/api/skills/refresh') { output = await catalog.refresh(); changed = false; }
+      else if (url.pathname === '/api/projects') output = store.addProject(input);
       else if (url.pathname === '/api/sessions') {
         output = store.addSession(input);
         shells.start(output.id);
@@ -170,6 +193,7 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
       for (const client of clients) client.end();
       clients.clear();
       let shutdownError = null;
+      await catalog.close?.();
       try { await shells.closeAll(); }
       catch (error) { shutdownError = error; }
       await new Promise(resolve => server.close(resolve));

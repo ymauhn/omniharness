@@ -2,7 +2,7 @@
 
 Status: **development prototype**, 2026-09-25. This is candidate A of the approved own-app versus Goose comparison, not the V1 release or an isolated agent executor. The first project for end-to-end evaluation is this OmniHarness repository.
 
-Foundation update: the [versioned memory backend](MEMORY.md) now supports concurrent update rejection, retained history, archival and mutation-aware context retrieval. The [full skill catalog engine](../skills-graph/SKILL-CATALOG.md) and [two-skin Companion Studio](mascot/README.md) are integrated source artifacts; the Lab still needs their production UI connection. Visual/provider checks that cannot currently run are tracked in [the final-round register](VALIDATION-PENDING.md). The 26-test results below are historical; consult [current validation](../t13/VALIDATION.md) for the integrated checkpoint.
+Current update: the [versioned memory backend](MEMORY.md) supports concurrent update rejection, retained history, archival and mutation-aware retrieval. The [Prompt Copilot](COPILOT.md) now connects two mascot skins, pause/selected-text suggestions and the [full catalog](../skills-graph/SKILL-CATALOG.md) to the composer. Templates and metadata retrieval are deterministic; the typed Laya/JEV source adapters are separate from the upcoming provider UI. Visual/provider checks are tracked in [the final-round register](VALIDATION-PENDING.md). Latest integrated Lab tests: **51/51**, zero skips; the 26-test results below are historical.
 
 ## Run on Windows
 

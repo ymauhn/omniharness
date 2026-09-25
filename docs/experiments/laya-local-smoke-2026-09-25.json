@@ -1,0 +1,93 @@
+{
+  "date": "2026-09-25",
+  "kind": "local offline smoke, not calibrated holdout benchmark",
+  "model_revision": "e4e9ddf21a7b1903b7acffd8814ad4307bf63a67",
+  "device": "cpu",
+  "torch_threads": 4,
+  "cold_import_load_ms": 10703.282,
+  "network_disabled_in_libraries": true,
+  "remote_provider_called": false,
+  "observations": [
+    {
+      "prompt": "Revisar este c\u00f3digo antes de fazer o commit.",
+      "elapsed_ms": 143.734,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "skill": {
+            "type": "choice",
+            "choice": "review",
+            "probabilities": {
+              "review": 0.9904,
+              "test": 0.0022,
+              "none": 0.0073
+            },
+            "confidence": 0.9461,
+            "answer_confidence": 0.9904,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 69,
+          "output_tokens": 0
+        }
+      }
+    },
+    {
+      "prompt": "Write a regression test for this bug.",
+      "elapsed_ms": 73.337,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "skill": {
+            "type": "choice",
+            "choice": "test",
+            "probabilities": {
+              "review": 0.0073,
+              "test": 0.9745,
+              "none": 0.0182
+            },
+            "confidence": 0.878,
+            "answer_confidence": 0.9745,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 67,
+          "output_tokens": 0
+        }
+      }
+    },
+    {
+      "prompt": "What is the weather today?",
+      "elapsed_ms": 69.282,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "skill": {
+            "type": "choice",
+            "choice": "none",
+            "probabilities": {
+              "review": 0.0001,
+              "test": 0.0,
+              "none": 0.9999
+            },
+            "confidence": 0.9988,
+            "answer_confidence": 0.9999,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 65,
+          "output_tokens": 0
+        }
+      }
+    }
+  ]
+}
