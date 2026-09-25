@@ -160,7 +160,9 @@ def probe(*, docker, image, endpoint):
         session = str(uuid.uuid4())
         attempt = "canary"
         events = root / "broker-events.jsonl"
+        started_worker = worker.start(attempt)
         binding = {"schema_version": 1, "attempt_id": attempt, "session_id": session,
+                   "cid": started_worker["cid"], "nonce": started_worker["nonce"],
                    "source_sha256": source_hashes(Path(__file__).resolve().parent.parent),
                    "source": str(host.source), "workers": str(host.workers), "record": own,
                    "worker_evidence_root": str(evidence), "docker": str(worker.docker),
@@ -174,7 +176,6 @@ def probe(*, docker, image, endpoint):
             stream.flush()
             os.fsync(stream.fileno())
         digest = hashlib.sha256(binding_path.read_bytes()).hexdigest()
-        worker.start(attempt)
         exit_code, stdout, stderr = _broker_process(binding_path, digest,
                                                     binding["source_sha256"], _mcp_input(paths), work)
         process_exited = True
