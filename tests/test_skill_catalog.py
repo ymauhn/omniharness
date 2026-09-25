@@ -45,6 +45,18 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(before, {row['source_key']: row['skill_id'] for row in after['rows']})
         self.assertNotEqual(snapshot['snapshot_id'], after['snapshot_id'])
 
+    def test_filtered_query_paginates_after_ranking_with_exact_total(self):
+        for name in ('alpha', 'bravo', 'charlie'):
+            write_skill(self.root / '.agents/skills' / name / 'SKILL.md', name=name, description='Review code')
+        snapshot = self.build()
+        first = catalog.query_snapshot(snapshot, 'review', limit=1, ring='installed')
+        second = catalog.query_snapshot(snapshot, 'review', limit=1, ring='installed', offset=1)
+        self.assertEqual(first['total'], 3)
+        self.assertNotEqual(first['results'][0]['skill_id'], second['results'][0]['skill_id'])
+        self.assertEqual(catalog.query_snapshot(snapshot, 'review', ring='catalog')['total'], 0)
+        with self.assertRaises(ValueError):
+            catalog.query_snapshot(snapshot, 'review', offset=-1)
+
     def overlay(self, path, **metadata):
         return {'schema_version': 1, 'entries': [{'source_key': catalog.source_key(path, self.root, self.home),
                 'source_sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'metadata': metadata}]}

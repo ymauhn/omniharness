@@ -1,0 +1,235 @@
+{
+  "date": "2026-09-25",
+  "scope": "public three-case adapter smoke, repeated; not calibrated holdout benchmark",
+  "model_revision": "e4e9ddf21a7b1903b7acffd8814ad4307bf63a67",
+  "torch_threads_environment": 4,
+  "cold_load_hash_and_first_inference_ms": 21384.151,
+  "warm_observations": 11,
+  "warm_median_ms": 205.422,
+  "warm_max_ms": 253.025,
+  "memory_before_bytes": {
+    "PeakWorkingSetSize": 24821760,
+    "WorkingSetSize": 24821760,
+    "PrivateUsage": 14573568
+  },
+  "memory_after_bytes": {
+    "PeakWorkingSetSize": 2358521856,
+    "WorkingSetSize": 1721114624,
+    "PrivateUsage": 1907884032
+  },
+  "observations": [
+    {
+      "repeat": 0,
+      "prompt": "Revisar este c\u00f3digo antes de fazer o commit.",
+      "expected": "review",
+      "elapsed_ms": 21384.151,
+      "result": {
+        "provider": "laya",
+        "source_id": "review",
+        "reason": "selected",
+        "usage": {
+          "input_tokens": 258,
+          "output_tokens": 0
+        },
+        "runnable": false
+      },
+      "correct": true
+    },
+    {
+      "repeat": 0,
+      "prompt": "Write a regression test for this bug.",
+      "expected": "test",
+      "elapsed_ms": 205.422,
+      "result": {
+        "provider": "laya",
+        "source_id": null,
+        "reason": "below_threshold",
+        "usage": {
+          "input_tokens": 252,
+          "output_tokens": 0
+        },
+        "runnable": false
+      },
+      "correct": false
+    },
+    {
+      "repeat": 0,
+      "prompt": "What is the weather today?",
+      "expected": null,
+      "elapsed_ms": 236.912,
+      "result": {
+        "provider": "laya",
+        "source_id": null,
+        "reason": "none",
+        "usage": {
+          "input_tokens": 246,
+          "output_tokens": 0
+        },
+        "runnable": false
+      },
+      "correct": true
+    },
+    {
+      "repeat": 1,
+      "prompt": "Revisar este c\u00f3digo antes de fazer o commit.",
+      "expected": "review",
+      "elapsed_ms": 253.025,
+      "result": {
+        "provider": "laya",
+        "source_id": "review",
+        "reason": "selected",
+        "usage": {
+          "input_tokens": 258,
+          "output_tokens": 0
+        },
+        "runnable": false
+      },
+      "correct": true
+    },
+    {
+      "repeat": 1,
+      "prompt": "Write a regression test for this bug.",
+      "expected": "test",
+      "elapsed_ms": 207.791,
+      "result": {
+        "provider": "laya",
+        "source_id": null,
+        "reason": "below_threshold",
+        "usage": {
+          "input_tokens": 252,
+          "output_tokens": 0
+        },
+        "runnable": false
+      },
+      "correct": false
+    },
+    {
+      "repeat": 1,
+      "prompt": "What is the weather today?",
+      "expected": null,
+      "elapsed_ms": 201.377,
+      "result": {
+        "provider": "laya",
+        "source_id": null,
+        "reason": "none",
+        "usage": {
+          "input_tokens": 246,
+          "output_tokens": 0
+        },
+        "runnable": false
+      },
+      "correct": true
+    },
+    {
+      "repeat": 2,
+      "prompt": "Revisar este c\u00f3digo antes de fazer o commit.",
+      "expected": "review",
+      "elapsed_ms": 214.791,
+      "result": {
+        "provider": "laya",
+        "source_id": "review",
+        "reason": "selected",
+        "usage": {
+          "input_tokens": 258,
+          "output_tokens": 0
+        },
+        "runnable": false
+      },
+      "correct": true
+    },
+    {
+      "repeat": 2,
+      "prompt": "Write a regression test for this bug.",
+      "expected": "test",
+      "elapsed_ms": 218.277,
+      "result": {
+        "provider": "laya",
+        "source_id": null,
+        "reason": "below_threshold",
+        "usage": {
+          "input_tokens": 252,
+          "output_tokens": 0
+        },
+        "runnable": false
+      },
+      "correct": false
+    },
+    {
+      "repeat": 2,
+      "prompt": "What is the weather today?",
+      "expected": null,
+      "elapsed_ms": 192.908,
+      "result": {
+        "provider": "laya",
+        "source_id": null,
+        "reason": "none",
+        "usage": {
+          "input_tokens": 246,
+          "output_tokens": 0
+        },
+        "runnable": false
+      },
+      "correct": true
+    },
+    {
+      "repeat": 3,
+      "prompt": "Revisar este c\u00f3digo antes de fazer o commit.",
+      "expected": "review",
+      "elapsed_ms": 198.668,
+      "result": {
+        "provider": "laya",
+        "source_id": "review",
+        "reason": "selected",
+        "usage": {
+          "input_tokens": 258,
+          "output_tokens": 0
+        },
+        "runnable": false
+      },
+      "correct": true
+    },
+    {
+      "repeat": 3,
+      "prompt": "Write a regression test for this bug.",
+      "expected": "test",
+      "elapsed_ms": 194.949,
+      "result": {
+        "provider": "laya",
+        "source_id": null,
+        "reason": "below_threshold",
+        "usage": {
+          "input_tokens": 252,
+          "output_tokens": 0
+        },
+        "runnable": false
+      },
+      "correct": false
+    },
+    {
+      "repeat": 3,
+      "prompt": "What is the weather today?",
+      "expected": null,
+      "elapsed_ms": 192.036,
+      "result": {
+        "provider": "laya",
+        "source_id": null,
+        "reason": "none",
+        "usage": {
+          "input_tokens": 246,
+          "output_tokens": 0
+        },
+        "runnable": false
+      },
+      "correct": true
+    }
+  ],
+  "remote_provider_called": false,
+  "monetary_cost_usd": null,
+  "billing_scope": "local inference; electricity and hardware cost not measured",
+  "adapter_sha256": "73683b5ce23f1f18c6cf170a64823baedf3b2d99fbded63d80596912f25b3c54",
+  "manifest_sha256": "07f4735f2b1fcab4c8237f19416f44aeff5ab12ef8079905c2ba8a6b1ab2c219",
+  "python_version": "3.12.14",
+  "negative_observations": [
+    "Regression-test request abstained below_threshold in all four repetitions; do not label all three cases passing."
+  ]
+}

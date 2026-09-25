@@ -456,14 +456,18 @@ def _normalize(text):
     return ' '.join(re.findall(r'[a-z0-9]+', text))
 
 
-def query_snapshot(snapshot, text, limit=8, host=None):
+def query_snapshot(snapshot, text, limit=8, host=None, *, ring=None, offset=0):
     validate_snapshot(snapshot)
     if not isinstance(text, str) or len(text) > 4096 or type(limit) is not int or not 1 <= limit <= 50 or (host is not None and (not isinstance(host, str) or len(host) > 120)):
         raise ValueError('query text/limit/host is invalid')
+    if ring not in (None, 'installed', 'catalog', 'remote', 'missing', 'unknown') or type(offset) is not int or not 0 <= offset <= 6000:
+        raise ValueError('query ring/offset is invalid')
     phrase = _normalize(text)
     words = set(phrase.split()) - STOP
     results = []
     for row in snapshot['rows']:
+        if ring is not None and row['ring'] != ring:
+            continue
         meta = row['metadata']
         aliases = [alias for terms in (meta.get('aliases') or {}).values() for alias in terms]
         exact_name = bool(phrase) and phrase == _normalize(row['name'])
@@ -483,7 +487,8 @@ def query_snapshot(snapshot, text, limit=8, host=None):
                                          'requested_host': host, 'host_match': 'observed' if host and host in row['hosts'] else 'unknown'},
                         'authority': dict(row['authority']), 'runnable': False, 'curation': row['curation']})
     results.sort(key=lambda result: (-result['relevance']['score'], result['availability']['host_match'] != 'observed', result['availability']['status'] != 'installed', result['skill_id']))
-    return {'snapshot_id': snapshot['snapshot_id'], 'query': text, 'abstained': not results, 'results': results[:limit]}
+    return {'snapshot_id': snapshot['snapshot_id'], 'query': text, 'abstained': not results,
+            'total': len(results), 'results': results[offset:offset + limit]}
 
 
 def main(argv=None):
