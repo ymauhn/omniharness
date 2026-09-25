@@ -1,5 +1,7 @@
 # Checkpoint: project-bound agent arsenal in OmniForge Lab
 
+Delivery update: [PR #7](https://github.com/ymauhn/omniharness/pull/7) was merged as `ed8923646c3e13b1f00b2edbad4a094c0d0b468a`. The push/PR steps below are historical; resume at [LATEST-CHECKPOINT](LATEST-CHECKPOINT.md).
+
 Updated September 25, 2026. **Source validated and committed; full MVP incomplete.** This is the interruption handoff for `codex/mvp-arsenal-ui`, based on merged `master` commit `4f4fb0362dadbfdd7c78f6001a36e36a685ed4a0`. Documentation checkpoint: `922ec92d01566773019938d851d0bea2bd274680`; reviewed source: `43f95690c157733a424aab75f6b39e7a3aa1c8e1`. The branch was clean immediately after that source commit; inspect current Git/PR state before continuing. The owner authorized the full MVP and asked for checkpointed progress as the weekly allowance falls; read-only account queries reported 14% then 12% remaining. No reset was redeemed.
 
 ## Observable acceptance for this slice
