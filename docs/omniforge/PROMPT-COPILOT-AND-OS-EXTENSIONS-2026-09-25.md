@@ -1,6 +1,6 @@
 # Prompt Copilot and OS extensions — design intake
 
-Status: **proposed design**, 2026-09-25. The owner liked the current Lab aesthetic and asked for an optional active prompt companion, self-adjusting UI, richer graphs, workflows, flexible terminals, and usage/key management. This document adds those requirements to the [V1 contract](V1-RELEASE-CONTRACT.md); it does not claim those capabilities are implemented. The ongoing E1/T13 bridge validation and the own-app/Goose comparison continue in parallel.
+Status: **owner-authorised MVP requirements; implementation incomplete**, 2026-09-25. The owner liked the current Lab aesthetic and asked for an optional active prompt companion, self-adjusting UI, richer graphs, workflows, flexible terminals, and usage/key management. The later full-MVP instruction authorised implementation of these requirements under the [V1 contract](V1-RELEASE-CONTRACT.md); it does not claim those capabilities are implemented. The ongoing E1/T13 bridge validation and the own-app/Goose comparison continue in parallel.
 
 ## Product contract
 

@@ -1,4 +1,4 @@
-"""Read-only Codex App Server v2 receipt from coordinator-captured JSON-RPC lines.
+"""Read-only Codex App Server v2 receipt from coordinator-captured JSONL lines.
 
 The installed CLI's generated schemas define the notification shapes:
 https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/schema/json/v2/ThreadTokenUsageUpdatedNotification.json
@@ -58,8 +58,9 @@ def _breakdown(value):
 
 
 def _notification(event):
-    if not isinstance(event, dict) or event.get("jsonrpc") != "2.0":
-        raise ValueError("expected a JSON-RPC 2.0 object")
+    # Current App Server envelopes omit jsonrpc; an explicit version must be 2.0.
+    if not isinstance(event, dict) or event.get("jsonrpc", "2.0") != "2.0":
+        raise ValueError("expected an App Server JSONL object")
     method = event.get("method")
     if method is not None and not isinstance(method, str):
         raise ValueError("invalid JSON-RPC method")

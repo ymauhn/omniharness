@@ -2,6 +2,8 @@
 
 Status: **design brief for a separate session**, 2026-09-25. The user likes the current OmniForge Lab aesthetic and wants a cute, memorable robot companion with two selectable skins: crisp pixel art and a softly shaded modern 3D-like style. This handoff is for visual exploration and animation prototypes; it does not assert that Prompt Copilot logic is implemented. The main session is closing T13/E2/Lab validation and should not be blocked by mascot work.
 
+Owner amendment, later September 25: the owner selected this deliverable as the first real MVP dogfood task and authorised implementation in the main session's parallel work. Use a disjoint worktree and the same file boundary below; opening a separate user task is no longer necessary. Record artifact quality separately from managed-executor evidence. Native subagent development does not certify the App Server bridge, process containment or complete token accounting. The following character and interaction acceptance remains unchanged.
+
 ## Read first
 
 - [Prompt Copilot and OS design intake](PROMPT-COPILOT-AND-OS-EXTENSIONS-2026-09-25.md): behavior, privacy, selection action and performance gates.

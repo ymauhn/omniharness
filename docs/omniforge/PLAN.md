@@ -1,6 +1,6 @@
 # OmniForge: owner-first workspace, after harness closure
 
-Date: 2026-09-25. Status: **harness-first remains the release dependency; the owner subsequently asked for a parallel same-day OS build.** Candidate A is now under implementation in [OmniForge Lab](LAB.md); Goose candidate B and the final desktop architecture remain undecided. This does not certify an executor or claim that researched integrations are installed. The finite cross-pillar acceptance conditions are in [V1 release contract](V1-RELEASE-CONTRACT.md). The latest UI, Copilot, catalog, workflow, terminal and telemetry requests have a [separate design intake](PROMPT-COPILOT-AND-OS-EXTENSIONS-2026-09-25.md); mascot design has its own [parallel handoff](MASCOT-DESIGN-HANDOFF-2026-09-25.md). Neither interrupts the current bridge/release-gate validation.
+Date: 2026-09-25. Status: **the owner explicitly authorised implementation of the complete agreed MVP; harness evidence remains a release dependency.** Candidate A is under implementation in [OmniForge Lab](LAB.md); Goose candidate B and the final desktop architecture remain undecided. This does not certify an executor or claim that researched integrations are installed. The finite cross-pillar acceptance conditions are in [V1 release contract](V1-RELEASE-CONTRACT.md). The latest UI, Copilot, catalog, workflow, terminal and telemetry requirements are in the [design intake](PROMPT-COPILOT-AND-OS-EXTENSIONS-2026-09-25.md); mascot design has its own [handoff](MASCOT-DESIGN-HANDOFF-2026-09-25.md) and is now the first real dogfood task. The complete objective is active in Codex goal state; a partial checkpoint does not replace it.
 
 ## Owner decisions and authority
 
@@ -14,6 +14,24 @@ Date: 2026-09-25. Status: **harness-first remains the release dependency; the ow
 - Preserve and reuse existing skills and workflows, adapting only where evidence shows a host or interface gap. Tourism, sales funnels and new commercial services are not the current implementation focus.
 
 The research register is [RESEARCH-2026-09-25.md](RESEARCH-2026-09-25.md). Existing acceptance contracts remain in [T13](../t13/PLAN.md), [accounting](../t13/ACCOUNTING.md), [evals](../evals/PLAN.md) and [ADR 0006](../adr/0006-evaluation-first-evolution.md).
+
+## Authorised MVP execution checkpoints
+
+Owner approval: September 25 instruction to implement the entire agreed MVP, explicitly allow native Computer Use and use mascot design/animation as a real test. Baseline: `fa620d61f72c4566c00b802e792b4a04556e809c`. All rows below remain required unless the owner changes scope. Optional providers and reference integrations retain their recorded status; payments remain deferred. No fixed completion date is supported by current evidence.
+
+| Checkpoint | Runnable acceptance | State |
+|---|---|---|
+| First real artifact: mascot | Two skins, semantic animation states, three themes, Discreet/Off, pause and selected-text actions, preview/apply/undo, stale-draft refusal and reduced motion; human visual review. Track actual execution identity, worktree, files and checks. | Native Codex delegate in a disjoint worktree; implementation in progress. This is not yet an OmniForge-managed attempt. |
+| Native task execution and measurement | Bind task/session/worktree to a real Codex attempt, reconcile observed usage with source receipts, stop/recover including orphan descendants, verify tool/process boundaries; document Claude native-terminal handoff and optional API mode separately. | Offline bridges exist. App Server dynamicTools does not itself disable built-in tools; live admission remains uncertified. A discovered accounting-envelope incompatibility is being repaired first. |
+| Catalog and Copilot | Hash-pinned installed/catalog/remote index, source/host variants, curated taxonomy and PT/EN aliases/examples; held-out selection cases; local pause/selection suggestions and scoped memory citations; no false-runnable recommendations. | Eight-skill Lab listing only. Local classifier baseline comes first; Laya/Jev remain evaluated/opt-in adapters. |
+| Workflows, graphs and sessions | Saved executable workflow plus copy/run preflight; sourced graph help on hover/focus; N panes, per-window layouts and bounded output replay; shared scoped memory with version/conflict/restart tests. | Basic graphs, notes and two panes exist; remaining behavior not implemented. |
+| Extensions, repairs and provider management | Generate the agreed asset-link checker in a reviewed worktree and restricted preview; enable/disable/rollback and crash control. Reproduce and review a requested repair. Quota/tokens/estimates/billing have distinct sources; optional secrets use OS vault. | Contracts only. Real provider capabilities and credentials must be verified before claims. |
+| Five-pillar acceptance and evolution | Real accepted engineering issue; parallel/recovered orchestration; reproducible scientific experiment and cited result; verified educational challenge/progress; evidence-derived marketing case study/intake. Freeze human labels, compare fixed/random/genetic search with equal budgets and report failures. | Reusable skills/fixtures exist; complete cross-pillar scenarios and calibrated pilot remain open. |
+| Product selection and Windows delivery | Run the same comparison scenarios on own-app and Goose, select base, package install/update/recover/uninstall, test a clean Windows environment, and record a truthful dual-host demonstration. | Source-run candidate A only; no installation or release certificate. Public launch awaits separate publication authority. |
+
+Independent writers use disjoint Git worktrees and bounded file scopes. Integrate only after checks and review; a worktree is not OS containment. Missing receipt categories remain unknown. Browser-denial or provider limitations cannot be relabeled as passing evidence or used to silently remove requirements.
+
+For the mascot test, artifact quality and executor acceptance are separate: creating attractive assets and passing selection tests advances the real product task; only an actual managed dispatch with authoritative tool/usage/cancellation evidence advances executor certification. A prompt instructing the model to use only a worker tool is not a security boundary. Freeze acceptance before generation, retain failed checks and require at least one stale-selection negative case.
 
 ## First: finish the pending harness milestone
 

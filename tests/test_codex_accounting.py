@@ -83,6 +83,38 @@ class CodexAppServerUsage(unittest.TestCase):
         self.assertFalse(rec["process_ok"])
         self.assertIsNone(rec["terminal_status"])
 
+    def test_optional_jsonrpc_envelope_preserves_usage_and_unknown_coverage(self):
+        events = [{"jsonrpc": "2.0", "id": 1, "result": {}}, started(),
+                  usage(breakdown(40, 5, 20, 1), breakdown(40, 5, 20, 1)), completed()]
+        expected = self.parse(*events)
+        expected.pop("source_sha256")
+        for omitted in (range(len(events)), (0, 2)):
+            with self.subTest(omitted=list(omitted)):
+                wire = [{key: value for key, value in item.items()
+                         if key != "jsonrpc" or index not in omitted}
+                        for index, item in enumerate(events)]
+                data = stream(*wire)
+                receipt = self.parse(*wire)
+                self.assertEqual(receipt.pop("source_sha256"), hashlib.sha256(data).hexdigest())
+                self.assertEqual(receipt, expected)
+                self.assertFalse(receipt["usage_complete"])
+                self.assertIsNone(receipt["total_tokens"])
+                self.assertIsNone(receipt["billed_usd"])
+                self.assertTrue(any("baseline" in issue for issue in receipt["issues"]))
+                self.assertTrue(any("descendant" in issue for issue in receipt["issues"]))
+
+    def test_explicit_invalid_jsonrpc_and_duplicate_keys_remain_rejected(self):
+        for version in (None, "1.0", 2.0, True, [], {}):
+            with self.subTest(version=version):
+                with self.assertRaises(ValueError):
+                    self.parse({**started(), "jsonrpc": version})
+                with self.assertRaises(ValueError):
+                    self.parse({"jsonrpc": version, "id": 1, "result": {}})
+        with self.assertRaisesRegex(ValueError, "duplicate JSON key: method"):
+            usage_from_app_server_events(
+                b'{"method":"ignored","method":"turn/started","params":{}}\n',
+                thread_id="thread-1", turn_id="turn-1", exit_code=0)
+
     def test_missing_terminal_or_usage_is_unresolved(self):
         measured = usage(breakdown(40, 5, 20, 1), breakdown(40, 5, 20, 1))
         missing_terminal = self.parse(started(), measured)

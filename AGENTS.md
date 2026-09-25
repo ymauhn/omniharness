@@ -40,7 +40,7 @@ Current cross-host handoff: before modifying or committing the pending E1/T13 de
 | Social reads (YouTube, Reddit, X) | Agent-Reach, installed by hand after reading its install page; cookies are credentials (gated) |
 | Image, video, 3D, audio | `higgsfield` CLI (credits, gated); the Blender binary only when a 3D deliverable exists |
 | Transcribe | faster-whisper, installed on demand (`docs/integrations/faster-whisper.md`) |
-| Browser | Claude Browser or the installed Playwright; never browser-use |
+| Browser | Available native browser/computer-use tools (including Codex `mcp__cua_repl`), Claude Browser, or installed Playwright. The owner explicitly approved native Computer Use for local OmniForge testing on 2026-09-25 and removed the former tool-name restriction. Prefer supported interactive controls for visual checks and Playwright for repeatable tests. |
 | Codebase map | graphify only for "what breaks if I touch X"; otherwise the text map in CONTEXT.md |
 | Memory | repo CONTEXT.md and `docs/adr/` are the truth; host memory holds preferences only |
 
@@ -74,7 +74,7 @@ Recursive deletion, credentials, push, hard reset and payments are outside every
 
 ## HITL gate (check existing authority first)
 
-The following are inspection points, **not a mandatory new question per invocation**: Higgsfield CLI or MCP, Firecrawl, ScrapeGraphAI, Scrapling, Agent-Reach, snyk agent-scan, package managers, Docker, Git, and network fetchers. Classify the actual operation under task-scoped autonomy. A necessary dependency install or public read proceeds with a progress update; a new paid call, private-data transfer, destructive action or unapproved publication asks. New service/capability intake and privileged containers still need a specific decision. `browser-use` remains outside the installed browser route. Tools invoked inside Python or MCP follow the same policy.
+The following are inspection points, **not a mandatory new question per invocation**: Higgsfield CLI or MCP, Firecrawl, ScrapeGraphAI, Scrapling, Agent-Reach, snyk agent-scan, package managers, Docker, Git, and network fetchers. Classify the actual operation under task-scoped autonomy. A necessary dependency install or public read proceeds with a progress update; a new paid call, private-data transfer, destructive action or unapproved publication asks. New service/capability intake and privileged containers still need a specific decision. Browser tool names impose no additional blanket prohibition or per-visit confirmation; use the available supported route under task authority. Native permission review remains authoritative. Tools invoked inside Python or MCP follow the same policy.
 
 `harness/settings.json` and `harness/guard_bash.py` remain conservative host controls. Their native prompts may still appear; this text does not disable them. On a host without this hook, enforce the task authorization and consequential-action limits directly. Legacy docs saying "always ask before pip/network" are superseded by this section for routine authorised work.
 

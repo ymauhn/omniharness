@@ -1,6 +1,6 @@
 # OmniForge V1 release contract
 
-Status: **proposed acceptance contract, not a claim of release** · 2026-09-25
+Status: **owner-authorised MVP acceptance contract; implementation incomplete, not a claim of release** · 2026-09-25
 
 This contract turns the owner's approved direction into a finite first release. OmniForge is a Windows-first, locally installable agentic workspace for developers and solo founders. It should first help the owner finish real work in **OmniHarness**, then provide a reproducible demonstration for other developers. Codex is a native managed-host candidate under the owner's existing allowance. Claude's V1 default is a **native Claude Code terminal**; a managed API-key integration is optional and separately metered. Native terminal access does not itself certify OmniForge worker containment or grant a distributed product rights to subscription-backed automation. Both hosts remain in the owner-local dogfood and handoff scope, with product claims separated by verified mode. The application must remain architecturally portable, but a tested macOS/Linux installer is not a V1 gate.
 
