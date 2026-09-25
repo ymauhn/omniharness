@@ -1,0 +1,88 @@
+# OmniForge: owner-first workspace, after harness closure
+
+Date: 2026-09-25. Status: **comparative prototype approved; execution follows the pending E1/T13 closure.** This records the owner's decisions and a bounded implementation sequence. It does not certify an executor, select the final desktop architecture, or claim that the researched integrations are installed.
+
+## Owner decisions and authority
+
+- Build a local application for other developers to install, Windows first with portability prepared. The first user is the owner, who wants to organize and finish existing software, game, marketing-agency and AEO/SEO projects.
+- Keep projects/tasks, coordinating chat, a skills/templates/tutorial library and terminal/review surfaces connected in one workflow. Multiple sessions and side-by-side terminals are required; different sessions can work on the same or different projects.
+- Sessions share access to the owner's permitted knowledge and capability catalog. They must not silently overwrite each other's active project or load all private project content into every prompt.
+- Prefer existing Claude and Codex subscriptions/allowances. Both hosts remain in the acceptance scope; new billed services are not implicitly authorized. OmniRoute is optional and native hosts are the default.
+- The owner explicitly approved the own-app versus Goose comparative slice in an annotation to the presented plan. Routine supporting work needs no repeated approval. Preserve the subsequent instruction to finish the prior harness work before starting these prototypes.
+- The owner selected **small tools with new logic in the first prototype**, not only rearrangement of existing panels. Bound this to one useful generated module before considering a general application builder.
+- Preserve and reuse existing skills and workflows, adapting only where evidence shows a host or interface gap. Tourism, sales funnels and new commercial services are not the current implementation focus.
+
+The research register is [RESEARCH-2026-09-25.md](RESEARCH-2026-09-25.md). Existing acceptance contracts remain in [T13](../t13/PLAN.md), [accounting](../t13/ACCOUNTING.md), [evals](../evals/PLAN.md) and [ADR 0006](../adr/0006-evaluation-first-evolution.md).
+
+## First: finish the pending harness milestone
+
+The baseline is implementation checkpoint `8e6c20e` and research checkpoint `5f0086d`. T1 is complete. E1 has offline integrity checks; T13 has S1/S2, local S4 and S3 primitives. Native executor/usage wiring, all-role containment and live controls remain open. The September 21 92/92 Python and 12/12 Docker-process results are historical, not new checks or proof of native agent containment.
+
+1. Reconcile the E1 telemetry contract with whole-tree receipts. Preserve raw provenance and separate reported usage, monetary estimates, billing and coverage. Include failed attempts, retries, reviewers and descendants without double counting cumulative or aggregate events.
+2. Implement against the actual Claude/Codex host interfaces: dispatch, identity, events, cancellation, failure and reconciliation. Unsupported capabilities remain explicit. Do not impose the experimental USD reservation gate on ordinary authorized native Codex/Astra collaboration.
+3. Connect worktrees and the tested containment profile to actual tool execution for all roles. Verify interruption/restart boundaries and prevent duplicate side effects or integration after uncertain outcomes.
+4. Verify applicable native hooks, E1 live controls and B8/B9 with comparable configurations and independent acceptance. Missing evidence limits the result; a passing local unit suite is not live certification.
+5. Complete the already-scoped S6 documentation/portal evidence work and S7 checks/checkpoint. Correct stale claims and known false-success presentation; do not turn this into a new desktop or conversion project. Run `scripts/check.ps1` with zero skips for runtime changes and required host acceptance separately.
+
+E2 calibration and genetic search are later harness milestones, not an unbounded implicit prerequisite to starting the OS. Do not silently close T13 if S5/S6 acceptance is incomplete; record the exact boundary and any owner-approved scope amendment.
+
+## Future-compatible seams, without premature infrastructure
+
+Keep explicit, versioned identities for project, session, run, task, attempt and artifact. Reuse the ledger, worktree manager, eval contracts, CONTEXT/ADRs, review history and skills graph. These references allow a future UI or memory adapter to consume evidence without introducing a universal graph database or desktop API during harness closure.
+
+Distinguish three linked views:
+
+- Capability graph: skills, tools, workflows, compatibility and dependencies. The existing skills graph is the starting point.
+- Task graph: frozen requirements/dependencies plus separately recorded execution attempts. Repeated attempts cannot create extra evaluation weight.
+- Project knowledge graph: files, assets, decisions, references and evidence. Every asserted edge has provenance; inferred relationships remain labeled proposals.
+
+## Context and shared memory
+
+Use progressive loading: concise governing instructions, searchable capability metadata, selected skill bodies, then task-relevant source excerpts. Retrieve by explicit project/session/task and preserve source paths, versions and dates. Hard requirements must not disappear because a similarity query missed them. Summaries link to original evidence; they do not replace it.
+
+Global preferences and reusable methods, project decisions, and execution records have different scopes. All sessions can discover the shared catalog and query permitted memory, while receiving a bounded relevant brief rather than the complete history. Preserve conflicting observations and reconcile concurrent writes through a single owner/transactional mechanism instead of last-writer-wins notes.
+
+Candidate evaluation includes retrieval correctness, missed mandatory context, irrelevant context volume, actual tokens when available, and output quality on held-out tasks. Caching and compaction are hypotheses to measure, not promised savings. Test that a decision changed in session A is either refreshed or visibly stale in session B, and that a restart does not redirect a query to another project.
+
+`ai-memory` is a candidate already documented locally, not a newly installed dependency. Its native Windows and session-identity limitations need validation. Graphify/Obsidian-style navigation is a view over sourced knowledge; it is not automatic permission, ground truth or task acceptance.
+
+## Then: the bounded comparative prototype
+
+Compare A, an own application over OmniHarness, with B, a minimally adapted Goose distribution. A provisional Electron wrapper can keep the own-app experiment small; the final stack is undecided. Use Wave Terminal, AstrBot and OpenHands as targeted references, not automatic additional full-product forks.
+
+Require the same external outcomes, not the same internal schema or database. Reuse is legitimate on both sides. Fix the fixture commit, expected results, host/model/settings and adaptation effort allowance before runs. Report mock and live evidence separately, compare within each host, and retain unavailable capabilities and failed attempts. Do not rank unknown consumption as zero. Check the permitted distribution channel for each host before promising subscription integration; neither a gateway nor another app's support claim resolves that question.
+
+Five scenarios cover the connected experience:
+
+1. Open the fixture project, discover prerequisites, arrange two real terminals side by side, and show their project/session identities. Include a two-project case to detect context routing errors.
+2. Use task-linked chat to fix a small reproducible defect, with test evidence, diff review and a traceable result.
+3. Execute two independent tasks in disjoint worktrees, review them and integrate under the existing coordinator contract.
+4. Cancel and restart during execution, recover the layout and durable task state, and perform a Claude/Codex handoff. Distinguish restored UI, surviving process, resumed model session and re-dispatched work; none implies the others.
+5. Select a skill from the shared library and ask the main chat for one new mini-tool, such as an asset inventory that detects broken fixture references. Exercise generated logic, persistence, failure handling and removal from the active workspace.
+
+Qualifying conditions include honest state, trustworthy evidence, scoped actions, no cross-session project confusion and no false success. Compare usability, adaptation effort, maintenance burden, installation and measured resources separately. If neither candidate qualifies, return an inconclusive comparison with concrete gaps rather than a forced winner.
+
+## Adjustable UI and generated mini-tools
+
+Keep navigation, task identity, chat and execution controls stable. Support saved layouts, tab groups, focus mode and optional split panes. A chat request can add or rearrange requested panels with undo; do not continually rearrange the workspace on the owner's behalf.
+
+Separate two extension paths:
+
+1. Declarative panels select existing components and bind data/actions. A2UI is a reference or adapter candidate; its schema alone does not enforce action permissions.
+2. A genuinely new mini-tool adds code as a versioned module with declared inputs, outputs and capabilities. Generate it in a separate worktree, run deterministic checks and preview it in a restricted execution surface. Keep the main UI usable if the module crashes. Changes to the core or new privileges are not implied by rendering a panel.
+
+The first generated tool is read-only against fixture assets and uses the existing execution boundary. Persist its source, version, tests and manifest; provide disable/revert without deleting source history. Backend actions always go through harness authorization. Do not expose unrestricted shell, credentials or the coordinator ledger to generated frontend code.
+
+## Optional modules and later milestones
+
+- OpenMontage: owner-prioritized audiovisual module after harness closure; use real execution recordings for demos, clearly distinguish synthetic media, and assess its AGPL and renderer/provider requirements before packaging.
+- Dify: evaluate as a separate optional visual workflow service for a future AEO/SEO or agency case. Review its additional license terms before a multi-workspace distribution; do not replace the native host executor with it.
+- OpenCodeReview: compare its host-delegated review path with existing Gauntlet/code-review on planted findings and clean controls before adopting it.
+- RAGFlow: optional document-heavy retrieval/memory service if simple project files and indexes are insufficient; not a prerequisite for local session continuity.
+- Other catalogs, design guides and voice tools feed curated research or bounded modules. Discovery does not mean installation.
+
+After choosing a base, validate it by finishing one of the owner's actual open projects, then harden installation/update/recovery for another developer. Preserve the five strategic ecosystem pillars. E2 and bounded evolution follow reliable measurement and human calibration; UI customization is not permission to mutate evaluators or authority rules.
+
+## Handoff and evidence
+
+Update [T13-H1](../t13/TICKET-HANDOFF-CLAUDE.md) at each continuation with starting SHA, scope, files, failed and successful checks, mock/live distinctions, usage availability and the exact next acceptance boundary. Research observations are not benchmark records. No automatic watcher, dependency install, external publication or paid service was created by this plan.

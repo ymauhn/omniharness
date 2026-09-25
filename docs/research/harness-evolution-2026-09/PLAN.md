@@ -2,6 +2,8 @@
 
 Date: 2026-09-22. Status: **research complete; integration proposal for owner review**. This document is the requested planning deliverable, not a claim that its features are implemented or that a new Scout implementation routine has passed its plan gate.
 
+Owner update, 2026-09-25: the [OmniForge sequence](../../omniforge/PLAN.md) supersedes this proposal's immediate ordering. Finish the pending E1/T13 reliability milestone before desktop prototyping. The comparative prototype is approved; multi-session terminals, shared scoped context and one generated mini-tool are now requirements. Commercial/community expansion remains later work. Preserve the research and findings below as dated context, not a competing instruction to start conversion work first.
+
 ## Direction and scope
 
 The owner confirmed during this research:
