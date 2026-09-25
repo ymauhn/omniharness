@@ -1,13 +1,13 @@
 # Resume here: full OmniForge MVP
 
-Updated September 25, 2026. **Workspace checkpoint validated; complete MVP still active.** The owner asked to continue normally while retaining an interruption-ready handoff near the weekly credit limit. A read-only account query observed 25% weekly allowance remaining at the earlier checkpoint; that is account-wide, not task attribution. No reset was redeemed or credit purchased.
+Updated September 25, 2026. **Arsenal UI source validated; complete MVP still active.** The owner asked to continue normally while retaining an interruption-ready handoff near the weekly credit limit. A later read-only account query observed **12% weekly allowance remaining** (earlier 25%/14%); this is account-wide, not task attribution. No reset was redeemed or credit purchased. The owner may continue with Claude using this file and the current checkpoint; that does not reduce the MVP scope.
 
 ## Start here
 
 1. Read this file, root AGENTS.md and [T13 handoff](../t13/TICKET-HANDOFF-CLAUDE.md); inspect actual Git status/log before editing.
-2. Reviewed implementation: **`9e2282e412fe418e551aeb89b56ed7faeed58304`**, pushed on `codex/mvp-workspace-flows`; [PR #6](https://github.com/ymauhn/omniharness/pull/6) records integration into master. Its runtime base is `17230c093f933c8cd943216a80bc02eea4530079` (PR #5). Earlier documentation backup `9e7a8b74e530d16e5ef673ee8c5964817d841d76` is also pushed. Subsequent checkpoint-identity edits are documentation only; inspect Git/PR for the current merge commit.
+2. Reviewed workspace implementation: **`9e2282e412fe418e551aeb89b56ed7faeed58304`**; [PR #6](https://github.com/ymauhn/omniharness/pull/6) **merged** as `4f4fb0362dadbfdd7c78f6001a36e36a685ed4a0`. Arsenal source is committed as **`43f95690c157733a424aab75f6b39e7a3aa1c8e1`** on `codex/mvp-arsenal-ui`, after documentation checkpoint `922ec92d01566773019938d851d0bea2bd274680`. Its [arsenal UI checkpoint](ARSENAL-UI-CHECKPOINT.md) has exact scope and validation. Inspect Git/PR for later integration and dirty files.
 3. **Root is the source of truth.** Worktree `_intake/mvp-terminal-grid` lacks the final memory/Workflows index wiring; `_intake/mvp-workflows` lacks several root repairs. Do not copy either over root. Preserve worktrees, old backups and stash `8105be6`.
-4. Confirm PR #6's state: if already merged, start the next scoped branch from the integrated master; if interrupted before merge, finish the exact-head merge after confirming only the reviewed runtime and documentation are included. At PR creation GitHub reported CLEAN/MERGEABLE with no configured status checks; local test evidence above is the validation. No force push, unrelated PR #2 changes or deployment.
+4. PR #6 was merged after exact-head review. Continue the scoped `codex/mvp-arsenal-ui` branch, respecting the file ownership recorded in its checkpoint. No force push, unrelated PR #2 changes or deployment.
 
 ## Delivered and verified
 
@@ -18,14 +18,11 @@ Updated September 25, 2026. **Workspace checkpoint validated; complete MVP still
 - Final `scripts/check.ps1`: **282/282 Python (89.655 s), 130/130 Lab (18.421 s), 7/7 mascot (0.058 s), zero skips**. Existing portal visual methods, other Node scenarios and eval selftest passed. Aggregate exit **1 solely for the two owner-preserved Claude ask/deny differences**; 27/29 installation rows conform. Separate graph check: 546 nodes, 100 edges, 5 proposals, 0 errors.
 - Full log: `%TEMP%/omniharness-mvp-workspace-final-20260925.log`. [Validation](../t13/VALIDATION.md) and [checkpoint record](WORKSPACE-FLOWS-CHECKPOINT.md) retain failed attempts, review identities, repair cycles, hashes and limitations. All final component reviews and both root wiring reviews passed. No source changed after the full suite; documentation changes do not imply a new runtime pass.
 
-## Exact next implementation slice
+## Current slice and next executable action
 
-**Connect the existing arsenal to the Lab and selected task identity.** Reuse `harness/agent_arsenal.py`, `harness/agent_profiles.json`, [AGENT-ARSENAL](AGENT-ARSENAL.md) and the Agent Forge skill; do not build a second registry.
+**Project-bound Arsenal is implemented, reviewed, source-validated and committed; PR integration may still be pending.** It reuses `harness/agent_arsenal.py` and the Agent Forge skill. The authenticated panel exposes five built-ins, draft/review/activation/disable/rollback, selected session-note derivation and task pins. Pins remain `runnable:false`; no managed executor admission follows. Its [checkpoint](ARSENAL-UI-CHECKPOINT.md) lists exact files, focused/full results, review repairs and the next PR step. Do not treat prior PR #6 tests as validation for this source; the new 283/146/7 zero-skip result applies.
 
-- Add authenticated bounded API/UI to inspect built-in and saved profiles, review/activate versions, disable/rollback, and deliberately pin a reviewed profile to a chosen project task.
-- A task pin is context, not executor admission. Keep native managed execution unavailable until V-04 passes.
-- Derivation accepts explicitly selected, sanitized session excerpts and cites them. Do not discover/export private chats automatically. The owner-selected real derivation remains a later human acceptance step if no material is selected.
-- Freeze observable acceptance, leave meaningful tests, obtain independent reviews and update this checkpoint before proceeding.
+After this source is committed and integrated, **prepare an OmniHarness demonstration project and a guided local acceptance script** for mascote/skins/selected text, scoped memory, multiple terminal panes and Arsenal. The owner plans Claude-assisted visual acceptance; keep V-01 pending until actual observations arrive. `docs/omniforge/LAB.md`, the Lab entrypoint and new focused demo checks are the relevant files. The demo must use an isolated demo data directory, include a safe launch command and initial project/task/notes without copying private chats or starting paid agents, and never overwrite the owner's existing `.omniforge-lab` data. Then resume [V1 release contract](V1-RELEASE-CONTRACT.md), with all-role native isolation and real usage accounting as the critical harness gate.
 
 Then retain the full [release contract](V1-RELEASE-CONTRACT.md): optional OS-vault API keys/JEV controls and truthful quota/usage UI; capability graph hover/focus help; generated asset-link checker and requested repair workflow; real Claude/Codex integration with complete accounting and verified cancellation/isolation; Windows packaging and Goose comparison; five real pillar demonstrations and calibrated graph-weighted eval/evolution. Templates, metadata and mocks do not close these requirements. Payments remain deferred.
 

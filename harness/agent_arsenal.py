@@ -367,6 +367,22 @@ class Registry:
         _require(task_id in pins, 'Unknown task pin')
         return copy.deepcopy(pins[task_id])
 
+    def find_pin(self, task_id, project_id):
+        """Return a scoped pin or None; malformed registries still raise."""
+        _id(task_id); _id(project_id)
+        pin = self._read()[2].get(task_id)
+        return copy.deepcopy(pin) if pin is not None and pin['project_id'] == project_id else None
+
+    def list_pins(self, project_id):
+        """Bounded project-filtered summaries, without duplicating pinned profiles."""
+        _id(project_id)
+        document, _, pins = self._read()
+        fields = ('task_id', 'project_id', 'profile_id', 'version', 'host', 'content_sha256',
+                  'registry_revision', 'created_at', 'runnable', 'authority')
+        return {'revision': document['revision'], 'project_id': project_id,
+                'pins': [{key: pin[key] for key in fields} for _, pin in sorted(pins.items())
+                         if pin['project_id'] == project_id], 'runnable': False}
+
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
