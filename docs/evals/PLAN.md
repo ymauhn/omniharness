@@ -8,6 +8,8 @@ Make an evaluation record suitable for comparison: it must distinguish an invali
 
 ## Where we are
 
+2026-09-25 continuation: the shared-receipt reconciliation is implemented in record schema v3. Evals and the ledger now use the same whole-tree parser; comparability requires source/session binding and fresh-invocation evidence. Stale streams and contradictory derived metrics are rejected. See [RECORDS](RECORDS.md) and [current validation](../t13/VALIDATION.md). All 100 Python tests passed with zero skips; the overall host check retains two owner-accepted permission-policy differences. Native Claude/Codex execution/recovery and all-role containment remain open before live controls/B8/B9. No model benchmark or evolutionary pilot ran.
+
 T1 is committed as `1a2289c`, including required visual dependencies and its 41/41 Python tests with no skips. E1's record contract, comparator and offline fixtures are implemented in the later E1/T13 checkpoint `8e6c20e`; see `RECORDS.md` and `../experiments/eval-integrity-2026-09.md`. T13 local S1/S2/S4 and S3 primitives are implemented, with native executor/usage integration and live controls still open. The complete September 21 battery passed 92/92 Python tests without skips. E2 remains future work. The [September 22 integration proposal](../research/harness-evolution-2026-09/PLAN.md) adds a concrete next seam: reconcile this runner's main-loop telemetry with whole-tree provider receipts before B8/B9, and demonstrate Claude and Codex separately against the same acceptance corpus.
 
 ## E1: comparable and auditable records

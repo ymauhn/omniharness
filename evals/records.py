@@ -3,12 +3,14 @@ import hashlib
 import json
 import math
 import platform
+import re
 import statistics
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from harness.swarm_accounting import RECEIPT_CONTRACT, TOKENS
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 USAGE = {"tokens_in": "input_tokens", "tokens_out": "output_tokens",
          "cache_read": "cache_read_input_tokens", "cache_create": "cache_creation_input_tokens"}
 
@@ -22,7 +24,7 @@ def timestamp():
 
 
 def code_hash(root):
-    return digest({p: file_hash(root / "evals" / p) for p in ("run.py", "records.py")})
+    return digest({p: file_hash(root / p) for p in ("evals/run.py", "evals/records.py", "harness/swarm_accounting.py")})
 
 
 def digest(value):
@@ -40,19 +42,23 @@ def file_map(root):
 
 
 def measurement(value):
-    return value if type(value) in (int, float) and math.isfinite(value) and value >= 0 else None
+    return value if type(value) in (int, float) and value >= 0 and (type(value) is int or math.isfinite(value)) else None
 
 
-def telemetry(result):
+def telemetry(result, receipt=None):
     result = result or {}
     usage = result.get("usage")
     usage = usage if isinstance(usage, dict) else {}
-    fields = {name: measurement(usage.get(raw)) for name, raw in USAGE.items()}
-    fields.update({"cost_usd": measurement(result.get("total_cost_usd")),
+    categories = (receipt or {}).get("token_categories") or {}
+    estimate = (receipt or {}).get("estimated_usd")
+    fields = {name: categories.get(raw) for name, raw in USAGE.items()}
+    fields.update({"total_tokens": (receipt or {}).get("total_tokens"),
+                   "estimated_usd": estimate, "cost_usd": estimate, "billed_usd": None,
                    "turns": measurement(result.get("num_turns")),
                    "duration_ms": measurement(result.get("duration_ms"))})
-    return {**fields, "usage_raw": usage,
-            "coverage": {k: "measured" if v is not None else "unavailable" for k, v in fields.items()}}
+    return {**fields, "usage_raw": usage, "usage_receipt": receipt,
+            "coverage": {k: ("estimated" if k in ("cost_usd", "estimated_usd") else "measured")
+                         if v is not None else "unavailable" for k, v in fields.items()}}
 
 
 def source(ws):
@@ -99,6 +105,46 @@ def comparison_key(rec):
     return digest({**{k: m[k] for k in required}, **{k: rec[k] for k in scoring}})
 
 
+def validate_usage(rec):
+    """Reject contradictory derived fields; a hash binds evidence, not OS isolation."""
+    receipt = rec.get("usage_receipt")
+    if receipt is not None:
+        if not isinstance(receipt, dict):
+            raise ValueError("invalid usage receipt")
+        if (not isinstance(receipt.get("source_sha256"), str)
+                or not re.fullmatch(r"[0-9a-f]{64}", receipt["source_sha256"])
+                or receipt["source_sha256"] != (rec.get("source") or {}).get("files", {}).get("_stream.jsonl")
+                or not receipt.get("session_id")
+                or receipt["session_id"] != (rec.get("manifest") or {}).get("session_id")
+                or receipt.get("exit_code") != rec.get("exit_code")):
+            raise ValueError("usage receipt is not bound to stream/session/process")
+        categories = receipt.get("token_categories")
+        if categories is not None and (not isinstance(categories, dict) or set(categories) != set(TOKENS)
+                or any(type(v) is not int or v < 0 for v in categories.values())):
+            raise ValueError("invalid token categories")
+        total = sum(categories.values()) if categories is not None else None
+        if receipt.get("total_tokens") != total or (total is not None and type(receipt.get("total_tokens")) is not int):
+            raise ValueError("contradictory receipt total")
+        estimate = receipt.get("estimated_usd")
+        if (estimate is not None and (measurement(estimate) is None or estimate > 1_000_000_000)) or receipt.get("billed_usd") is not None:
+            raise ValueError("invalid estimate or unsupported billing claim")
+    derived = telemetry(None, receipt)
+    for name in (*USAGE, "total_tokens", "estimated_usd", "cost_usd", "billed_usd"):
+        if (rec.get(name) != derived[name] or
+                (derived[name] is not None and type(rec.get(name)) not in (int, float)) or
+                (rec.get("coverage") or {}).get(name) != derived["coverage"][name]):
+            raise ValueError(f"{name} contradicts usage receipt")
+
+
+def metric_value(rec, metric):
+    receipt = rec.get("usage_receipt") or {}
+    manifest = rec.get("manifest") or {}
+    if (any(receipt.get(k) != v for k, v in RECEIPT_CONTRACT.items())
+            or manifest.get("invocation") != "fresh-single-input"):
+        return None
+    return measurement(receipt.get(metric))
+
+
 def read_history(directory):
     rows, errors, ids = [], [], set()
     for path in sorted(Path(directory).glob("*.json")):
@@ -119,9 +165,10 @@ def read_history(directory):
                     raise ValueError("successful task contradicts failure reasons")
                 if rec.get("pass") != (rec["run_valid"] and rec["task_pass"] is True):
                     raise ValueError("contradictory pass alias")
+                validate_usage(rec)
                 ids.add(rec["record_id"])
             rows.append(rec)
-        except (OSError, UnicodeError, ValueError) as exc:
+        except (OSError, UnicodeError, ValueError, TypeError, AttributeError) as exc:
             errors.append(f"INVALID_RECORD {path.name}: {exc}")
     return sorted(rows, key=lambda r: (r.get("run_ts", r["ts"]), r["ts"], r.get("record_id", ""))), errors
 
@@ -166,10 +213,10 @@ def compare(directory, n=5, factor=1.2):
             if valid[-1].get("control_discriminative") is True and new.get("control_discriminative") is False:
                 why.append("control_discriminative true -> false")
             if new["task_pass"]:
-                for metric in ("tokens_out", "cost_usd"):
-                    hist = [measurement(r.get(metric)) for r in valid if r["task_pass"]]
+                for metric in ("total_tokens", "estimated_usd"):
+                    hist = [metric_value(r, metric) for r in valid if r["task_pass"]]
                     hist = [v for v in hist if v is not None]
-                    value = measurement(new.get(metric))
+                    value = metric_value(new, metric)
                     if hist and value is not None:
                         row["metrics_compared"].append(metric)
                         median = statistics.median(hist)

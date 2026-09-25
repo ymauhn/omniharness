@@ -96,7 +96,8 @@ class ExecutionContract(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 run.write_record(a, "harness")
             self.assertEqual(pa.read_bytes(), before)
-            for k in ("tokens_in", "tokens_out", "cache_read", "cache_create", "cost_usd"):
+            for k in ("tokens_in", "tokens_out", "cache_read", "cache_create", "total_tokens",
+                      "cost_usd", "estimated_usd", "billed_usd"):
                 self.assertIsNone(a[k])
 
     def test_rescore_uses_original_manifest_and_budget(self):
@@ -159,7 +160,7 @@ class ExecutionContract(unittest.TestCase):
                     status = run.score_ws(fixture.get("case", "detour-bounded"), fixture["arm"], ws, 1,
                                           fixture["exit_code"], failures=fixture.get("runner_failures", []))
                 rec = json.loads(next((ws / "records").glob("*.json")).read_text())
-                self.assertEqual(rec["schema_version"], 2)
+                self.assertEqual(rec["schema_version"], 3)
                 self.assertEqual(rec["run_valid"], fixture["valid"])
                 self.assertEqual(rec["task_pass"], fixture.get("task"))
                 self.assertEqual(rec["control_discriminative"], fixture.get("control"))
@@ -175,10 +176,14 @@ class ExecutionContract(unittest.TestCase):
 def comparable(stamp, task=True, valid=True, cost=1):
     manifest = run.records.manifest(run.ROOT, run.CASES / "detour-bounded", "harness", 1, 60,
                                     {"home_isolation": "offline-fixture", "permission_mode": "manual"})
-    return run.baseline("detour-bounded", "harness", task, [], exit_code=0 if valid else 1,
+    manifest.update(session_id=manifest["run_id"], invocation="fresh-single-input")
+    exit_code = 0 if valid else 1
+    result = {"type": "result", "subtype": "success", "session_id": manifest["session_id"], "total_cost_usd": cost}
+    receipt = run.usage_from_stream(json.dumps(result).encode(), session=manifest["session_id"], exit_code=exit_code)
+    return run.baseline("detour-bounded", "harness", task, [], exit_code=exit_code,
                         stamp=stamp, run_valid=valid, manifest=manifest, model="fixture-model", agent_version="fixture-cli",
-                        grader_sha256=manifest["grader_sha256"], source={"files": {"_stream.jsonl": "a" * 64}},
-                        cost_usd=cost, tokens_out=None)
+                        grader_sha256=manifest["grader_sha256"], source={"files": {"_stream.jsonl": receipt["source_sha256"]}},
+                        result=result, usage_receipt=receipt)
 
 
 class ComparisonContract(unittest.TestCase):
@@ -217,9 +222,9 @@ class ComparisonContract(unittest.TestCase):
         report = self.analyse(records)
         self.assertEqual(report["alerts"], [])
         self.assertEqual(report["groups"][0]["reliability"]["attempts"], 3)
-        records[-1]["cost_usd"] = 1.3
-        self.assertIn("cost_usd", self.analyse(records)["alerts"][0])
-        records[-1]["cost_usd"] = None
+        records[-1] = comparable("03", cost=1.3)
+        self.assertIn("estimated_usd", self.analyse(records)["alerts"][0])
+        records[-1] = comparable("03", cost=None)
         report = self.analyse(records)
         self.assertEqual(report["alerts"], [])
         self.assertEqual(report["groups"][0]["metrics_compared"], [])

@@ -1,12 +1,13 @@
 import sys; sys.stdout.reconfigure(encoding="utf-8")
 """Benchmark runner: run | rescore | record | checkpoint | regress | audit-history | selftest.
 Every paid arm goes through `claude -p` (ADR 0001); stdout to a file, tree-kill on timeout, utf-8 everywhere."""
-import argparse, importlib.util, json, os, shutil, signal, subprocess, tempfile, time
+import argparse, importlib.util, json, os, shutil, signal, subprocess, tempfile, time, uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from evals import records
+from harness.swarm_accounting import terminal_result, unknown_receipt, usage_from_stream
 CASES = ROOT / "evals" / "cases"
 RESULTS = ROOT / "evals" / "results"
 
@@ -50,8 +51,8 @@ def parse(path, strict=False):
             for c in message["content"]:
                 if c.get("type") == "tool_use" and (not isinstance(c.get("input"), dict) or not isinstance(c.get("name"), str)):
                     raise ValueError("malformed tool event")
-    if strict and sum(ev.get("type") == "result" for ev in events) > 1:
-        raise ValueError("malformed stream: multiple result events")
+    if strict:
+        result = terminal_result(events)
     commands = [c["input"]["command"] for ev in events if ev.get("type") == "assistant"
                 for c in (ev.get("message") or {}).get("content") or []
                 if c.get("type") == "tool_use" and isinstance(c.get("input"), dict) and "command" in c["input"]]
@@ -66,10 +67,10 @@ def baseline(case, arm, passed, failures, commands=(), result=None, exit_code=No
            "scorer_sha256": records.code_hash(ROOT),
            "control_discriminative": None, "exit_code": exit_code,
            "execution_failures": [], "control_failures": [], "source": None, "manifest": None,
-           "commands": list(commands), "failures": list(failures), **records.telemetry(result)}
+           "commands": list(commands), "failures": list(failures),
+           **records.telemetry(result, extra.pop("usage_receipt", None))}
     rec.update(extra)
     rec["pass"] = rec["run_valid"] is True and rec["task_pass"] is True
-    rec["coverage"] = {k: "measured" if rec[k] is not None else "unavailable" for k in rec["coverage"]}
     return rec
 
 
@@ -117,15 +118,23 @@ def cmd_run(a):
     # detour-bounded needs the Skill tool to run in the harness arm and to be absent in the control arm.
     arms = json.loads((case_dir / "arms.json").read_text(encoding="utf-8")) if (case_dir / "arms.json").is_file() else {}
     arm_cfg = arms.get(a.arm, {})
+    flags = arm_cfg.get("flags", [])
+    if (not isinstance(flags, list) or len(flags) % 2 or any(
+            flags[i] not in ("--disallowedTools", "--allowedTools", "--model")
+            or not isinstance(flags[i + 1], str) or not flags[i + 1] or flags[i + 1].startswith("-")
+            for i in range(0, len(flags), 2))):
+        raise ValueError("arm flags must be tool/model pairs; session and stream protocol are runner-owned")
+    session = str(uuid.uuid4())
     mode = arm_cfg.get("permission_mode") or ("manual" if harness else "bypassPermissions")
-    cmd = [a.claude, "-p", prompt, "--output-format", "stream-json", "--verbose",
+    cmd = [a.claude, "-p", prompt, "--session-id", session, "--output-format", "stream-json", "--verbose",
            "--max-budget-usd", str(a.max_budget_usd), "--setting-sources", arm_cfg.get("setting_sources", "project"), "--strict-mcp-config",
-           "--permission-mode", mode] + list(arm_cfg.get("flags", []))
+           "--permission-mode", mode] + flags
     if harness and mode == "manual": cmd += ["--permission-prompts", "none"]
     config = {"permission_mode": mode, "setting_sources": arm_cfg.get("setting_sources", "project"),
               "flags": list(arm_cfg.get("flags", [])), "permission_prompts": "none" if mode == "manual" else None,
               "home_isolation": "unverified"}
     manifest = records.manifest(ROOT, case_dir, a.arm, a.max_budget_usd, a.timeout, config)
+    manifest.update(session_id=session, invocation="fresh-single-input")
     (ws / "_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     out, err = ws / "_stream.jsonl", ws / "_stderr.txt"
     failures = []
@@ -147,11 +156,24 @@ def cmd_run(a):
     return score_ws(a.case, a.arm, ws, a.max_budget_usd, exit_code, stamp, failures)
 
 
+def read_metadata(path, failures):
+    if not path.exists():
+        return {}
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(value, dict):
+            raise ValueError("expected an object")
+        return value
+    except (OSError, ValueError) as exc:
+        failures.append(f"invalid {path.name}: {exc}")
+        return {}
+
+
 def evaluate_ws(case, arm, ws, max_budget, exit_code=None, stamp=None, failures=()):
     """Offline assessment; control discrimination never substitutes for task quality."""
     failures = list(failures)
     process_path = ws / "_process.json"
-    process = json.loads(process_path.read_text(encoding="utf-8")) if process_path.exists() else {}
+    process = read_metadata(process_path, failures)
     if process_path.exists():
         if process.get("exit_code") != exit_code:
             failures.append("caller exit code contradicts persisted process status")
@@ -159,6 +181,16 @@ def evaluate_ws(case, arm, ws, max_budget, exit_code=None, stamp=None, failures=
         failures.extend(f for f in process.get("failures", []) if f not in failures)
     if type(exit_code) is not int or exit_code != 0:
         failures.append(f"process did not succeed: exit_code={exit_code}")
+    manifest_path = ws / "_manifest.json"
+    manifest = read_metadata(manifest_path, failures) or None
+    receipt = None
+    if manifest and manifest.get("session_id"):
+        data = (ws / "_stream.jsonl").read_bytes() if (ws / "_stream.jsonl").exists() else b""
+        try:
+            receipt = usage_from_stream(data, session=manifest["session_id"], exit_code=exit_code)
+        except (OSError, ValueError) as exc:
+            receipt = unknown_receipt(data, session=manifest["session_id"], exit_code=exit_code, issue=str(exc))
+            failures.append(f"invalid usage evidence: {exc}")
     try:
         events, result, commands = parse(ws / "_stream.jsonl", strict=True)
     except ValueError as exc:
@@ -185,15 +217,13 @@ def evaluate_ws(case, arm, ws, max_budget, exit_code=None, stamp=None, failures=
         except Exception as exc:
             failures.append(f"grader error: {type(exc).__name__}: {exc}")
             task_pass, discriminative = None, None
-    manifest_path = ws / "_manifest.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else None
     init = next((ev for ev in events if ev.get("type") == "system" and ev.get("subtype") == "init"), {})
-    extra = {"run_id": manifest["run_id"], "run_ts": manifest["started_at"]} if manifest else {"run_id": records.digest({"stream": records.file_hash(ws / "_stream.jsonl"), "workspace": str(ws.resolve())})}
+    extra = {"run_id": manifest["run_id"], "run_ts": manifest["started_at"]} if manifest and manifest.get("run_id") and manifest.get("started_at") else {"run_id": records.digest({"stream": records.file_hash(ws / "_stream.jsonl"), "workspace": str(ws.resolve())})}
     return baseline(case, arm, task_pass, failures + task_failures, commands, result, exit_code, stamp,
                     run_valid=not failures, execution_failures=failures, control_discriminative=discriminative,
                     control_failures=control_failures, source=records.source(ws), workspace=str(ws), manifest=manifest,
                     grader_sha256=records.file_hash(CASES / case / "check.py"), model=init.get("model"),
-                    agent_version=init.get("claude_code_version"), wall_ms=process.get("wall_ms"), **extra)
+                    agent_version=init.get("claude_code_version"), wall_ms=process.get("wall_ms"), usage_receipt=receipt, **extra)
 
 
 def score_ws(case, arm, ws, max_budget, exit_code=None, stamp=None, failures=()):
@@ -207,14 +237,15 @@ def cmd_rescore(a):
     if not (ws / "_stream.jsonl").exists():
         print(f"rescore: no _stream.jsonl in {ws}"); return 1
     status = ws / "_process.json"
-    process = json.loads(status.read_text(encoding="utf-8")) if status.exists() else {}
+    failures = []
+    process = read_metadata(status, failures)
     manifest_path = ws / "_manifest.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
+    manifest = read_metadata(manifest_path, failures)
     if manifest and (manifest.get("case") != a.case or manifest.get("arm") != a.arm or
                      a.max_budget_usd is not None and a.max_budget_usd != manifest.get("budget_usd")):
         print("refused: rescore case/arm/budget contradicts original manifest"); return 1
     budget = manifest.get("budget_usd", a.max_budget_usd)
-    return score_ws(a.case, a.arm, ws, budget, process.get("exit_code"), failures=process.get("failures", []))
+    return score_ws(a.case, a.arm, ws, budget, process.get("exit_code"), failures=failures)
 
 
 def cmd_record(a):
@@ -327,9 +358,14 @@ def cmd_selftest(a):
         Path(d).mkdir()
         for i, (passed, cost) in enumerate(vals):
             manifest = records.manifest(ROOT, CASES / "detour-bounded", "harness", 1, 60, {"home_isolation": "offline-fixture"})
+            session = records.identity()
+            manifest.update(session_id=session, invocation="fresh-single-input")
+            data = json.dumps({"type": "result", "subtype": "success", "session_id": session,
+                               "total_cost_usd": cost}).encode()
+            receipt = usage_from_stream(data, session=session, exit_code=0)
             rec = baseline("detour-bounded", "harness", passed, [], exit_code=0, manifest=manifest,
-                           model="fixture-model", agent_version="fixture-cli", source={"files": {"_stream.jsonl": "a" * 64}},
-                           grader_sha256=manifest["grader_sha256"], cost_usd=cost, tokens_out=int(cost * 1000), stamp=f"{i:03d}")
+                           model="fixture-model", agent_version="fixture-cli", source={"files": {"_stream.jsonl": receipt["source_sha256"]}},
+                           grader_sha256=manifest["grader_sha256"], usage_receipt=receipt, stamp=f"{i:03d}")
             (Path(d) / f"{i:03d}-c-harness.json").write_text(json.dumps(rec), encoding="utf-8")
     with tempfile.TemporaryDirectory() as tmp:
         t = Path(tmp)

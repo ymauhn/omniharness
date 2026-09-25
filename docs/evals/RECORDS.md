@@ -1,6 +1,6 @@
-# Evaluation record contract v2
+# Evaluation record contract v3
 
-Implemented in E1, 2026-09-20. Offline tests use frozen synthetic inputs in `tests/fixtures/evals/streams.json`; they never call a model. This contract certifies execution and the existing deterministic task rubric, not semantic quality or a calibrated evolutionary fitness function.
+Implemented in E1, 2026-09-20; receipt reconciliation on 2026-09-25. Offline tests use synthetic inputs in `tests/fixtures/evals/streams.json` and `tests/test_usage_receipts.py`; they never call a model. This contract certifies execution and the existing deterministic task rubric, not semantic quality or a calibrated evolutionary fitness function.
 
 ## Outcomes and CLI status
 
@@ -31,23 +31,29 @@ The second example is a discriminating control that failed the task. The third i
 
 ## Evidence, identity and measurements
 
-Every record has `schema_version: 2`, a unique `record_id`, an execution `run_id` and a UTC assessment timestamp. New workspaces also have unique names. Exclusive file creation prevents overwrite even if an identity collides. A rescore preserves the original execution identity and start time, writes a new assessment, and does not become a new reliability sample or a more recent execution.
+Every new record has `schema_version: 3`, a unique `record_id`, an execution `run_id` and a UTC assessment timestamp. New workspaces also have unique names. Exclusive file creation prevents overwrite even if an identity collides. A rescore preserves the original execution identity and start time, writes a new assessment, and does not become a new reliability sample or a more recent execution. Older schemas remain readable history; their resource measurements are not comparable to v3.
 
 Before a live run, `_manifest.json` records case/arm, start time, per-file fixture hashes, grader/runner/harness hashes, OS/architecture/Python host information, budget, timeout and an allowlist of relevant configuration. It does not dump the environment, credentials or user-home configuration. `_process.json` stores actual exit status, runner failures and measured wall time. Persisted process failures cannot be overridden by a caller; a rescore cannot replace the original manifest's case, arm or budget.
 
 Each assessment embeds the manifest, actual scorer/grader hashes and SHA-256 linkage to workspace evidence, including stream/process/manifest files. These fingerprints identify evidence; they are not signed attestations of an untrusted host. Model and agent version are taken from the stream's init event when reported, otherwise null. The run's runner hash and the assessment's scorer hash are distinct, so changing the scoring engine also prevents an unqualified comparison.
 
-`tokens_in`, `tokens_out`, `cache_read`, `cache_create`, `cost_usd`, `turns` and provider `duration_ms` remain null when unavailable. `usage_raw` retains the reported categories, including provider-specific details; `coverage` identifies present versus unavailable measurements. Explicit reported zero remains zero. Non-numeric, boolean, negative or non-finite counters do not become measured values. Reported usage/cost is not independently reconciled billing.
+`usage_receipt` comes from the same parser as the coordinator ledger. It binds the exact stream bytes, launched session and process exit, and declares provider, protocol, version, scope and counter semantics. `tokens_in`, `tokens_out`, `cache_read`, `cache_create` and `total_tokens` project only whole-tree `modelUsage`; main-loop `usage_raw` is retained without promotion to a total. Missing, boolean, negative or fractional token categories remain unknown. Failed attempts retain observed usage; potentially zeroed crash results do not count as free work.
+
+`estimated_usd` is the client estimate; `cost_usd` is its compatibility alias and both carry `coverage: estimated`. `billed_usd` stays null. Coverage is independent per metric: missing money does not erase observed tokens. Provider `turns`/`duration_ms` remain separate from accounting. A missing launch session leaves canonical consumption unknown even if a legacy stream contains numbers.
+
+The runner persists a new UUID as `session_id` and `invocation: fresh-single-input` before launch, passes `--session-id`, and owns the input/output protocol. Case flags are restricted to tool/model pairs; resume/continue/session/protocol overrides are rejected before spawning. The shared stream validator rejects multiple results, session mismatches, activity or initialization after the terminal result; benign trailing task summaries remain accepted. The parser alone cannot prove that arbitrary imported evidence came from a fresh invocation.
 
 Interactive aggregate usage is `tokens_total_reported`, never output tokens. Subagent count is `agent_count`, never conversation turns. Runner `wall_ms` is separate from provider duration; summed agent time and human waiting remain unmeasured until instrumentation exists. No fixed USD-to-token conversion is assumed.
 
-T13 accounting clarification (2026-09-21): legacy `usage` categories describe the main loop, not necessarily the full subagent tree; do not sum them into a swarm total. The new coordinator parser uses final `modelUsage` across all models and labels `total_cost_usd` as a client estimate, with `billed_usd: null`. See [ACCOUNTING.md](../t13/ACCOUNTING.md) and the separate historical telemetry reread. This clarification does not rewrite or certify the old benchmark records.
+See [ACCOUNTING.md](../t13/ACCOUNTING.md) for the receipt and ledger boundary. Reconciliation does not rewrite or certify old benchmark records. A rescore without original session provenance cannot manufacture a comparable receipt.
 
 ## Comparison policy
 
 Comparisons stay within case and arm. Compatible records require the same fixture, harness, runner, scorer and grader hashes, host, reported model and agent version, budget, timeout and relevant configuration. Missing provenance blocks comparison. A known isolated execution context is required: `offline-fixture` for synthetic tests or `os-sandbox` for a future live adapter. The current live harness adapter records `home_isolation: unverified`, so its outputs are not yet calibrated baselines.
 
-The latest execution is compared with up to `n` compatible preceding attempts. Valid executions alone establish quality transitions. Efficiency compares successful deliveries with successful deliveries, using a median of known output-token/cost measurements and the configured factor (default 1.2). Missing metrics are omitted explicitly in `metrics_compared`, never converted to zero. All distinct attempts, including failures and unverified legacy entries, remain in the displayed reliability denominator; incompatible cohorts are not pooled for a quality or efficiency claim. Counts are evidence coverage, not statistical significance.
+The latest execution is compared with up to `n` compatible preceding attempts. Valid executions alone establish quality transitions. Efficiency compares successful deliveries using medians of known `total_tokens` and `estimated_usd`, with the configured factor (default 1.2). A compatible versioned receipt and fresh-invocation manifest are required; unknown scope/version/counter semantics prevent resource comparison without discarding a valid task outcome. Contradictions between receipt, aliases, coverage, session, process or source hash produce `INVALID_RECORD`. The scorer fingerprint includes the shared parser.
+
+Missing metrics are omitted from `metrics_compared`, never converted to zero. All distinct attempts, including failures and unverified legacy entries, remain in the reliability denominator; incompatible cohorts are not pooled for quality or efficiency claims. Counts are evidence coverage, not statistical significance.
 
 A repeated assessment of one execution counts once. Reused record IDs or a run ID attached to different stream evidence produce `INVALID_RECORD`. Control convergence is reported separately from task-quality decline. Frozen fixtures include positive deliveries so rejecting every run cannot satisfy the suite.
 

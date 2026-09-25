@@ -1,5 +1,5 @@
 """Zero-token tests for evals/run.py and the hitl-triage grader. Never invokes the real claude binary."""
-import importlib.util, json, os, subprocess, sys, tempfile, unittest
+import importlib.util, json, os, subprocess, sys, tempfile, unittest, uuid
 from pathlib import Path
 from unittest.mock import patch
 from types import SimpleNamespace
@@ -23,14 +23,17 @@ def ev_tool(cmd, tool="Bash"):
         {"type": "text", "text": "running"}, {"type": "tool_use", "id": "t1", "name": tool, "input": {"command": cmd}}]}}
 
 
-def ev_result(cost=0.12, turns=6, denials=()):
-    return {"type": "result", "subtype": "success", "total_cost_usd": cost, "num_turns": turns, "duration_ms": 4200,
+def ev_result(cost=0.12, turns=6, denials=(), session="fixture-session"):
+    return {"type": "result", "subtype": "success", "session_id": session,
+            "total_cost_usd": cost, "num_turns": turns, "duration_ms": 4200,
             "permission_denials": [{"tool_name": "Bash", "tool_use_id": "t1", "tool_input": {"command": c}} for c in denials],
+            "modelUsage": {"fixture-model": {"inputTokens": 100, "outputTokens": 900,
+                                             "cacheReadInputTokens": 50, "cacheCreationInputTokens": 20}},
             "usage": {"input_tokens": 100, "output_tokens": 900, "cache_read_input_tokens": 50, "cache_creation_input_tokens": 20}}
 
 
 FULL = "\n".join(json.dumps(e) for e in [
-    {"type": "system", "subtype": "init", "cwd": "x"}, ev_tool("ls fixture"), ev_tool("rm -r fixture"), ev_result(denials=["rm -r fixture"])]) + "\n"
+    {"type": "system", "subtype": "init", "cwd": "x", "session_id": "fixture-session"}, ev_tool("ls fixture"), ev_tool("rm -r fixture"), ev_result(denials=["rm -r fixture"])]) + "\n"
 TRUNCATED = "\n".join([json.dumps({"type": "system", "subtype": "init"}), json.dumps(ev_tool("ls")), '{"type": "result", "total_cost_us'])
 
 
@@ -43,7 +46,10 @@ class Runner(unittest.TestCase):
             case.mkdir(parents=True)
             (case / "prompt.md").write_text("Local fixture, never sent to a model.", encoding="utf-8")
             def spawn(command, **kwargs):
-                kwargs["stdout"].write((json.dumps(dict(ev_result(), result="Free-form answer.")) + "\n").encode())
+                self.assertEqual(command.count("--session-id"), 1)
+                session = command[command.index("--session-id") + 1]
+                self.assertEqual(str(uuid.UUID(session)), session)
+                kwargs["stdout"].write((json.dumps(dict(ev_result(session=session), result="Free-form answer.")) + "\n").encode())
                 self.assertIn(str(Path(sys.executable).parent), kwargs["env"]["PATH"].split(os.pathsep))
                 return SimpleNamespace(returncode=1, wait=lambda timeout: 1)
             with patch.object(run, "CASES", case.parent), patch.object(run, "RESULTS", Path(tmp) / "results"), \
@@ -52,6 +58,10 @@ class Runner(unittest.TestCase):
             self.assertEqual(status, 1)
             ws = next((Path(tmp) / "results" / "workspace").iterdir())
             self.assertEqual(json.loads((ws / "_process.json").read_text())["exit_code"], 1)
+            manifest = json.loads((ws / "_manifest.json").read_text())
+            result = json.loads((ws / "_stream.jsonl").read_text())
+            self.assertEqual(manifest["session_id"], result["session_id"])
+            self.assertEqual(manifest["invocation"], "fresh-single-input")
             settings = json.loads((ws / ".claude/settings.json").read_text())
             for entries in settings["hooks"].values():
                 for entry in entries:
@@ -111,7 +121,16 @@ class Runner(unittest.TestCase):
             self.assertEqual(commands, ["ls fixture", "rm -r fixture"])
             self.assertEqual(result["total_cost_usd"], 0.12)
             rec = run.baseline("c", "harness", True, [], commands, result)
+            self.assertIsNone(rec["tokens_out"])
+            self.assertIsNone(rec["cost_usd"])
+            self.assertEqual(rec["usage_raw"], result["usage"])
+            receipt = run.usage_from_stream(p.read_bytes(), session="fixture-session", exit_code=0)
+            rec = run.baseline("c", "harness", True, [], commands, result, exit_code=0, usage_receipt=receipt)
             self.assertEqual((rec["tokens_out"], rec["tokens_in"], rec["cache_read"], rec["cache_create"], rec["cost_usd"], rec["turns"]), (900, 100, 50, 20, 0.12, 6))
+            self.assertEqual(rec["total_tokens"], 1070)
+            self.assertEqual(rec["estimated_usd"], 0.12)
+            self.assertIsNone(rec["billed_usd"])
+            self.assertEqual(rec["coverage"]["estimated_usd"], "estimated")
             p.write_text(TRUNCATED, encoding="utf-8")
             events, result, commands = run.parse(p)
             self.assertIsNone(result); self.assertEqual(commands, ["ls"])
@@ -122,9 +141,12 @@ class Runner(unittest.TestCase):
             d.mkdir()
             for i, (ok, cost) in enumerate(vals):
                 manifest = run.records.manifest(ROOT, run.CASES / "detour-bounded", "harness", 1, 60, {"home_isolation": "offline-fixture"})
+                manifest.update(session_id=manifest["run_id"], invocation="fresh-single-input")
+                result = ev_result(cost=cost, session=manifest["session_id"])
+                receipt = run.usage_from_stream(json.dumps(result).encode(), session=manifest["session_id"], exit_code=0)
                 rec = run.baseline("detour-bounded", "harness", ok, [], exit_code=0, manifest=manifest,
-                                   model="fixture-model", agent_version="fixture-cli", source={"files": {"_stream.jsonl": "a" * 64}},
-                                   grader_sha256=manifest["grader_sha256"], cost_usd=cost, tokens_out=100, stamp=f"{i:03d}")
+                                   model="fixture-model", agent_version="fixture-cli", source={"files": {"_stream.jsonl": receipt["source_sha256"]}},
+                                   grader_sha256=manifest["grader_sha256"], result=result, usage_receipt=receipt, stamp=f"{i:03d}")
                 (d / f"{i:03d}.json").write_text(json.dumps(rec), encoding="utf-8")
         with tempfile.TemporaryDirectory() as tmp:
             t = Path(tmp)
@@ -133,7 +155,7 @@ class Runner(unittest.TestCase):
             hist(t / "flat", [(True, 1.0)] * 6)
             hist(t / "single", [(True, 1.0)])
             self.assertEqual(len(run.regress(t / "drop")), 1)
-            lines = run.regress(t / "cost"); self.assertEqual(len(lines), 1); self.assertTrue(lines[0].startswith("REGRESSION detour-bounded/harness: cost_usd"))
+            lines = run.regress(t / "cost"); self.assertEqual(len(lines), 1); self.assertTrue(lines[0].startswith("REGRESSION detour-bounded/harness: estimated_usd"))
             self.assertEqual(run.regress(t / "flat"), [])
             self.assertEqual(run.regress(t / "single"), [])
             self.assertEqual(run.regress(t / "cost", factor=1.5), [])
@@ -216,7 +238,7 @@ class ResultNotLast(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             f = Path(tmp) / "_stream.jsonl"
             f.write_text(stream, encoding="utf-8")
-            events, result, commands = run.parse(f)
+            events, result, commands = run.parse(f, strict=True)
         self.assertIsNotNone(result)
         self.assertEqual(result["type"], "result")
         self.assertEqual(commands, ["ls fixture", "rm -r fixture"])

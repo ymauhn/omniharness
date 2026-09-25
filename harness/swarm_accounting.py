@@ -11,25 +11,45 @@ from pathlib import Path
 
 TOKENS = {"input_tokens": "inputTokens", "output_tokens": "outputTokens",
           "cache_read_input_tokens": "cacheReadInputTokens", "cache_creation_input_tokens": "cacheCreationInputTokens"}
+RECEIPT_CONTRACT = {"schema_version": 1, "provider": "claude-code", "protocol": "stream-json",
+                    "usage_scope": "whole-tree", "counter_scope": "session-cumulative",
+                    "token_basis": "claude-modelUsage-disjoint", "cost_basis": "claude-client-estimate"}
 
 
 def money(value, rounding=ROUND_CEILING):
-    if type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 1_000_000_000:
+    if type(value) not in (int, float) or not 0 <= value <= 1_000_000_000 or not math.isfinite(value):
         raise ValueError("USD estimate must be a finite nonnegative number")
     return int((Decimal(str(value)) * 1_000_000_000).to_integral_value(rounding=rounding))
 
 
-def usage_from_stream(data, *, session, exit_code):
-    """One non-resumed, single-input CLI call; never sum cumulative result events."""
-    events = [json.loads(line) for line in data.decode("utf-8").splitlines() if line.strip()]
+def terminal_result(events, session=None):
+    """Shared structural boundary for scoring and accounting; system summaries may trail."""
     if any(not isinstance(e, dict) for e in events):
         raise ValueError("non-object stream event")
     results = [e for e in events if e.get("type") == "result"]
-    if len(results) != 1 or not session or results[0].get("session_id") != session:
-        raise ValueError("expected one result bound to the launched session")
+    if len(results) > 1:
+        raise ValueError("multiple result events")
+    if not results:
+        return None
     result = results[0]
-    if any(e.get("type") in ("assistant", "stream_event", "user") for e in events[events.index(result)+1:]):
+    if session is not None and (not session or result.get("session_id") != session):
+        raise ValueError("expected one result bound to the launched session")
+    expected = session or result.get("session_id")
+    if any(e.get("session_id") and expected and e["session_id"] != expected for e in events):
+        raise ValueError("stream session identity mismatch")
+    if any(e.get("type") in ("assistant", "stream_event", "user")
+           or (e.get("type") == "system" and e.get("subtype") == "init")
+           for e in events[events.index(result)+1:]):
         raise ValueError("activity after result; aggregate is stale")
+    return result
+
+
+def usage_from_stream(data, *, session, exit_code):
+    """Parse one session aggregate. Caller must establish a fresh single-input invocation."""
+    events = [json.loads(line) for line in data.decode("utf-8").splitlines() if line.strip()]
+    result = terminal_result(events, session)
+    if not session or result is None:
+        raise ValueError("expected one result bound to the launched session")
     issues = []
     models = result.get("modelUsage")
     categories = None
@@ -46,12 +66,19 @@ def usage_from_stream(data, *, session, exit_code):
     if result.get("subtype") == "error_during_execution":
         categories, cost = None, None
         issues.append("crash result may be zeroed; usage is unresolved")
-    return {"session_id": session, "source_sha256": hashlib.sha256(data).hexdigest(),
+    return {**RECEIPT_CONTRACT, "session_id": session, "source_sha256": hashlib.sha256(data).hexdigest(),
             "exit_code": exit_code, "result_subtype": result.get("subtype"),
             "process_ok": type(exit_code) is int and exit_code == 0 and result.get("subtype") == "success" and not result.get("is_error"),
             "token_categories": categories, "total_tokens": sum(categories.values()) if categories is not None else None,
             "estimated_usd": cost, "billed_usd": None, "cost_basis": "claude-client-estimate",
             "usage_complete": not issues, "issues": issues}
+
+
+def unknown_receipt(data, *, session, exit_code, issue):
+    return {**RECEIPT_CONTRACT, "session_id": session, "source_sha256": hashlib.sha256(data).hexdigest(),
+            "exit_code": exit_code, "result_subtype": None, "process_ok": False,
+            "token_categories": None, "total_tokens": None, "estimated_usd": None, "billed_usd": None,
+            "usage_complete": False, "issues": [issue]}
 
 
 class Ledger:
@@ -177,9 +204,7 @@ class Ledger:
             try:
                 receipt = usage_from_stream(data, session=row["session"], exit_code=exit_code)
             except (ValueError, UnicodeError) as error:
-                receipt = {"session_id": row["session"], "source_sha256": hashlib.sha256(data).hexdigest(),
-                           "exit_code": exit_code, "process_ok": False, "usage_complete": False,
-                           "estimated_usd": None, "total_tokens": None, "billed_usd": None, "issues": [str(error)]}
+                receipt = unknown_receipt(data, session=row["session"], exit_code=exit_code, issue=str(error))
             known = receipt["usage_complete"]
             over = known and (money(receipt["estimated_usd"]) > row["usd"] or receipt["total_tokens"] > row["tokens"])
             if not known or over:

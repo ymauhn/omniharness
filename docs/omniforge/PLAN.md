@@ -16,6 +16,8 @@ The research register is [RESEARCH-2026-09-25.md](RESEARCH-2026-09-25.md). Exist
 
 ## First: finish the pending harness milestone
 
+Progress, 2026-09-25: step 1's E1/coordinator receipt reconciliation is implemented and tested offline (record v3, receipt v1). This closes the duplicated parser/projection mismatch, not full native telemetry for every host/role. Current acceptance and the owner-preserved installation-policy drift are in [VALIDATION](../t13/VALIDATION.md). Continue with native adapters and all-role evidence; the desktop comparison has not started.
+
 The baseline is implementation checkpoint `8e6c20e` and research checkpoint `5f0086d`. T1 is complete. E1 has offline integrity checks; T13 has S1/S2, local S4 and S3 primitives. Native executor/usage wiring, all-role containment and live controls remain open. The September 21 92/92 Python and 12/12 Docker-process results are historical, not new checks or proof of native agent containment.
 
 1. Reconcile the E1 telemetry contract with whole-tree receipts. Preserve raw provenance and separate reported usage, monetary estimates, billing and coverage. Include failed attempts, retries, reviewers and descendants without double counting cumulative or aggregate events.

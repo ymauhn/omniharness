@@ -1,5 +1,21 @@
 # T13 validation record
 
+## 2026-09-25 — canonical receipts, with explicit host-policy drift
+
+Baseline `ef69c846c209fb6ce8ca3223753ecb0cbbca7335`, Windows, bundled Python **3.12.14**. Runtime changes are limited to eval accounting/provenance and the shared Claude parser; no model or container benchmark ran.
+
+- `scripts/check.ps1` with the normal sandbox: 99 Python methods executed, zero skips; five visual subtest assertions failed on `ERR_NETWORK_ACCESS_DENIED` while loading public fonts. Log: `%TEMP%/omniharness-check-20260925-receipts.log`. This attempt preceded the final review corrections.
+- Final `scripts/check.ps1`, with the already-authorized public font access: **100/100 Python methods passed, zero skips, 62.474 s**, including both visual methods. **5 Gauntlet, 6 Scout, 7 Swarm** Node scenarios, portal checks and eval selftest passed. Log: `%TEMP%/omniharness-check-20260925-receipts-complete.log`.
+- Installation verification: **23/25 rows conform**; `ask` and `deny` differ in the user Claude settings. The owner explicitly selected “Preservar permissões atuais; registrar divergência de instalação.” Settings, guards and the installer were not changed to force green. Therefore the aggregate command exits **1**, not 0. This is an accepted host-policy difference, not a skipped test or a newly certified conservative installation.
+- The graph check was then run separately because the aggregate runner stops at installation failure: **541 nodes, 97 edges, 5 pending proposals, 0 errors**, exit 0. Inventory reflects currently reachable host skills; no skill was installed by this slice.
+- Independent final read-only review found no remaining blockers in this accounting slice and reran the 8 new methods: **8/8**, zero skips, 0.900 s. Diff/link checks were completed before commit.
+
+TDD evidence: the initial shared fixture exposed output=1 from main-loop `usage` versus output=10 and total=76 in whole-tree `modelUsage`. Separate red cases reproduced stale-result approval, incompatible resource comparison, huge monetary-counter overflow, missing-hash acceptance and initialization after result. Boundary tests now cover those cases plus failed-call usage, incomplete categories/money, crash zeros, malformed metadata, session/protocol overrides and consistent unresolved receipts. Legacy fixtures/selftest now produce bound receipt evidence rather than overriding scalar costs.
+
+Two command/test-harness mistakes were corrected during work: the process mock initially captured Windows platform discovery, and the first log redirect named an absent local directory. Neither was counted as a successful check. No missing dependency was skipped, installed or substituted. There was no credential access, settings write, public push or external model service call; native delegated review used the owner's allowance, with attributable tokens/money unavailable.
+
+Next acceptance: native Claude/Codex dispatch, usage, cancellation and recovery, then all-role containment and E1 live controls/B8/B9. These tests do not prove native isolation, hook delivery, complete billing or improved task quality. Historical September 21 results below remain unchanged.
+
 Date: 2026-09-21. Host: Windows, bundled Python 3.12.14, Node 24.19.0. Parent checkpoint: T1 commit `1a2289c`. The owner now authorises a local E1/T13 checkpoint; resolve the delivery SHA from Git. Earlier sections record their then-uncommitted state. No push or live model benchmark was run.
 
 ## Current checkpoint: task authority and recovered containment
