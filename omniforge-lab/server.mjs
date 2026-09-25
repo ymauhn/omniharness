@@ -10,6 +10,8 @@ import { ClassifierService } from './classifier-service.mjs';
 import { classifyPrompt, classifierError } from './copilot-classification.mjs';
 import { TerminalOutputBuffer } from './terminal-output.mjs';
 import { createWorkflowService } from './workflows.mjs';
+import { ArsenalService } from './arsenal-service.mjs';
+import { createArsenalApi } from './arsenal-http.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
@@ -43,7 +45,7 @@ async function body(request) {
   catch { const error = new Error('JSON inválido'); error.status = 400; throw error; }
 }
 
-export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omniforge-lab'), repoRoot = REPO_ROOT, token = randomBytes(24).toString('hex'), catalog = new CatalogService({ repoRoot, dataDir }), classifier = new ClassifierService({ repoRoot }) } = {}) {
+export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omniforge-lab'), repoRoot = REPO_ROOT, token = randomBytes(24).toString('hex'), catalog = new CatalogService({ repoRoot, dataDir }), classifier = new ClassifierService({ repoRoot }), arsenalService = null, observeArsenalHosts } = {}) {
   const cookieName = `OmniForgeAuth_${randomBytes(8).toString('hex')}`;
   const store = new WorkspaceStore(dataDir);
   let workflows;
@@ -51,6 +53,8 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
   catch (error) { store.close(); throw error; }
   const shells = new PtyCoordinator(store);
   const terminalOutput = new TerminalOutputBuffer();
+  const arsenal = arsenalService || new ArsenalService({ dataDir: store.dataDir, repoRoot: path.resolve(repoRoot) });
+  const arsenalApi = createArsenalApi({ store, service: arsenal, observeHosts: observeArsenalHosts });
   const clients = new Set();
   const skills = listSkills(repoRoot);
   const state = () => {
@@ -100,7 +104,7 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
       if (request.method === 'GET' && url.pathname === '/pane-scope.mjs') {
         return send(response, 200, fs.readFileSync(path.join(HERE, 'pane-scope.mjs'), 'utf8'), 'text/javascript; charset=utf-8');
       }
-      if (request.method === 'GET' && ['/copilot.mjs', '/copilot.css', '/copilot-provider.mjs', '/memory-panel.mjs', '/memory-panel.css', '/workflow-panel.mjs', '/workflow-panel.css', '/terminal-grid.mjs', '/terminal-grid.css'].includes(url.pathname)) {
+      if (request.method === 'GET' && ['/copilot.mjs', '/copilot.css', '/copilot-provider.mjs', '/memory-panel.mjs', '/memory-panel.css', '/workflow-panel.mjs', '/workflow-panel.css', '/terminal-grid.mjs', '/terminal-grid.css', '/arsenal-panel.mjs', '/arsenal-panel.css'].includes(url.pathname)) {
         return send(response, 200, fs.readFileSync(path.join(HERE, url.pathname.slice(1)), 'utf8'), url.pathname.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8');
       }
       const vendorFiles = {
@@ -113,6 +117,10 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
         return send(response, 200, fs.readFileSync(path.join(HERE, 'node_modules', file), 'utf8'), type);
       }
       if (request.method === 'GET' && url.pathname === '/api/state') return send(response, 200, state());
+      if (request.method === 'GET') {
+        const result = await arsenalApi({ method: request.method, url });
+        if (result) return send(response, result.status, result.body);
+      }
       if (request.method === 'GET') {
         const result = workflows.handle({ method: request.method, url });
         if (result) return send(response, result.status, result.body);
@@ -170,6 +178,11 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
       }
       if (request.method !== 'POST') return send(response, 404, { error: 'Rota não encontrada' });
       const input = await body(request);
+      const arsenalResult = await arsenalApi({ method: request.method, url, input });
+      if (arsenalResult) {
+        if (arsenalResult.changed) broadcast('arsenal', arsenalResult.changed);
+        return send(response, arsenalResult.status, arsenalResult.body);
+      }
       const workflowResult = workflows.handle({ method: request.method, url, input });
       if (workflowResult) {
         if (workflowResult.changed) broadcast('state', state());
@@ -229,7 +242,7 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
     async close() {
       for (const client of clients) client.end();
       clients.clear();
-      const shutdowns = await Promise.allSettled([catalog.close?.(), classifier.close(), shells.closeAll()]);
+      const shutdowns = await Promise.allSettled([catalog.close?.(), classifier.close(), arsenal.close?.(), shells.closeAll()]);
       const shutdownError = shutdowns.find(result => result.status === 'rejected')?.reason;
       await new Promise(resolve => server.close(resolve));
       store.close();
