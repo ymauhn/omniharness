@@ -2,6 +2,8 @@
 
 `harness/prompt_classifier.py` implements a selection boundary for Laya and JEV. It does not load skills, execute tools, change catalog availability, or grant authority. Every result has `runnable=False`; the caller must independently resolve the exact source identity, current host availability, and task authority. No UI or automatic typing-trigger integration is enabled by this module.
 
+The separate [Lab resident worker and composer controls](COPILOT.md) now call this module after explicit local activation. The parent provides bounded queue/deadlines and unload, while this adapter retains the selection contract. JEV remains disconnected from the composer pending provider/key UI and applicable credit authority.
+
 The input is an already-redacted prompt excerpt of at most 2,048 UTF-8 bytes and one to eight `Candidate(source_id, description)` values. Descriptions are at most 256 UTF-8 bytes. Session objects and full skill bodies are not accepted input fields. This boundary does not detect every secret in free text: redaction and permission to send that excerpt remain caller responsibilities.
 
 ```python

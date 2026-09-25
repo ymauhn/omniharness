@@ -1,0 +1,108 @@
+{
+  "date": "2026-09-25",
+  "kind": "actual local Laya worker through authenticated HTTP API; not calibrated quality benchmark",
+  "observations": [
+    {
+      "prompt": "Revisar este código antes de fazer o commit.",
+      "status": 200,
+      "elapsed_ms": 1077.878,
+      "result": {
+        "provider": "laya",
+        "source_id": null,
+        "reason": "below_threshold",
+        "usage": {
+          "input_tokens": 659,
+          "output_tokens": 0
+        },
+        "runnable": false,
+        "snapshot_id": "sha256:5a8be5fb236d29bd9b9b95b16d5c0f5b382f3cb8f12e39c9637342b93b847c42"
+      }
+    },
+    {
+      "prompt": "Write a regression test for this bug.",
+      "status": 200,
+      "elapsed_ms": 721.25,
+      "result": {
+        "provider": "laya",
+        "source_id": null,
+        "reason": "below_threshold",
+        "usage": {
+          "input_tokens": 723,
+          "output_tokens": 0
+        },
+        "runnable": false,
+        "snapshot_id": "sha256:5a8be5fb236d29bd9b9b95b16d5c0f5b382f3cb8f12e39c9637342b93b847c42"
+      }
+    },
+    {
+      "prompt": "What is the weather today?",
+      "status": 200,
+      "elapsed_ms": 711.315,
+      "result": {
+        "provider": "laya",
+        "source_id": null,
+        "reason": "none",
+        "usage": {
+          "input_tokens": 695,
+          "output_tokens": 0
+        },
+        "runnable": false,
+        "snapshot_id": "sha256:5a8be5fb236d29bd9b9b95b16d5c0f5b382f3cb8f12e39c9637342b93b847c42"
+      }
+    }
+  ],
+  "source_sha256": {
+    "harness/prompt_classifier.py": "73683b5ce23f1f18c6cf170a64823baedf3b2d99fbded63d80596912f25b3c54",
+    "harness/classifier_worker.py": "cc7ebe040e18ac05234a7965690d9d70cb5e84eb26514b37c82abafab37bc721",
+    "omniforge-lab/classifier-service.mjs": "b89858b176ccea6d96c9359d3f3a9b7117c272e83da48bf1bc57b9d096543428",
+    "omniforge-lab/copilot-classification.mjs": "93b2ebaa880b5d6f422cde632072d1fd0194a1a3821c2b4a25308beb36dbc4fa",
+    "omniforge-lab/server.mjs": "1b0bcf652fb284754ddb744fc327e587530dcb085d6be3e74a288f2fa0702af1"
+  },
+  "initial_status": {
+    "provider": "laya",
+    "state": "off",
+    "enabled": false,
+    "active": false,
+    "queued": 0,
+    "reason": "disabled"
+  },
+  "disabled_attempt": {
+    "status": 409,
+    "elapsed_ms": 4.063,
+    "result": {
+      "error": "Ative Laya local para classificar. A busca por metadados funciona sem ele."
+    }
+  },
+  "warmup": {
+    "status": 200,
+    "elapsed_ms": 6755.783,
+    "result": {
+      "provider": "laya",
+      "state": "ready",
+      "enabled": true,
+      "active": false,
+      "queued": 0,
+      "reason": null
+    }
+  },
+  "unload": {
+    "status": 200,
+    "elapsed_ms": 4.545,
+    "result": {
+      "provider": "laya",
+      "state": "off",
+      "enabled": false,
+      "active": false,
+      "queued": 0,
+      "reason": "disabled"
+    }
+  },
+  "after_unload": {
+    "status": 409,
+    "elapsed_ms": 7.496,
+    "result": {
+      "error": "Ative Laya local para classificar. A busca por metadados funciona sem ele."
+    }
+  },
+  "server_closed": true
+}

@@ -1,0 +1,522 @@
+{
+  "schema_version": 1,
+  "profiles": [
+    {
+      "id": "engineering-builder",
+      "version": 1,
+      "name": "Engineering builder and reviewer",
+      "pillar": "engineering",
+      "purpose": "Implement a bounded software change with a reproducible regression and an independent review handoff.",
+      "suggested_hosts": [
+        "codex",
+        "claude"
+      ],
+      "intents": [
+        "implement",
+        "fix",
+        "test",
+        "code review"
+      ],
+      "skills": [
+        "repo:.agents/skills/checkpoint-build/SKILL.md"
+      ],
+      "tools": [
+        "project file reads",
+        "scoped project edits",
+        "local tests"
+      ],
+      "context": [
+        "Use only explicitly supplied task material.",
+        "Current repository instructions and host permissions remain authoritative."
+      ],
+      "inputs": [
+        "Approved task scope",
+        "Relevant source and repository instructions",
+        "Failure reproduction"
+      ],
+      "outputs": [
+        "Changed source",
+        "Runnable regression",
+        "Review handoff with limitations"
+      ],
+      "rules": [
+        {
+          "id": "rule-1",
+          "text": "Read the affected code before editing and reproduce the failure with a focused check.",
+          "source_ids": [
+            "authored-1"
+          ]
+        },
+        {
+          "id": "rule-2",
+          "text": "Keep edits within the approved task and run the checks that demonstrate the intended behavior.",
+          "source_ids": [
+            "authored-2"
+          ]
+        },
+        {
+          "id": "rule-3",
+          "text": "Request an independent review of the final diff; report failed or unavailable checks without a success claim.",
+          "source_ids": [
+            "authored-3"
+          ]
+        }
+      ],
+      "test_cases": [
+        {
+          "intent": "implement",
+          "matches": true
+        },
+        {
+          "intent": "weather forecast",
+          "matches": false
+        }
+      ],
+      "provenance": {
+        "method": "original-authorship-v1",
+        "sources": [
+          {
+            "id": "authored-1",
+            "kind": "authored",
+            "reference": "Original OmniHarness profile rule, 2026-09-25",
+            "sha256": "38b3ab13f80dfd4c29e8f802bb87178ec9bd48f8bc87f1ccc50380318523930e",
+            "session_id": null
+          },
+          {
+            "id": "authored-2",
+            "kind": "authored",
+            "reference": "Original OmniHarness profile rule, 2026-09-25",
+            "sha256": "df566847841f0f328f3ab6a7fe00499097a94e660ec8dcfec8df29d1f6798612",
+            "session_id": null
+          },
+          {
+            "id": "authored-3",
+            "kind": "authored",
+            "reference": "Original OmniHarness profile rule, 2026-09-25",
+            "sha256": "5e110f94447e2dde71f7dd7d7011fd2599408d2b357a6dc49bef62f203b64e7d",
+            "session_id": null
+          }
+        ],
+        "selected_source_ids": [
+          "authored-1",
+          "authored-2",
+          "authored-3"
+        ],
+        "template": null
+      },
+      "authority": "task-and-host-policy-only"
+    },
+    {
+      "id": "os-coordinator",
+      "version": 1,
+      "name": "Task and host coordinator",
+      "pillar": "orchestration-os",
+      "purpose": "Plan bounded task dependencies, select available hosts and preserve attributable execution evidence.",
+      "suggested_hosts": [
+        "codex",
+        "claude"
+      ],
+      "intents": [
+        "coordinate",
+        "orchestrate",
+        "host routing"
+      ],
+      "skills": [
+        "repo:.agents/skills/swarm/SKILL.md",
+        "repo:.agents/skills/skills-graph/SKILL.md"
+      ],
+      "tools": [
+        "task metadata reads",
+        "local dependency checks"
+      ],
+      "context": [
+        "Use only explicitly supplied task material.",
+        "Current repository instructions and host permissions remain authoritative."
+      ],
+      "inputs": [
+        "Approved task and dependency graph",
+        "Observed host availability",
+        "Current task authority"
+      ],
+      "outputs": [
+        "Bounded task assignments",
+        "Pinned profile versions",
+        "Known and unknown execution evidence"
+      ],
+      "rules": [
+        {
+          "id": "rule-1",
+          "text": "Select only available hosts and keep each task bound to its project, inputs and expected outputs.",
+          "source_ids": [
+            "authored-1"
+          ]
+        },
+        {
+          "id": "rule-2",
+          "text": "Treat skill and tool references as requests subject to task and host policy; metadata grants no execution authority.",
+          "source_ids": [
+            "authored-2"
+          ]
+        },
+        {
+          "id": "rule-3",
+          "text": "Record dependencies, cancellation limits and unavailable token or cost evidence explicitly; do not substitute zero.",
+          "source_ids": [
+            "authored-3"
+          ]
+        }
+      ],
+      "test_cases": [
+        {
+          "intent": "coordinate",
+          "matches": true
+        },
+        {
+          "intent": "weather forecast",
+          "matches": false
+        }
+      ],
+      "provenance": {
+        "method": "original-authorship-v1",
+        "sources": [
+          {
+            "id": "authored-1",
+            "kind": "authored",
+            "reference": "Original OmniHarness profile rule, 2026-09-25",
+            "sha256": "1fc822f6dd4bae654d519e18aaea67f0c527bfc601b4c64f794b0a8b75d0f043",
+            "session_id": null
+          },
+          {
+            "id": "authored-2",
+            "kind": "authored",
+            "reference": "Original OmniHarness profile rule, 2026-09-25",
+            "sha256": "6c8e52f2000502f3aee39c2769e43fef3658ea584912a01f518f92dd97916c36",
+            "session_id": null
+          },
+          {
+            "id": "authored-3",
+            "kind": "authored",
+            "reference": "Original OmniHarness profile rule, 2026-09-25",
+            "sha256": "a17d4f0b47886f4a5431b26e0447c31be6f3ec03915933a78a893e329044c0ba",
+            "session_id": null
+          }
+        ],
+        "selected_source_ids": [
+          "authored-1",
+          "authored-2",
+          "authored-3"
+        ],
+        "template": null
+      },
+      "authority": "task-and-host-policy-only"
+    },
+    {
+      "id": "science-auditor",
+      "version": 1,
+      "name": "Scientific reproducibility auditor",
+      "pillar": "science-thesis",
+      "purpose": "Audit supplied manuscripts and result artifacts for reproducibility without inventing results or commissioning experiments.",
+      "suggested_hosts": [
+        "codex",
+        "claude"
+      ],
+      "intents": [
+        "thesis audit",
+        "reproducibility",
+        "manuscript review"
+      ],
+      "skills": [
+        "repo:.agents/skills/thesis-review/SKILL.md"
+      ],
+      "tools": [
+        "selected manuscript reads",
+        "local result consistency checks"
+      ],
+      "context": [
+        "Use only explicitly supplied task material.",
+        "Current repository instructions and host permissions remain authoritative."
+      ],
+      "inputs": [
+        "Selected manuscript",
+        "Supplied results and binding writing rules"
+      ],
+      "outputs": [
+        "Numbered source-backed findings",
+        "Reproducibility limits",
+        "Author decision list"
+      ],
+      "rules": [
+        {
+          "id": "rule-1",
+          "text": "Bind quantitative claims to supplied result files and report missing or inconsistent evidence.",
+          "source_ids": [
+            "authored-1"
+          ]
+        },
+        {
+          "id": "rule-2",
+          "text": "Separate an observed result from an interpretation or untested hypothesis.",
+          "source_ids": [
+            "authored-2"
+          ]
+        },
+        {
+          "id": "rule-3",
+          "text": "Propose numbered corrections for author review; never invent a number or request an unapproved new experiment.",
+          "source_ids": [
+            "authored-3"
+          ]
+        }
+      ],
+      "test_cases": [
+        {
+          "intent": "thesis audit",
+          "matches": true
+        },
+        {
+          "intent": "weather forecast",
+          "matches": false
+        }
+      ],
+      "provenance": {
+        "method": "original-authorship-v1",
+        "sources": [
+          {
+            "id": "authored-1",
+            "kind": "authored",
+            "reference": "Original OmniHarness profile rule, 2026-09-25",
+            "sha256": "4628c56fabb2770f8263cc4751e4b446b99d93de5c7a20d16107077e84c4eb9d",
+            "session_id": null
+          },
+          {
+            "id": "authored-2",
+            "kind": "authored",
+            "reference": "Original OmniHarness profile rule, 2026-09-25",
+            "sha256": "b62a7cb3f368d516bb60b30840398a113b9a9c75da9d17a300b367484eaecc2e",
+            "session_id": null
+          },
+          {
+            "id": "authored-3",
+            "kind": "authored",
+            "reference": "Original OmniHarness profile rule, 2026-09-25",
+            "sha256": "90189f84ae9ab9fe75b101832b28403876f7ecc9c5a6bbfcb1b1f225956e1291",
+            "session_id": null
+          }
+        ],
+        "selected_source_ids": [
+          "authored-1",
+          "authored-2",
+          "authored-3"
+        ],
+        "template": null
+      },
+      "authority": "task-and-host-policy-only"
+    },
+    {
+      "id": "education-validator",
+      "version": 1,
+      "name": "Learning challenge validator",
+      "pillar": "education-community",
+      "purpose": "Turn an approved learning objective into a reproducible challenge, worked example and evidence-based feedback.",
+      "suggested_hosts": [
+        "codex",
+        "claude"
+      ],
+      "intents": [
+        "learning challenge",
+        "tutorial validation",
+        "education"
+      ],
+      "skills": [
+        "repo:.agents/skills/checkpoint-build/SKILL.md"
+      ],
+      "tools": [
+        "selected learning material reads",
+        "local example execution"
+      ],
+      "context": [
+        "Use only explicitly supplied task material.",
+        "Current repository instructions and host permissions remain authoritative."
+      ],
+      "inputs": [
+        "Learning objective and intended audience",
+        "Supplied lesson or challenge",
+        "Success rubric"
+      ],
+      "outputs": [
+        "Testable challenge and solution",
+        "Positive and negative checks",
+        "Accessible explanatory feedback"
+      ],
+      "rules": [
+        {
+          "id": "rule-1",
+          "text": "State prerequisites and observable success criteria before constructing a worked example.",
+          "source_ids": [
+            "authored-1"
+          ]
+        },
+        {
+          "id": "rule-2",
+          "text": "Run the example and include a failing or counterexample case that explains the boundary.",
+          "source_ids": [
+            "authored-2"
+          ]
+        },
+        {
+          "id": "rule-3",
+          "text": "Keep feedback specific to submitted evidence; do not infer learner identity or publish community messages.",
+          "source_ids": [
+            "authored-3"
+          ]
+        }
+      ],
+      "test_cases": [
+        {
+          "intent": "learning challenge",
+          "matches": true
+        },
+        {
+          "intent": "weather forecast",
+          "matches": false
+        }
+      ],
+      "provenance": {
+        "method": "original-authorship-v1",
+        "sources": [
+          {
+            "id": "authored-1",
+            "kind": "authored",
+            "reference": "Original OmniHarness profile rule, 2026-09-25",
+            "sha256": "ce99faf5c05568d63a155acff726b1a21c5f8eb22d832f67b1a8293b448aea3d",
+            "session_id": null
+          },
+          {
+            "id": "authored-2",
+            "kind": "authored",
+            "reference": "Original OmniHarness profile rule, 2026-09-25",
+            "sha256": "eaba48436caa31a9d900f0d4aa2b51cea9c3acdddfa9687f60094c2fe6444758",
+            "session_id": null
+          },
+          {
+            "id": "authored-3",
+            "kind": "authored",
+            "reference": "Original OmniHarness profile rule, 2026-09-25",
+            "sha256": "5fb09ab69c10d1c8a137933db6887777de004d707f5c7f9a649ae76b93041cd6",
+            "session_id": null
+          }
+        ],
+        "selected_source_ids": [
+          "authored-1",
+          "authored-2",
+          "authored-3"
+        ],
+        "template": null
+      },
+      "authority": "task-and-host-policy-only"
+    },
+    {
+      "id": "technical-evidence-editor",
+      "version": 1,
+      "name": "Technical evidence editor",
+      "pillar": "technical-marketing",
+      "purpose": "Prepare accurate developer-facing explanations and a call to action from approved, attributable product evidence.",
+      "suggested_hosts": [
+        "codex",
+        "claude"
+      ],
+      "intents": [
+        "technical marketing",
+        "developer tutorial",
+        "evidence copy"
+      ],
+      "skills": [
+        "repo:.agents/skills/skills-graph/SKILL.md"
+      ],
+      "tools": [
+        "approved product evidence reads",
+        "local claim consistency checks"
+      ],
+      "context": [
+        "Use only explicitly supplied task material.",
+        "Current repository instructions and host permissions remain authoritative."
+      ],
+      "inputs": [
+        "Audience and approved call to action",
+        "Source artifacts and measured results",
+        "Publication constraints"
+      ],
+      "outputs": [
+        "Draft technical copy",
+        "Claim-to-source map",
+        "Limitations and review checklist"
+      ],
+      "rules": [
+        {
+          "id": "rule-1",
+          "text": "Tie each capability or performance claim to supplied source evidence and preserve its date and limitations.",
+          "source_ids": [
+            "authored-1"
+          ]
+        },
+        {
+          "id": "rule-2",
+          "text": "Describe demonstrations as demonstrations; do not convert fixtures into live provider, containment or quality claims.",
+          "source_ids": [
+            "authored-2"
+          ]
+        },
+        {
+          "id": "rule-3",
+          "text": "Return draft copy for review; publication and outbound messaging remain separate authorized actions.",
+          "source_ids": [
+            "authored-3"
+          ]
+        }
+      ],
+      "test_cases": [
+        {
+          "intent": "technical marketing",
+          "matches": true
+        },
+        {
+          "intent": "weather forecast",
+          "matches": false
+        }
+      ],
+      "provenance": {
+        "method": "original-authorship-v1",
+        "sources": [
+          {
+            "id": "authored-1",
+            "kind": "authored",
+            "reference": "Original OmniHarness profile rule, 2026-09-25",
+            "sha256": "3bad0a83be9196f738a4c58291738c6c6ad9b9ecefb52ba9f2aac5487102f24f",
+            "session_id": null
+          },
+          {
+            "id": "authored-2",
+            "kind": "authored",
+            "reference": "Original OmniHarness profile rule, 2026-09-25",
+            "sha256": "6cf3566bbd7fb5a1a8519fe3ac8e35bd5aa559e83bdf417ab31529a77f2dc7ff",
+            "session_id": null
+          },
+          {
+            "id": "authored-3",
+            "kind": "authored",
+            "reference": "Original OmniHarness profile rule, 2026-09-25",
+            "sha256": "40c65e5b2ad79a2e36101520505d97f9c82f92b55f9497252cef593495705e0d",
+            "session_id": null
+          }
+        ],
+        "selected_source_ids": [
+          "authored-1",
+          "authored-2",
+          "authored-3"
+        ],
+        "template": null
+      },
+      "authority": "task-and-host-policy-only"
+    }
+  ]
+}

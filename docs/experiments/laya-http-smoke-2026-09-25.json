@@ -1,0 +1,111 @@
+{
+  "date": "2026-09-25",
+  "kind": "actual local Laya worker through authenticated HTTP API; not calibrated quality benchmark",
+  "observations": [
+    {
+      "prompt": "Revisar este código antes de fazer o commit.",
+      "status": 200,
+      "elapsed_ms": 946.673,
+      "result": {
+        "provider": "laya",
+        "source_id": null,
+        "reason": "below_threshold",
+        "usage": {
+          "input_tokens": 659,
+          "output_tokens": 0
+        },
+        "runnable": false,
+        "snapshot_id": "sha256:826a1ff58a9805866168064ac79e6a472a900b715f1c38472584d6d23ab93584"
+      }
+    },
+    {
+      "prompt": "Write a regression test for this bug.",
+      "status": 200,
+      "elapsed_ms": 647.153,
+      "result": {
+        "provider": "laya",
+        "source_id": null,
+        "reason": "below_threshold",
+        "usage": {
+          "input_tokens": 723,
+          "output_tokens": 0
+        },
+        "runnable": false,
+        "snapshot_id": "sha256:826a1ff58a9805866168064ac79e6a472a900b715f1c38472584d6d23ab93584"
+      }
+    },
+    {
+      "prompt": "What is the weather today?",
+      "status": 200,
+      "elapsed_ms": 631.359,
+      "result": {
+        "provider": "laya",
+        "source_id": null,
+        "reason": "none",
+        "usage": {
+          "input_tokens": 695,
+          "output_tokens": 0
+        },
+        "runnable": false,
+        "snapshot_id": "sha256:826a1ff58a9805866168064ac79e6a472a900b715f1c38472584d6d23ab93584"
+      }
+    }
+  ],
+  "source_sha256": {
+    "harness/prompt_classifier.py": "73683b5ce23f1f18c6cf170a64823baedf3b2d99fbded63d80596912f25b3c54",
+    "harness/classifier_worker.py": "cc7ebe040e18ac05234a7965690d9d70cb5e84eb26514b37c82abafab37bc721",
+    "omniforge-lab/classifier-service.mjs": "63e5148f8acda389fa59e1d70f36d93a6c009477a3f20e0f4385a96bb256f6d4",
+    "omniforge-lab/copilot-classification.mjs": "93b2ebaa880b5d6f422cde632072d1fd0194a1a3821c2b4a25308beb36dbc4fa",
+    "omniforge-lab/server.mjs": "b7ea74d50963b0a454f75e4976832daa1ca66fb6946ae56776cd6add26223d1b"
+  },
+  "initial_status": {
+    "provider": "laya",
+    "state": "off",
+    "enabled": false,
+    "active": false,
+    "queued": 0,
+    "reason": "disabled"
+  },
+  "disabled_attempt": {
+    "status": 409,
+    "elapsed_ms": 3.321,
+    "result": {
+      "error": "Ative Laya local para classificar. A busca por metadados funciona sem ele."
+    }
+  },
+  "warmup": {
+    "status": 200,
+    "elapsed_ms": 6626.666,
+    "result": {
+      "provider": "laya",
+      "state": "ready",
+      "enabled": true,
+      "active": false,
+      "queued": 0,
+      "reason": null
+    }
+  },
+  "unload": {
+    "status": 200,
+    "elapsed_ms": 12.507,
+    "result": {
+      "provider": "laya",
+      "state": "off",
+      "enabled": false,
+      "active": false,
+      "queued": 0,
+      "reason": "disabled"
+    }
+  },
+  "after_unload": {
+    "status": 409,
+    "elapsed_ms": 1.076,
+    "result": {
+      "error": "Ative Laya local para classificar. A busca por metadados funciona sem ele."
+    }
+  },
+  "server_closed": true,
+  "lifecycle_pass": true,
+  "quality_pass": null,
+  "usage_coverage": "Observed selection input/output only; warm-up counters, total energy/hardware cost and calibration unknown."
+}
