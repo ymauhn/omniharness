@@ -76,6 +76,7 @@ const scenarios = {
     assert(at(r.naoVerificados, 30) && !at(r.refutados, 30), 'mod.py:30 em naoVerificados, não em refutados')
     const r50 = at(r.refutados, 50)
     assert(r50 && r50.votos.length === 2, 'mod.py:50 refutado com 2 votos')
+    assert.deepStrictEqual(r.seenUpdates.map((r) => r.id), ['mod.py:50 — t50']) // incomplete lens sets must be retried
     assert.strictEqual(r.resumo.duplicadosFundidos, 1, 'duplicadosFundidos')
     identity(r)
     assert(!('maxIteracoesPorCorrecao' in r.resumo), 'maxIteracoesPorCorrecao ausente')
@@ -103,6 +104,29 @@ const scenarios = {
     assert.strictEqual(r.refutados.length, 0, 'refutados vazio')
     assert.strictEqual(r.naoVerificados.length, r.resumo.achadosBrutos - r.resumo.duplicadosFundidos - r.resumo.descartadosJanela, 'tudo em naoVerificados')
     assert.strictEqual(r.agentCalls, 2, 'só os dois caçadores rodaram')
+  },
+  async 'S4 cold/warm history skips judged findings only'() {
+    const options = { maxRodadas: 1, areas: [{ key: 'logic', prompt: 'p' }], seenScope: 'one', seenContext: 'a'.repeat(64) }
+    const script = { hunters: { logic: { 1: { findings: [achado(30)] } } }, lenses: { 'mod.py:30': [{ refutado: false, porque: 'executed' }, { refutado: false, porque: 'executed' }] } }
+    const cold = await run(script, options)
+    assert.strictEqual(cold.seenUpdates.length, 1)
+    const seen = { consumer: 'gauntlet', scope: options.seenScope, context: options.seenContext, records: cold.seenUpdates }
+    const warm = await run(script, { ...options, seen })
+    assert.strictEqual(warm.agentCalls, 1)
+    assert.strictEqual(warm.resumo.reused, 1)
+    assert.strictEqual(warm.confirmados.length, 0) // old confirmations are not new findings
+    assert.strictEqual(warm.previouslyJudged.length, 1) // still visible, not considered fixed
+    identity(warm)
+    await assert.rejects(() => run(script, { ...options, seen, seenScope: 'other' }), /seen/)
+    script.hunters.logic[1].findings[0].titulo = 'another issue on the same line'
+    assert.strictEqual((await run(script, { ...options, seen })).agentCalls, 3)
+    console.log('MEASURE gauntlet offline: cold=' + cold.agentCalls + ' warm=' + warm.agentCalls + ' calls; reused=' + warm.resumo.reused)
+  },
+  async 'S5 malformed verdicts never enter history'() {
+    const r = await run({ hunters: { logic: { 1: { findings: [achado(30)] } } }, lenses: { 'mod.py:30': [{}, { refutado: false, porque: '' }] } }, { maxRodadas: 1, areas: [{ key: 'logic', prompt: 'p' }] })
+    assert.strictEqual(r.naoVerificados.length, 1)
+    assert.strictEqual(r.resumo.lentesFalhas, 2)
+    assert.deepStrictEqual(r.seenUpdates, [])
   },
 }
 

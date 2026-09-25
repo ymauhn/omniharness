@@ -32,6 +32,8 @@ site/                  community portal: index.html (source), public/ (GitHub Pa
 
 ## Quick start
 
+For this Codex Windows host, run `./scripts/check.ps1`: it uses the existing bundled Python 3.12+ explicitly, runs the local battery and verifies the installed gate. Another existing runtime can be selected with `-Python <absolute-path>`. [T1 findings and coverage limits](docs/experiments/codex-parity-2026-09.md); [next eval slice](docs/evals/PLAN.md).
+
 ```
 python scripts/install.py --check
 python scripts/install.py --adopt

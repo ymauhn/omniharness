@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "backend": "docker-linux",
+  "engine_version": "29.6.2",
+  "image": "python@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9",
+  "checks": {
+    "workspace_write": true,
+    "root_write_denied": true,
+    "outside_paths_inaccessible": true,
+    "docker_socket_absent": true,
+    "no_capabilities": true,
+    "no_new_privileges": true,
+    "non_root": true,
+    "seccomp_active": true,
+    "network_denied": true,
+    "host_artifact_verified": true,
+    "source_and_sibling_unchanged": true,
+    "private_sentinels_unchanged": true,
+    "outside_markers_absent": true,
+    "actual_scope_audited": true
+  },
+  "passed": true,
+  "scope": "disposable offline worker; not a connected model executor or E1 control adapter",
+  "wall_seconds": 4.984,
+  "date": "2026-09-25",
+  "probe_sha256": "940d89f42c2daecb08de4776fa2c1a087b0b0d6a9927e96ce0275999b2086d37"
+}

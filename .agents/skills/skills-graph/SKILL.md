@@ -18,7 +18,9 @@ The graph has two halves. The parsed half is a scan of every SKILL.md the hosts 
 
 ```
 python <skill>/scripts/skills_graph.py build              # rings + edges -> <root>/docs/skills-graph/graph.json and graph.md
-python <skill>/scripts/skills_graph.py route "<intent>"   # ranked skills for a task, installed first
+python <skill>/scripts/skills_graph.py route "<intent>"   # keywords, comparable measured cost, then installed/id
+python <skill>/scripts/skills_graph.py alternatives <id> --unit usd  # eligible curated alternatives; no execution
+python <skill>/scripts/skills_graph.py --root <project> plan-status <PLAN.md> --mode balanced
 python <skill>/scripts/skills_graph.py neighbors <id>     # edges in and out of one node
 python <skill>/scripts/skills_graph.py check              # dangling references, bad edge types, proposals waiting
 python <skill>/scripts/skills_graph.py propose A type B --evidence "..."   # queue a learned edge

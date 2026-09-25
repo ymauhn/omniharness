@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-25",
+  "backend_requested": "configured-elevated",
+  "profile": "omni-canary: root deny; minimal read; synthetic worker write; network disabled",
+  "process_state": "finished",
+  "exit_code": 1,
+  "child_checks": null,
+  "synthetic_files_changed": [],
+  "forbidden_markers": [],
+  "worker_marker_verified": false,
+  "stderr_diagnostic": {
+    "kind": "other-stderr",
+    "bytes": 88,
+    "sha256": "90dcc2e162431a93f97d1f1a1da4f98d5e17942498c22898ea0185af499540a7"
+  },
+  "stderr_bytes": 88,
+  "stderr_summary": "elevated Windows sandbox requires effective :root read access",
+  "evidence_directory": "_intake/native-elevated-canary-5435e0ca69a748c38af69b0d26646d3d",
+  "probe_sha256": "4e7bcf6b059c425845d04b26a7130efaac03d632fbe2947b9eae87a8c5b65de9",
+  "model_turn_started": false,
+  "setup_requested": false,
+  "agent_isolation_certified": false,
+  "scope": "Disposable local command only; no live model, connectors, native agent tools or descendants acceptance",
+  "status": "inconclusive"
+}

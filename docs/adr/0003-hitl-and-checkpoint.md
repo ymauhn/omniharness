@@ -14,4 +14,6 @@ A checkpoint is `git tag -f ckpt/<case>/<ts> $(git stash create || git rev-parse
 
 ## Consequences
 
+2026-09-20 correction: installation and benchmark settings resolve the guard's Python command to the invoking interpreter's absolute path. `install.py --check` now verifies ask, deny and the exact Bash hook, plus local allow/block probes. This does not prove live host interception; Codex's prose gate remains the harness's current adapter limitation. Updated settings retain a fresh `.pre-omniharness` backup.
+
 The ask list prompts on every gated command in interactive sessions and shows up as `permission_denials` in headless runs, which is the testable signal in benchmark B3. PowerShell forms are covered by the ask list, not by the regex. Adding an item to the gate is a one-line edit in one file.

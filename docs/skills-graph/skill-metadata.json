@@ -1,0 +1,614 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "source_key": "repo:.agents/skills/checkpoint-build/SKILL.md",
+      "source_sha256": "a090f017569eefe196ccc0fe6564f8dc8e9dbda41d943d162e825866e8118bb5",
+      "metadata": {
+        "functional_description": "Implement an approved feature in bounded checkpoints with behavior checks, applicable visual evidence and two independent reviews.",
+        "taxonomy": [
+          "execution.checkpoints"
+        ],
+        "pillars": [
+          "engineering",
+          "orchestration"
+        ],
+        "intents": [
+          "implement",
+          "refactor",
+          "validate"
+        ],
+        "aliases": {
+          "pt": [
+            "implementar por etapas",
+            "construir com checkpoints",
+            "fluxo Helix",
+            "validar funcionalidade"
+          ],
+          "en": [
+            "checkpoint build",
+            "Helix workflow",
+            "reference based implementation"
+          ]
+        },
+        "use_cases": {
+          "pt": [
+            "Implemente o grid de terminais aprovado e valide cada etapa."
+          ],
+          "en": [
+            "Implement the approved terminal grid with behavioral and visual checkpoints."
+          ]
+        },
+        "inputs": [
+          "approved plan or behavioral reference",
+          "existing source and tests"
+        ],
+        "outputs": [
+          "reviewed implementation",
+          "checkpoint evidence and limitations"
+        ],
+        "when_to_use": [
+          "substantial feature, refactor or migration with approved scope"
+        ],
+        "when_to_avoid": [
+          "trivial one-line edit",
+          "claiming visual parity without comparable captures"
+        ],
+        "prerequisites": [
+          "Git and runnable project checks",
+          "two independent reviewers",
+          "working renderer for visual changes"
+        ],
+        "reviewed_at": "2026-09-25"
+      }
+    },
+    {
+      "source_key": "repo:.agents/skills/detour/SKILL.md",
+      "source_sha256": "6f958c0fd302e2a352e8d89d777a7da1542ad518bf31a069918095af5e5d00ad",
+      "metadata": {
+        "functional_description": "Examine one stuck decision through exactly three distinct analogies, with falsifiable viability checks and a single recommendation.",
+        "taxonomy": [
+          "planning.lateral"
+        ],
+        "pillars": [
+          "engineering",
+          "orchestration"
+        ],
+        "intents": [
+          "compare-alternatives",
+          "reframe-decision"
+        ],
+        "aliases": {
+          "pt": [
+            "destravar decisão",
+            "pensamento lateral",
+            "comparar três caminhos"
+          ],
+          "en": [
+            "bounded detour",
+            "lateral thinking",
+            "reframe decision"
+          ]
+        },
+        "use_cases": {
+          "pt": [
+            "Compare três maneiras de organizar o workspace antes de escolher uma."
+          ],
+          "en": [
+            "Explore three alternatives to the current workspace layout decision."
+          ]
+        },
+        "inputs": [
+          "explicit detour invocation",
+          "main path and success criterion"
+        ],
+        "outputs": [
+          "three alternatives with viability tests",
+          "one recommendation or main-path verdict"
+        ],
+        "when_to_use": [
+          "an explicit decision with competing routes"
+        ],
+        "when_to_avoid": [
+          "executing an alternative without owner adoption",
+          "repeated open-ended brainstorming"
+        ],
+        "prerequisites": [
+          "explicit invocation",
+          "local reference and success criterion"
+        ],
+        "reviewed_at": "2026-09-25"
+      }
+    },
+    {
+      "source_key": "repo:.agents/skills/omniharness/SKILL.md",
+      "source_sha256": "19c8848a2c2b521558527252a8aacd9749d13bd379ac2cd0d0cce0cf9ef2e301",
+      "metadata": {
+        "functional_description": "Activate repository harness guidance for the current session, inspect installation and regressions, and record an explicitly selected session mode.",
+        "taxonomy": [
+          "setup.harness"
+        ],
+        "pillars": [
+          "orchestration"
+        ],
+        "intents": [
+          "activate-harness",
+          "inspect-installation",
+          "select-session-mode"
+        ],
+        "aliases": {
+          "pt": [
+            "ativar harness",
+            "carregar regras da sessão",
+            "verificar instalação OmniHarness"
+          ],
+          "en": [
+            "activate harness",
+            "load session rules",
+            "inspect harness setup"
+          ]
+        },
+        "use_cases": {
+          "pt": [
+            "Ative o OmniHarness nesta sessão e reporte divergências de instalação."
+          ],
+          "en": [
+            "Activate OmniHarness for this session and report installation drift."
+          ]
+        },
+        "inputs": [
+          "explicit activation or mode request",
+          "project and host identity"
+        ],
+        "outputs": [
+          "installation and regression report",
+          "session envelope only after explicit selection"
+        ],
+        "when_to_use": [
+          "owner explicitly requests session activation or mode change"
+        ],
+        "when_to_avoid": [
+          "ordinary work that does not request activation",
+          "inventing session approval or native enforcement"
+        ],
+        "prerequisites": [
+          "Python 3.12 or newer",
+          "repository AGENTS and CONTEXT",
+          "actual owner answer for a session envelope"
+        ],
+        "reviewed_at": "2026-09-25"
+      }
+    },
+    {
+      "source_key": "repo:.agents/skills/scout/SKILL.md",
+      "source_sha256": "f70598ed821149f168b1f7366aebc3b93a3e32f935dfb95e05ae5ab731f65082",
+      "metadata": {
+        "functional_description": "Turn an approved research demand into a sourced dossier and a skill-routed plan, using owner input to settle consequential direction.",
+        "taxonomy": [
+          "research.planning"
+        ],
+        "pillars": [
+          "engineering",
+          "orchestration",
+          "science",
+          "marketing"
+        ],
+        "intents": [
+          "research-references",
+          "plan-demand"
+        ],
+        "aliases": {
+          "pt": [
+            "pesquisar referências",
+            "dossiê de pesquisa",
+            "planejar demanda",
+            "mapear alternativas"
+          ],
+          "en": [
+            "research dossier",
+            "reference scouting",
+            "plan a demand"
+          ]
+        },
+        "use_cases": {
+          "pt": [
+            "Pesquise referências de interfaces agênticas para orientar um plano de implementação."
+          ],
+          "en": [
+            "Research agent workspace references and derive a grounded implementation plan."
+          ]
+        },
+        "inputs": [
+          "explicit scout invocation",
+          "demand, constraints and research scope"
+        ],
+        "outputs": [
+          "sourced dossier",
+          "approved plan and skill routine",
+          "recorded degraded sources"
+        ],
+        "when_to_use": [
+          "a demand needs external references and an owner decision"
+        ],
+        "when_to_avoid": [
+          "re-running fan-out without applicable authority",
+          "treating search snippets as installed capabilities"
+        ],
+        "prerequisites": [
+          "research/task authority under AGENTS",
+          "skills graph",
+          "host-supported public search/fetch tools"
+        ],
+        "reviewed_at": "2026-09-25"
+      }
+    },
+    {
+      "source_key": "repo:.agents/skills/skill-installer/SKILL.md",
+      "source_sha256": "d1262c0b8d132998e942b3e3858ef6a445c88edf47c7c36f79f0345bf5589cdb",
+      "metadata": {
+        "functional_description": "Inspect a known capability manifest, report executable setup steps and missing prerequisites, then apply only the authorised supported installation path.",
+        "taxonomy": [
+          "setup.capabilities"
+        ],
+        "pillars": [
+          "orchestration",
+          "community"
+        ],
+        "intents": [
+          "plan-installation",
+          "inspect-prerequisites",
+          "install-capability"
+        ],
+        "aliases": {
+          "pt": [
+            "instalar skill",
+            "preparar ambiente",
+            "configurar ferramenta",
+            "identificar chaves ausentes"
+          ],
+          "en": [
+            "skill installation plan",
+            "configure known tool",
+            "check missing prerequisites"
+          ]
+        },
+        "use_cases": {
+          "pt": [
+            "Mostre o plano de configuração do impeccable e quais dependências faltam."
+          ],
+          "en": [
+            "Show the setup plan for impeccable and its missing prerequisites."
+          ]
+        },
+        "inputs": [
+          "named tool in installers.toml",
+          "reviewed intake for a new capability"
+        ],
+        "outputs": [
+          "OK/TODO/WAIT/YOU plan",
+          "installation log and verified status when supported"
+        ],
+        "when_to_use": [
+          "explicit setup request for a known or reviewed capability"
+        ],
+        "when_to_avoid": [
+          "reading secret values",
+          "silently installing an unreviewed service"
+        ],
+        "prerequisites": [
+          "Python 3.11 or newer",
+          "authorised install scope",
+          "Claude CLI for Claude-specific installation commands"
+        ],
+        "reviewed_at": "2026-09-25"
+      }
+    },
+    {
+      "source_key": "repo:.agents/skills/skills-graph/SKILL.md",
+      "source_sha256": "89587b0e269478142f87802fe2dcb1b35a87916023e93144c3eaa0ed4d49c6c5",
+      "metadata": {
+        "functional_description": "Discover installed skills and catalog candidates, inspect typed relationships and recommend a minimal relevant capability set without executing it.",
+        "taxonomy": [
+          "discovery.capabilities"
+        ],
+        "pillars": [
+          "engineering",
+          "orchestration",
+          "science",
+          "community",
+          "marketing"
+        ],
+        "intents": [
+          "discover-skills",
+          "route-intent",
+          "inspect-capability-graph"
+        ],
+        "aliases": {
+          "pt": [
+            "qual skill usar",
+            "buscar habilidades",
+            "mapear skills",
+            "árvore de habilidades"
+          ],
+          "en": [
+            "find a skill",
+            "route intent",
+            "capability graph"
+          ]
+        },
+        "use_cases": {
+          "pt": [
+            "Encontre as habilidades instaladas pertinentes à revisão deste projeto."
+          ],
+          "en": [
+            "Find installed skills relevant to reviewing this project."
+          ]
+        },
+        "inputs": [
+          "task intent or skill identity",
+          "local host inventory and curated graph"
+        ],
+        "outputs": [
+          "ranked installed and candidate rows",
+          "typed relations and explicit availability"
+        ],
+        "when_to_use": [
+          "choosing the smallest relevant set of skills"
+        ],
+        "when_to_avoid": [
+          "treating a catalog entry as installed",
+          "automatically approving proposed relationships"
+        ],
+        "prerequisites": [
+          "Python 3.11 or newer",
+          "local skill roots and graph data"
+        ],
+        "reviewed_at": "2026-09-25"
+      }
+    },
+    {
+      "source_key": "repo:.agents/skills/swarm/SKILL.md",
+      "source_sha256": "657e66c14fc14a99cbabfe71d1324949d7c70bf7e1126949fdf0871d9d38a095",
+      "metadata": {
+        "functional_description": "Execute an approved dependency graph through disjoint Git worktrees, then validate and integrate outputs with attributable evidence.",
+        "taxonomy": [
+          "execution.parallel"
+        ],
+        "pillars": [
+          "engineering",
+          "orchestration"
+        ],
+        "intents": [
+          "parallel-implementation",
+          "integrate-worktrees"
+        ],
+        "aliases": {
+          "pt": [
+            "agentes em paralelo",
+            "enxame de agentes",
+            "tarefas em worktrees",
+            "orquestrar swarm"
+          ],
+          "en": [
+            "parallel agent work",
+            "disjoint worktrees",
+            "swarm implementation"
+          ]
+        },
+        "use_cases": {
+          "pt": [
+            "Divida duas tarefas independentes em worktrees e revise os resultados antes de integrar."
+          ],
+          "en": [
+            "Implement two independent approved tasks in worktrees and review before integration."
+          ]
+        },
+        "inputs": [
+          "approved tasks, dependencies and file scopes",
+          "base commit and host authority"
+        ],
+        "outputs": [
+          "bounded task artifacts",
+          "integration and review evidence",
+          "observed usage or explicit unknowns"
+        ],
+        "when_to_use": [
+          "independent approved tasks with non-overlapping writer scopes"
+        ],
+        "when_to_avoid": [
+          "claiming OS containment from Git worktrees",
+          "inventing cost receipts or host APIs"
+        ],
+        "prerequisites": [
+          "Git and complete project test dependencies",
+          "native delegation or a verified supported adapter",
+          "separate accounting/containment proof for benchmark claims"
+        ],
+        "reviewed_at": "2026-09-25"
+      }
+    },
+    {
+      "source_key": "repo:.agents/skills/thesis-review/SKILL.md",
+      "source_sha256": "50f97c8df67969bddbdb2031135ca190f3412811f8439770df7c79882aaf5516",
+      "metadata": {
+        "functional_description": "Audit an existing LaTeX manuscript against supplied result files and binding style rules, then apply only the author-confirmed revisions.",
+        "taxonomy": [
+          "science.manuscript-review"
+        ],
+        "pillars": [
+          "science"
+        ],
+        "intents": [
+          "audit-manuscript",
+          "verify-reported-results",
+          "revise-confirmed-items",
+          "check-bibliography"
+        ],
+        "aliases": {
+          "pt": [
+            "revisar tese",
+            "parecer científico",
+            "conferir números do artigo",
+            "revisar manuscrito LaTeX"
+          ],
+          "en": [
+            "thesis review",
+            "manuscript audit",
+            "revise and resubmit",
+            "bibliography check"
+          ]
+        },
+        "use_cases": {
+          "pt": [
+            "Confira os números deste capítulo usando os CSVs indicados e prepare um parecer."
+          ],
+          "en": [
+            "Audit this chapter against the supplied result CSVs and prepare a numbered review."
+          ]
+        },
+        "inputs": [
+          "existing LaTeX file",
+          "explicit result CSV paths",
+          "manuscript project/style rules"
+        ],
+        "outputs": [
+          "numbered evidence-backed review",
+          "confirmed LaTeX revisions and change log",
+          "integrity and compile evidence"
+        ],
+        "when_to_use": [
+          "an existing manuscript and result evidence need an audit"
+        ],
+        "when_to_avoid": [
+          "drafting a chapter from scratch",
+          "inventing results or requesting a new experiment"
+        ],
+        "prerequisites": [
+          "Python 3.10 or newer",
+          "author decisions before revision",
+          "LaTeX compile environment or author-supplied log"
+        ],
+        "reviewed_at": "2026-09-25"
+      }
+    },
+    {
+      "source_key": "home:.claude/plugins/cache/claude-plugins-official/mattpocock-skills/1.2.3/skills/engineering/code-review/SKILL.md",
+      "source_sha256": "3abbdfe52540f9242e16589fae2cc423b3d98994c37683944462b29bab89495c",
+      "metadata": {
+        "functional_description": "Review a diff against both repository standards and the originating specification using independent review contexts.",
+        "taxonomy": [
+          "engineering.code-review"
+        ],
+        "pillars": [
+          "engineering"
+        ],
+        "intents": [
+          "review-diff",
+          "check-spec-compliance",
+          "check-coding-standards"
+        ],
+        "aliases": {
+          "pt": [
+            "revisão de código",
+            "revisar código",
+            "revisar alterações",
+            "auditar diff"
+          ],
+          "en": [
+            "code review",
+            "review changes",
+            "spec compliance review"
+          ]
+        },
+        "use_cases": {
+          "pt": [
+            "Revise as alterações de código antes do commit contra a especificação."
+          ],
+          "en": [
+            "Review these code changes against the specification before committing."
+          ]
+        },
+        "inputs": [
+          "resolvable base commit or ref",
+          "nonempty diff",
+          "specification and repository standards"
+        ],
+        "outputs": [
+          "separate standards and specification findings"
+        ],
+        "when_to_use": [
+          "reviewing an existing branch, PR or work-in-progress diff"
+        ],
+        "when_to_avoid": [
+          "installing Husky or formatting hooks",
+          "assuming a missing specification passes"
+        ],
+        "prerequisites": [
+          "Git reference and nonempty diff",
+          "independent reviewers",
+          "documented issue tracker or explicit spec source"
+        ],
+        "reviewed_at": "2026-09-25"
+      }
+    },
+    {
+      "source_key": "home:.claude/plugins/cache/claude-plugins-official/mattpocock-skills/1.2.3/skills/misc/setup-pre-commit/SKILL.md",
+      "source_sha256": "e069e6a23069ebdba946d4dea11e5d663c10640c6b14b55c4585c81b1a256ac9",
+      "metadata": {
+        "functional_description": "Configure Husky, lint-staged, formatting and available typecheck/test scripts as Git pre-commit checks.",
+        "taxonomy": [
+          "engineering.commit-hooks"
+        ],
+        "pillars": [
+          "engineering"
+        ],
+        "intents": [
+          "configure-precommit",
+          "install-husky",
+          "configure-lint-staged"
+        ],
+        "aliases": {
+          "pt": [
+            "configurar pre-commit",
+            "instalar Husky",
+            "hooks de commit",
+            "configurar lint-staged"
+          ],
+          "en": [
+            "set up pre-commit hooks",
+            "install Husky",
+            "configure lint-staged"
+          ]
+        },
+        "use_cases": {
+          "pt": [
+            "Configure Husky e lint-staged para executar as verificações a cada commit."
+          ],
+          "en": [
+            "Set up Husky and lint-staged to run checks at commit time."
+          ]
+        },
+        "inputs": [
+          "JavaScript repository and package-manager lockfile",
+          "existing format/typecheck/test configuration"
+        ],
+        "outputs": [
+          "hook configuration",
+          "development dependencies",
+          "verification of commit-time checks"
+        ],
+        "when_to_use": [
+          "explicit setup of automated commit-time checks"
+        ],
+        "when_to_avoid": [
+          "reviewing whether a code change satisfies its specification"
+        ],
+        "prerequisites": [
+          "supported package manager",
+          "authorised project dependency/setup changes"
+        ],
+        "reviewed_at": "2026-09-25"
+      }
+    }
+  ]
+}

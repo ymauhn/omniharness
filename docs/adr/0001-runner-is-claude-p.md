@@ -12,4 +12,6 @@ Claude Code 2.1.267 ships `claude plugin eval` with graders and thresholds, but 
 
 ## Consequences
 
+2026-09-20 correction: a stream evaluation requires a known zero process exit, a successful non-error result with nonempty final text, and an accepting grader. New runs retain `_process.json` so `rescore` preserves process failures; legacy workspaces without that provenance are invalid for rescoring until their status is recovered from evidence. Intermediate assistant narration cannot rescue an empty Detour answer. See the T1 report; no historical records were overwritten.
+
 Cases keep a `prompt.md` so a `graders/` directory can be added if `claude plugin eval` leaves early access. Turn counts are observed, not enforced. Re-check the command after CLI updates; the memory note `claude-plugin-eval-early-access` records the probe.

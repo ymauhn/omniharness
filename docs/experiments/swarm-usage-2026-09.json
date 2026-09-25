@@ -1,0 +1,131 @@
+{
+  "date": "2026-09-21",
+  "basis": "Offline reread of existing Claude CLI streams; no new provider calls or billing reconciliation. Known subtotals exclude unresolved streams and do not certify benchmark quality.",
+  "parser_sha256": "7695f5001ee1ce0bd0c6b8f9cf2a921022bde16281fe7052617a095a271ae2c5",
+  "coverage": {
+    "streams": 7,
+    "complete_usage": 6,
+    "unresolved": 1
+  },
+  "known_token_subtotal": 1311288,
+  "known_client_usd_subtotal": 2.8570860000000002,
+  "complete_total_tokens": null,
+  "billed_usd": null,
+  "records": [
+    {
+      "workspace": "20260910T132840-hitl-triage-harness",
+      "source_sha256": "03bd96ffcfb455d8ca051e13441d78338e2d74018e994cca6662ebb17cdb3341",
+      "process_status": "not_certified",
+      "benchmark_certified": false,
+      "token_categories": {
+        "input_tokens": 16,
+        "output_tokens": 6127,
+        "cache_read_input_tokens": 318446,
+        "cache_creation_input_tokens": 18696
+      },
+      "total_tokens": 343285,
+      "estimated_usd": 0.49943799999999994,
+      "billed_usd": null,
+      "usage_complete": true,
+      "issues": []
+    },
+    {
+      "workspace": "20260910T132957-hitl-triage-control",
+      "source_sha256": "adf3b86ccd277039c6d7b2420b10c8f05e9dccea83fa07b7588339e966001fb1",
+      "process_status": "not_certified",
+      "benchmark_certified": false,
+      "token_categories": {
+        "input_tokens": 18,
+        "output_tokens": 6809,
+        "cache_read_input_tokens": 349127,
+        "cache_creation_input_tokens": 16388
+      },
+      "total_tokens": 372342,
+      "estimated_usd": 0.5087585000000001,
+      "billed_usd": null,
+      "usage_complete": true,
+      "issues": []
+    },
+    {
+      "workspace": "20260911T000603-detour-bounded-harness",
+      "source_sha256": "0b0e04f95551155abafa48c5a6061560c2f020eeeb498819a9764857ceb7bf3a",
+      "process_status": "not_certified",
+      "benchmark_certified": false,
+      "token_categories": {
+        "input_tokens": 10,
+        "output_tokens": 2722,
+        "cache_read_input_tokens": 242533,
+        "cache_creation_input_tokens": 23639
+      },
+      "total_tokens": 268904,
+      "estimated_usd": 0.4257565,
+      "billed_usd": null,
+      "usage_complete": true,
+      "issues": []
+    },
+    {
+      "workspace": "20260911T000654-detour-bounded-control",
+      "source_sha256": "c5957dff4872617ac7c0796b071526505084444ebddd5ce05cba2238daadff65",
+      "process_status": "not_certified",
+      "benchmark_certified": false,
+      "token_categories": {
+        "input_tokens": 2,
+        "output_tokens": 380,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 44070
+      },
+      "total_tokens": 44452,
+      "estimated_usd": 0.45021,
+      "billed_usd": null,
+      "usage_complete": true,
+      "issues": []
+    },
+    {
+      "workspace": "20260911T000821-detour-bounded-harness",
+      "source_sha256": "3b499ede38bb8490f69c1ef52b39de7cd4f594f2f675859ded2c88bf32a01e91",
+      "process_status": "not_certified",
+      "benchmark_certified": false,
+      "token_categories": {
+        "input_tokens": 6,
+        "output_tokens": 4319,
+        "cache_read_input_tokens": 138332,
+        "cache_creation_input_tokens": 17986
+      },
+      "total_tokens": 160643,
+      "estimated_usd": 0.357031,
+      "billed_usd": null,
+      "usage_complete": true,
+      "issues": []
+    },
+    {
+      "workspace": "20260911T000944-detour-bounded-control",
+      "source_sha256": "1536c2f893379a004bbf8798d8eb96175ae5c0abbaa165367b13a1dacdb70cdb",
+      "process_status": "not_certified",
+      "benchmark_certified": false,
+      "token_categories": {
+        "input_tokens": 6,
+        "output_tokens": 3580,
+        "cache_read_input_tokens": 68884,
+        "cache_creation_input_tokens": 49192
+      },
+      "total_tokens": 121662,
+      "estimated_usd": 0.615892,
+      "billed_usd": null,
+      "usage_complete": true,
+      "issues": []
+    },
+    {
+      "workspace": "20260920T233515-detour-bounded-control",
+      "source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "process_status": "not_certified",
+      "benchmark_certified": false,
+      "total_tokens": null,
+      "estimated_usd": null,
+      "billed_usd": null,
+      "usage_complete": false,
+      "issues": [
+        "no unique final result"
+      ]
+    }
+  ]
+}

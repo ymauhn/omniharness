@@ -48,15 +48,15 @@ const scenarios = {
   async 'S1 dedupe across sources and per-source cap'() {
     const r = await run({
       fontes: {
-        github: { referencias: [ref('https://github.com/a/b'), ref('http://www.github.com/a/b/'), ref('https://github.com/c/d?utm_source=x'), ref('https://github.com/e/f')], degradado: false },
-        hn: { referencias: [ref('https://github.com/c/d'), ref('https://news.ycombinator.com/item?id=1')], degradado: false },
+        github: { referencias: [ref('https://github.com/a/b'), ref('https://GITHUB.com/a/b#readme'), ref('https://github.com/c/d?utm_source=x'), ref('https://github.com/e/f')], degradado: false },
+        hn: { referencias: [ref('https://github.com/c/d?utm_source=x#section'), ref('https://news.ycombinator.com/item?id=1')], degradado: false },
         producthunt: { referencias: [], degradado: true, motivo: 'sem chave de API, WebSearch site:producthunt.com' },
       },
       sintese: { padroes: [{ nome: 'P', descricao: 'd', urls: ['https://github.com/a/b', 'https://nao.esta/na/lista'] }], lacunas: ['l'], recomendacoes: ['r'] },
     })
     assert.strictEqual(r.parouPor, 'sintetizado')
     assert.deepStrictEqual(r.referencias.map((x) => x.url), ['https://github.com/a/b', 'https://github.com/c/d?utm_source=x', 'https://news.ycombinator.com/item?id=1'])
-    assert.strictEqual(r.resumo.duplicatasRemovidas, 2) // a/b twice (www + trailing slash) and c/d from hn
+    assert.strictEqual(r.resumo.duplicatasRemovidas, 2) // host case/fragment only; path and query still identify pages
     assert.deepStrictEqual(r.resumo.porFonte, { github: 2, hn: 1, producthunt: 0 }) // cap 2 dropped e/f
     assert.deepStrictEqual(r.padroes[0].urls, ['https://github.com/a/b']) // foreign URL filtered out
     assert.deepStrictEqual(r.resumo.fontesDegradadas, ['producthunt (sem chave de API, WebSearch site:producthunt.com)'])
@@ -93,6 +93,23 @@ const scenarios = {
   },
   async 'S5 args are validated'() {
     await assert.rejects(() => run({ fontes: {} }, { fontes: [] }), /precisa de args.demanda/)
+  },
+  async 'S6 cold/warm history preserves distinct query IDs and scope'() {
+    const script = { fontes: { github: { referencias: [ref('https://news.ycombinator.com/item?id=1'), ref('https://news.ycombinator.com/item?id=2')], degradado: false }, hn: { referencias: [] }, producthunt: { referencias: [] } }, sintese: { padroes: [], lacunas: [], recomendacoes: [] } }
+    const cold = await run(script)
+    assert.strictEqual(cold.referencias.length, 2)
+    assert.strictEqual(cold.resumo.agentes, 4)
+    assert.strictEqual(cold.seenUpdates.length, 2)
+    const scope = { seenScope: 'one', seenContext: 'a'.repeat(64) }
+    const seen = { consumer: 'scout', scope: scope.seenScope, context: scope.seenContext, records: cold.seenUpdates }
+    const warm = await run(script, { ...scope, seen })
+    assert.strictEqual(warm.resumo.reused, 2)
+    assert.strictEqual(warm.agentCalls, 3)
+    assert.deepStrictEqual(warm.seenUpdates, [])
+    await assert.rejects(() => run(script, { ...scope, seen, seenContext: 'b'.repeat(64) }), /seen/)
+    const failed = await run({ ...script, sintese: {} })
+    assert.deepStrictEqual(failed.seenUpdates, [])
+    console.log('MEASURE scout offline: cold=' + cold.agentCalls + ' warm=' + warm.agentCalls + ' calls; reused=' + warm.resumo.reused)
   },
 }
 

@@ -1,6 +1,7 @@
 {
-  "_comment": "Claude Code settings fragment. scripts/install.py union-merges it into ~/.claude/settings.json (global gate) and evals/run.py drops it into benchmark sandboxes as .claude/settings.json. {{OMNIHARNESS_HOME}} is replaced by the absolute repo path at install time. Single-file rm stays free on purpose so gauntlet hygiene never prompts; recursive forms ask.",
+  "_comment": "Claude fragment: Bash-only block guard; no envelope-driven ask. Native permission rules remain authoritative. Auxiliary hooks run local checks, not models. Installer preserves unrelated hooks and pins Python.",
   "permissions": {
+    "allow": ["Bash(git status)", "Bash(git diff --no-ext-diff --no-textconv)", "PowerShell(Get-Location)"],
     "deny": [
       "Read(./.env)",
       "Read(./.env.*)",
@@ -10,7 +11,6 @@
     ],
     "ask": [
       "Bash(git push:*)",
-      "Bash(git commit:*)",
       "Bash(rm -r:*)",
       "Bash(rm -fr:*)",
       "Bash(rmdir:*)",
@@ -48,6 +48,12 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {"matcher": "startup|resume|clear", "hooks": [{"type": "command", "command": "python \"{{OMNIHARNESS_HOME}}/harness/hooks/verify.py\"", "timeout": 45}]}
+    ],
+    "PostToolUse": [
+      {"matcher": "Write|Edit|MultiEdit", "hooks": [{"type": "command", "command": "python \"{{OMNIHARNESS_HOME}}/harness/hooks/verify.py\"", "timeout": 45}]}
     ]
   }
 }

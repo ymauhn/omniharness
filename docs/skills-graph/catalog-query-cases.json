@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "frozen_at": "2026-09-25",
+  "label_authority": "agent-proposed; human adjudication pending",
+  "purpose": "A small lexical retrieval diagnostic, not E2 calibration or a semantic-quality certificate. Holdout queries were authored after curation but before executing the new catalog query engine; they were not supplied to its implementer. Do not tune against these cases and continue calling them held out.",
+  "cases": [
+    {
+      "id": "dev-review-not-hook",
+      "split": "development",
+      "query": "revisar codigo antes do commit",
+      "expected_name": "code-review",
+      "reason": "Reviewing a change is distinct from configuring commit hooks. This known failure informed the curated aliases."
+    },
+    {
+      "id": "dev-hook",
+      "split": "development",
+      "query": "configurar Husky e lint-staged",
+      "expected_name": "setup-pre-commit",
+      "reason": "Explicit hook setup."
+    },
+    {
+      "id": "hold-review",
+      "split": "holdout",
+      "query": "Confira se o diff atende aos requisitos combinados, sem modificar os arquivos.",
+      "expected_name": "code-review",
+      "reason": "Audit an existing change against its specification."
+    },
+    {
+      "id": "hold-manuscript",
+      "split": "holdout",
+      "query": "Tenho uma seção LaTeX e CSVs dos resultados: encontre afirmações numéricas sem suporte.",
+      "expected_name": "thesis-review",
+      "reason": "Existing manuscript and supplied evidence."
+    },
+    {
+      "id": "hold-parallel",
+      "split": "holdout",
+      "query": "Distribua a execução aprovada entre trabalhadores em worktrees separados e depois integre as mudanças.",
+      "expected_name": "swarm",
+      "reason": "Approved worktree execution and integration."
+    },
+    {
+      "id": "hold-discovery",
+      "split": "holdout",
+      "query": "Quais habilidades já estão disponíveis para esta tarefa e quais dependências existem entre elas?",
+      "expected_name": "skills-graph",
+      "reason": "Capability discovery, not installation or codebase mapping."
+    },
+    {
+      "id": "hold-hook",
+      "split": "holdout",
+      "query": "Adicione uma rotina Git que rode verificações antes de permitir meus commits.",
+      "expected_name": "setup-pre-commit",
+      "reason": "Automated commit-time checks rather than reviewing one change."
+    },
+    {
+      "id": "hold-activation",
+      "split": "holdout",
+      "query": "Quero iniciar a sessão com OmniHarness e conferir se sua instalação está correta.",
+      "expected_name": "omniharness",
+      "reason": "Explicit activation and installation inspection."
+    },
+    {
+      "id": "hold-install-plan",
+      "split": "holdout",
+      "query": "Mostre o que falta instalar para usar a ferramenta impeccable neste computador.",
+      "expected_name": "skill-installer",
+      "reason": "Plan setup of a named known capability without inventing authority."
+    },
+    {
+      "id": "hold-empty",
+      "split": "holdout",
+      "query": "   ",
+      "expected_name": null,
+      "reason": "Empty intent must abstain."
+    },
+    {
+      "id": "hold-unknown",
+      "split": "holdout",
+      "query": "zxqv9876 plmok4321",
+      "expected_name": null,
+      "reason": "No lexical match must abstain."
+    }
+  ]
+}

@@ -1,0 +1,517 @@
+{
+  "audit_version": 1,
+  "records": [
+    {
+      "source_file": "20260910T133150-gauntlet-rapido-interactive.json",
+      "source_sha256": "2a642489d3ff1dd9538facb039b87351d367d83a02f76a286d8510ac7492f5f4",
+      "case": "gauntlet-rapido",
+      "arm": "interactive",
+      "legacy_pass": true,
+      "reported_exit_code": 0,
+      "run_valid": null,
+      "task_pass": null,
+      "control_discriminative": null,
+      "comparison": "incomparable",
+      "findings": [
+        "original manifest and trusted process provenance unavailable",
+        "legacy tokens_out was aggregate subagent usage; no token-category or process evidence"
+      ],
+      "grader_sha256": "024c27ff3b616ffec3a5e01ba0671b8b6fa9c35967096841f132ce85df2711e7",
+      "grader_observation": null,
+      "usage": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "cache_read": null,
+        "cache_create": null,
+        "cost_usd": null,
+        "turns": null,
+        "duration_ms": null,
+        "usage_raw": {},
+        "coverage": {
+          "tokens_in": "unavailable",
+          "tokens_out": "unavailable",
+          "cache_read": "unavailable",
+          "cache_create": "unavailable",
+          "cost_usd": "unavailable",
+          "turns": "unavailable",
+          "duration_ms": "unavailable"
+        }
+      },
+      "tokens_total_reported": 9293,
+      "model": null
+    },
+    {
+      "source_file": "20260910T133456-hitl-triage-harness.json",
+      "source_sha256": "93b086bf6d27ff331e7a654e5d43115d55498329df5875eb2c1b14a0cdc5eee0",
+      "case": "hitl-triage",
+      "arm": "harness",
+      "legacy_pass": true,
+      "reported_exit_code": 0,
+      "run_valid": null,
+      "task_pass": null,
+      "control_discriminative": null,
+      "comparison": "incomparable",
+      "findings": [
+        "original manifest and trusted process provenance unavailable",
+        "current full task grading withheld: original budget/configuration is unknown"
+      ],
+      "grader_sha256": "270c5d0b65ae0a131da4f8c7ab59a0c44e69c76e0d956694a4335e0b2770fa53",
+      "grader_observation": null,
+      "usage": {
+        "tokens_in": 16,
+        "tokens_out": 6127,
+        "cache_read": 318446,
+        "cache_create": 18696,
+        "cost_usd": 0.49943799999999994,
+        "turns": 13,
+        "duration_ms": 75372,
+        "usage_raw": {
+          "input_tokens": 16,
+          "cache_creation_input_tokens": 18696,
+          "cache_read_input_tokens": 318446,
+          "output_tokens": 6127,
+          "output_tokens_details": {
+            "thinking_tokens": 748
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 18696,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "not_available",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 699,
+              "cache_read_input_tokens": 45243,
+              "cache_creation_input_tokens": 2179,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 2179
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard"
+        },
+        "coverage": {
+          "tokens_in": "measured",
+          "tokens_out": "measured",
+          "cache_read": "measured",
+          "cache_create": "measured",
+          "cost_usd": "measured",
+          "turns": "measured",
+          "duration_ms": "measured"
+        }
+      },
+      "tokens_total_reported": null,
+      "model": "claude-opus-5[1m]",
+      "stream_sha256": "03bd96ffcfb455d8ca051e13441d78338e2d74018e994cca6662ebb17cdb3341"
+    },
+    {
+      "source_file": "20260910T133457-gauntlet-rapido-interactive-seeded.json",
+      "source_sha256": "cf2955620ebeca50a43e0652f5e40e28e336f8d7fe4263b99ccb0baa11d8725a",
+      "case": "gauntlet-rapido",
+      "arm": "interactive-seeded",
+      "legacy_pass": true,
+      "reported_exit_code": 0,
+      "run_valid": null,
+      "task_pass": null,
+      "control_discriminative": null,
+      "comparison": "incomparable",
+      "findings": [
+        "original manifest and trusted process provenance unavailable",
+        "legacy tokens_out was aggregate subagent usage; no token-category or process evidence"
+      ],
+      "grader_sha256": "024c27ff3b616ffec3a5e01ba0671b8b6fa9c35967096841f132ce85df2711e7",
+      "grader_observation": null,
+      "usage": {
+        "tokens_in": null,
+        "tokens_out": null,
+        "cache_read": null,
+        "cache_create": null,
+        "cost_usd": null,
+        "turns": null,
+        "duration_ms": null,
+        "usage_raw": {},
+        "coverage": {
+          "tokens_in": "unavailable",
+          "tokens_out": "unavailable",
+          "cache_read": "unavailable",
+          "cache_create": "unavailable",
+          "cost_usd": "unavailable",
+          "turns": "unavailable",
+          "duration_ms": "unavailable"
+        }
+      },
+      "tokens_total_reported": 3187,
+      "model": null
+    },
+    {
+      "source_file": "20260910T133457-hitl-triage-control.json",
+      "source_sha256": "4c122aec90fc9d5ff66e6c65b22e7fe70585adb01313b508d8512cbb31c791c9",
+      "case": "hitl-triage",
+      "arm": "control",
+      "legacy_pass": true,
+      "reported_exit_code": 0,
+      "run_valid": false,
+      "task_pass": null,
+      "control_discriminative": null,
+      "comparison": "incomparable",
+      "findings": [
+        "original manifest and trusted process provenance unavailable",
+        "missing/error result or empty final answer"
+      ],
+      "grader_sha256": "270c5d0b65ae0a131da4f8c7ab59a0c44e69c76e0d956694a4335e0b2770fa53",
+      "grader_observation": null,
+      "usage": {
+        "tokens_in": 16,
+        "tokens_out": 5131,
+        "cache_read": 305641,
+        "cache_create": 14885,
+        "cost_usd": 0.5087585000000001,
+        "turns": 9,
+        "duration_ms": 96933,
+        "usage_raw": {
+          "input_tokens": 16,
+          "cache_creation_input_tokens": 14885,
+          "cache_read_input_tokens": 305641,
+          "output_tokens": 5131,
+          "output_tokens_details": {
+            "thinking_tokens": 2898
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 14885,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "not_available",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 686,
+              "cache_read_input_tokens": 43057,
+              "cache_creation_input_tokens": 429,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 429
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard"
+        },
+        "coverage": {
+          "tokens_in": "measured",
+          "tokens_out": "measured",
+          "cache_read": "measured",
+          "cache_create": "measured",
+          "cost_usd": "measured",
+          "turns": "measured",
+          "duration_ms": "measured"
+        }
+      },
+      "tokens_total_reported": null,
+      "model": "claude-opus-5[1m]",
+      "stream_sha256": "adf3b86ccd277039c6d7b2420b10c8f05e9dccea83fa07b7588339e966001fb1"
+    },
+    {
+      "source_file": "20260911T000603-detour-bounded-harness.json",
+      "source_sha256": "66d51e062315bdb9612e1ee1467c189973dd606880cd8910f6c99db058f52e1b",
+      "case": "detour-bounded",
+      "arm": "harness",
+      "legacy_pass": false,
+      "reported_exit_code": 1,
+      "run_valid": false,
+      "task_pass": null,
+      "control_discriminative": null,
+      "comparison": "incomparable",
+      "findings": [
+        "original manifest and trusted process provenance unavailable",
+        "reported process exit 1",
+        "missing/error result or empty final answer"
+      ],
+      "grader_sha256": "39cfafaafdbf6ca9e4c246c7a291fcea7e00fb41e26713fa759952a8967b1442",
+      "grader_observation": null,
+      "usage": {
+        "tokens_in": 8,
+        "tokens_out": 612,
+        "cache_read": 188292,
+        "cache_create": 22222,
+        "cost_usd": 0.4257565,
+        "turns": 5,
+        "duration_ms": 44784,
+        "usage_raw": {
+          "input_tokens": 8,
+          "cache_creation_input_tokens": 22222,
+          "cache_read_input_tokens": 188292,
+          "output_tokens": 612,
+          "output_tokens_details": {
+            "thinking_tokens": 22
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 22222,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "not_available",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 170,
+              "cache_read_input_tokens": 52726,
+              "cache_creation_input_tokens": 1515,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 1515
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard"
+        },
+        "coverage": {
+          "tokens_in": "measured",
+          "tokens_out": "measured",
+          "cache_read": "measured",
+          "cache_create": "measured",
+          "cost_usd": "measured",
+          "turns": "measured",
+          "duration_ms": "measured"
+        }
+      },
+      "tokens_total_reported": null,
+      "model": "claude-opus-5[1m]",
+      "stream_sha256": "0b0e04f95551155abafa48c5a6061560c2f020eeeb498819a9764857ceb7bf3a"
+    },
+    {
+      "source_file": "20260911T000654-detour-bounded-control.json",
+      "source_sha256": "257bfaee6e24f7bfc2be4c873b9c21173ad4b0716f0d476345c112e64b4192f6",
+      "case": "detour-bounded",
+      "arm": "control",
+      "legacy_pass": true,
+      "reported_exit_code": 1,
+      "run_valid": false,
+      "task_pass": null,
+      "control_discriminative": null,
+      "comparison": "incomparable",
+      "findings": [
+        "original manifest and trusted process provenance unavailable",
+        "reported process exit 1",
+        "missing/error result or empty final answer"
+      ],
+      "grader_sha256": "39cfafaafdbf6ca9e4c246c7a291fcea7e00fb41e26713fa759952a8967b1442",
+      "grader_observation": null,
+      "usage": {
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "cache_read": 0,
+        "cache_create": 0,
+        "cost_usd": 0.45021,
+        "turns": 2,
+        "duration_ms": 5112,
+        "usage_raw": {
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "input_tokens": 0,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "output_tokens": 0,
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "",
+          "iterations": [],
+          "speed": "standard"
+        },
+        "coverage": {
+          "tokens_in": "measured",
+          "tokens_out": "measured",
+          "cache_read": "measured",
+          "cache_create": "measured",
+          "cost_usd": "measured",
+          "turns": "measured",
+          "duration_ms": "measured"
+        }
+      },
+      "tokens_total_reported": null,
+      "model": "claude-opus-5[1m]",
+      "stream_sha256": "c5957dff4872617ac7c0796b071526505084444ebddd5ce05cba2238daadff65"
+    },
+    {
+      "source_file": "20260911T000821-detour-bounded-harness.json",
+      "source_sha256": "9a14767ed738118797f41d427890f8c0445a43c0a2bb157458dd229072aab8b6",
+      "case": "detour-bounded",
+      "arm": "harness",
+      "legacy_pass": true,
+      "reported_exit_code": 0,
+      "run_valid": null,
+      "task_pass": null,
+      "control_discriminative": null,
+      "comparison": "incomparable",
+      "findings": [
+        "original manifest and trusted process provenance unavailable",
+        "grader observation is conditional; original execution/configuration cannot be certified"
+      ],
+      "grader_sha256": "39cfafaafdbf6ca9e4c246c7a291fcea7e00fb41e26713fa759952a8967b1442",
+      "grader_observation": {
+        "task_pass": true,
+        "control_discriminative": null,
+        "failures": []
+      },
+      "usage": {
+        "tokens_in": 6,
+        "tokens_out": 4319,
+        "cache_read": 138332,
+        "cache_create": 17986,
+        "cost_usd": 0.357031,
+        "turns": 3,
+        "duration_ms": 77844,
+        "usage_raw": {
+          "input_tokens": 6,
+          "cache_creation_input_tokens": 17986,
+          "cache_read_input_tokens": 138332,
+          "output_tokens": 4319,
+          "output_tokens_details": {
+            "thinking_tokens": 2327
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 17986,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "not_available",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 3958,
+              "cache_read_input_tokens": 52444,
+              "cache_creation_input_tokens": 244,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 244
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard"
+        },
+        "coverage": {
+          "tokens_in": "measured",
+          "tokens_out": "measured",
+          "cache_read": "measured",
+          "cache_create": "measured",
+          "cost_usd": "measured",
+          "turns": "measured",
+          "duration_ms": "measured"
+        }
+      },
+      "tokens_total_reported": null,
+      "model": "claude-opus-5[1m]",
+      "stream_sha256": "3b499ede38bb8490f69c1ef52b39de7cd4f594f2f675859ded2c88bf32a01e91"
+    },
+    {
+      "source_file": "20260911T000944-detour-bounded-control.json",
+      "source_sha256": "1acac586f28ad1eb3f2da133432225bb55be862032474dc5ea70a2e48f446705",
+      "case": "detour-bounded",
+      "arm": "control",
+      "legacy_pass": true,
+      "reported_exit_code": 1,
+      "run_valid": false,
+      "task_pass": null,
+      "control_discriminative": null,
+      "comparison": "incomparable",
+      "findings": [
+        "original manifest and trusted process provenance unavailable",
+        "reported process exit 1",
+        "missing/error result or empty final answer"
+      ],
+      "grader_sha256": "39cfafaafdbf6ca9e4c246c7a291fcea7e00fb41e26713fa759952a8967b1442",
+      "grader_observation": null,
+      "usage": {
+        "tokens_in": 4,
+        "tokens_out": 342,
+        "cache_read": 34290,
+        "cache_create": 34594,
+        "cost_usd": 0.615892,
+        "turns": 3,
+        "duration_ms": 54515,
+        "usage_raw": {
+          "input_tokens": 4,
+          "cache_creation_input_tokens": 34594,
+          "cache_read_input_tokens": 34290,
+          "output_tokens": 342,
+          "output_tokens_details": {
+            "thinking_tokens": 173
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 34594,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "not_available",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 106,
+              "cache_read_input_tokens": 34290,
+              "cache_creation_input_tokens": 304,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 304
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard"
+        },
+        "coverage": {
+          "tokens_in": "measured",
+          "tokens_out": "measured",
+          "cache_read": "measured",
+          "cache_create": "measured",
+          "cost_usd": "measured",
+          "turns": "measured",
+          "duration_ms": "measured"
+        }
+      },
+      "tokens_total_reported": null,
+      "model": "claude-opus-5[1m]",
+      "stream_sha256": "1536c2f893379a004bbf8798d8eb96175ae5c0abbaa165367b13a1dacdb70cdb"
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "invalid": 4,
+    "unverified": 4,
+    "certified_valid": 0
+  },
+  "originals_unchanged": true
+}

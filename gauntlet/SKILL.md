@@ -142,6 +142,10 @@ config — a resposta entra em `regras`.
 
 ## Fase 2 — Rodar o driver
 
+### Cross-run history (S4)
+
+Before launching, follow `<harness>/docs/t13/SEEN.md`: inventory all audited code/tests, binding rules and exact driver configuration, including lenses and driver hash; fingerprint actual file contents; obtain a fresh `gauntlet` snapshot. Pass it as `seen` with matching `seenScope` and `seenContext`. When input coverage is uncertain, run cold. The persisted key is the exact `file:line — title`; do not seed `jaVistos` from historical line windows. After saving the phase 3 report and before any fixes, the single coordinator sends only `seenUpdates` to `seen.py record`. Incomplete lens sets and unverified findings are never persisted. Show `previouslyJudged` separately: an old confirmation is still an open issue, not a newly found or fixed one. Recompute the fingerprint after source/config changes. Report `resumo.reused`; fake-agent savings are not real usage measurements. Journal errors preserve evidence and do not authorize a paid retry.
+
 Monte `args` com: `raiz` (caminho absoluto do repo), `preset`, `tetoTokens` (se
 `+Nk`), `contexto` (config + "O QUE MUDOU" + "FOCO"), `escopo`, `verificar`,
 `regras`, `areas`, `prefixoTmp` (padrão `_gauntlet_`). Passe **objeto JSON**,

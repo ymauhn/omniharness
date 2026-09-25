@@ -1,5 +1,19 @@
 # Handoff: continuing OmniHarness on Codex
 
+**Current transition ticket:** read [T13-H1: Claude checkpoint and return handoff](t13/TICKET-HANDOFF-CLAUDE.md) before edits or the pending commit. Its latest continuation entry is the resume point for both hosts; append changed files, decisions, test evidence, commit scope and the next action there.
+
+Current local checkpoint, 2026-09-21: owner-authorised commits and native Codex/Astra allowance work supersede the older restrictions below. E1/T13 delivery includes the recovered Docker runtime's 12-check offline containment proof and the complete 92-test Python battery (zero skips), plus all Node/eval/install/graph checks. Resolve the checkpoint SHA from Git rather than this commit's own contents. Settings backup is `.claude/settings.json.pre-omniharness-6`; Docker socket backups remain preserved. Next: connect native agent execution/attributable usage to the verified containment profile; E1 control integration and B8/B9 are not yet certified. The dated sections below are historical.
+
+Latest continuation, 2026-09-21: inspected Claude's `7a9b438`, remote Phase C/D4 plans and stash `8105be6` without merging or discarding pending E1/T13 changes. The guard stays Bash-only, block-only and never-ask; the earlier all-tool adapter description below is historical. Added coordinator SQLite accounting, whole-tree receipts, actual Git worktrees/scope audits and trusted isolation gates. Read [ACCOUNTING.md](t13/ACCOUNTING.md), [reconciliation evidence](experiments/claude-reconciliation-2026-09-21.md) and current validation. User settings backup advanced to `.claude/settings.json.pre-omniharness-5`. Native Windows/Docker OS isolation and provider caps remain unverified; do not dispatch paid swarms. No new commit/push or model call was made.
+
+S4 continuation, 2026-09-21: scoped, expiring Scout/Gauntlet history and bounded local SessionStart/PostToolUse checks are implemented and installed. Read `t13/SEEN.md` for the coordinator protocol and `t13/VALIDATION.md` for final test evidence. Cold/warm fixtures measure Scout 4→3 and Gauntlet 3→1 simulated calls; these are not real token/cost/quality improvements. User settings backup: `.claude/settings.json.pre-omniharness-4`. Prior confirmed findings stay visible; incomplete judgments are not cached. S3's real accounting/isolation adapter and live hook delivery remain unverified. Next technical dependency is that host adapter before B8/B9. No new commit, push, paid run or workspace envelope was created.
+
+Prior T13 slice, 2026-09-21: S1/S2 local paths and S3 offline orchestration are implemented; read `t13/README.md`, `t13/VALIDATION.md` and ADR 0005. The user install includes Swarm and the all-tool hook. That slice's full battery: **68/68 Python tests passed, no skips**, plus all Node suites, eval selftest, install and graph checks. The skill validator passed with PyYAML 6.0.3. The owner authorised task-scoped autonomy: necessary dependencies/public assets no longer require repeated chat confirmations; AGENTS.md supersedes older blanket wording. The prior font/installation blocks are resolved. S3 live admission remains open because the installed host lacks a verified total-usage reservation adapter. E1/T13 changes remain uncommitted.
+
+Latest: T1 committed as `1a2289c`; E1 implemented and the complete battery passed (55/55 Python tests, no skips). Read `evals/RECORDS.md` and `experiments/eval-integrity-2026-09.md` for the contract, eight-record historical audit and T13 opening. E1 changes are not included in the T1 commit. Live controls await enforceable home isolation.
+
+Update 2026-09-20: local T1 completed with authorised runtime, install-check and eval integrity fixes. Read `experiments/codex-parity-2026-09.md`, `adr/0006-evaluation-first-evolution.md` and `evals/PLAN.md` first. Use `./scripts/check.ps1` on this Windows host. Evals now precede commercial execution. The original handoff below is historical; Python 3.12+ is required by the Windows installer.
+
 Written 2026-09-11 at the close of the Claude Code session that built portal v3.1. The next session runs on Codex; it is also the harness's host-portability test, so every divergence is a finding to record (T1), not something to paper over.
 
 ## Where we are
@@ -13,7 +27,7 @@ Written 2026-09-11 at the close of the Claude Code session that built portal v3.
 
 ## Initialise and validate on Codex
 
-1. Clone and enter the repository. Python 3.11 or 3.12 and Node 20 or newer are required; Playwright is optional (the visual tests skip without it; installing it is a gated `pip`).
+1. Clone and enter the repository. Current requirement: Python 3.12+, Node 20+, and Playwright/Chromium (see `docs/install.md`). Missing test dependencies must be installed; skipped tests are no longer accepted.
 2. Read, in this order: `AGENTS.md` (the rules; Codex reads it natively), `CONTEXT.md` (the vocabulary), `docs/commercial/spec.md`, `docs/commercial/TICKETS.md`.
 3. Check the install, then adopt it into the user scope:
 
@@ -40,7 +54,7 @@ node tests/test_driver.js
 python evals/run.py selftest
 ```
 
-   Expected: 33 Python tests (the 2 visual ones skip without Playwright), 3 driver scenarios PASS, selftest OK.
+   Use the current `scripts/check.ps1` battery and recorded counts in the T1 report; both visual tests must execute. The original 33-test baseline is historical.
 5. Activate the harness in the session: `$omniharness` (Codex) loads the rules for this session only, checks the install and reports regressions. It is opt-in per session; nothing is imported globally.
 6. Rebuild the portal once to prove the toolchain: `python scripts/site_build.py --report` (needs ffmpeg on PATH for the downscaled captures; without it the build says so).
 

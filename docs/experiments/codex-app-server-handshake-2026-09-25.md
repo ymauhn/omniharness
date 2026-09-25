@@ -1,0 +1,11 @@
+# Codex App Server model-free handshake, Windows
+
+Date: 2026-09-25. This is a local protocol check, not a tool-isolation or live-agent certification.
+
+The installed `codex.exe` reported `codex-cli 0.155.0-alpha.16.4` and SHA-256 `9015c47d1714294ecd9033c4b5aefc3076797d867d1c36aa37749fcb76c8942f`. After the observer fix, the rechecked bridge source, `harness/codex_tool_bridge.py`, had SHA-256 `8c7c6be7ace25a10e26cae87f67f06a85330da35c08d9a4b5baa066f1448ff34`.
+
+The coordinator launched that executable with `app-server --stdio`, wrote exactly one `initialize` JSONL request with `capabilities.experimentalApi: true`, kept stdin open until a response line arrived, then closed stdin. The process exited with code 0. The initial direct response capture had top-level keys `id` and `result` without `jsonrpc`; its `result` keys were `codexHome`, `platformFamily`, `platformOs`, and `userAgent`. A second model-free probe using the current bridge source also exited 0 and returned `app_server_handshake: true`, `dynamic_api_requested: true`, `exclusive_tool_inventory_verified: false`, and `host_tool_isolation_certified: false`. The repeat captured only the parser's boolean summary, not raw response values, credentials, or local account paths.
+
+No `thread/start`, `turn/start`, dynamic tool call, model request, or paid operation was sent. This check confirms the installed server's initialize wire shape and process behavior only. It does not prove native host tools can be disabled or that a Codex turn would stay inside the worker. `CodexToolBridge.turn_admission` remains false. The observer marks unknown dynamic tools and all `functionCallOutput` events unsafe, but observation is not a preventative boundary.
+
+Validation: `C:\Users\Yeonatan\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m unittest tests.test_codex_tool_bridge -v` passed 11/11 tests. The repeat invoked `probe_app_server` on the installed absolute executable path with a 10-second timeout under the host execution context. The restricted command sandbox could not complete this executable's earlier handshake because the CLI could not resolve its home directory. No live turn, tool dispatch or host isolation is claimed by this note; repository-wide checks are recorded separately in [T13 validation](../t13/VALIDATION.md).

@@ -1,0 +1,33 @@
+{
+  "backend": "docker-container-worker",
+  "checks": {
+    "actual_scope_audited": true,
+    "child_report_boolean": true,
+    "command_exited_zero": true,
+    "docker_socket_absent": true,
+    "exact_container_removed": true,
+    "network_denied": true,
+    "no_automatic_task_pass": true,
+    "no_capabilities": true,
+    "no_new_privileges": true,
+    "non_root": true,
+    "outside_markers_absent": true,
+    "outside_paths_inaccessible": true,
+    "private_sentinels_unchanged": true,
+    "root_write_denied": true,
+    "seccomp_active": true,
+    "source_and_sibling_unchanged": true,
+    "worker_artifact_verified": true,
+    "workspace_write": true
+  },
+  "fixture_preserved_for_triage": false,
+  "issues": [],
+  "passed": true,
+  "schema_version": 1,
+  "scope": "disposable worker adapter; no native model/tool bridge or E1 control adapter",
+  "wall_seconds": 5.313,
+  "date": "2026-09-25",
+  "probe_sha256": "4c68363042bf94779d61460e5d79696746f6c7a7f7e33009aacdfeceefdde71f",
+  "worker_sha256": "bbcb324a3a8543032146d1fa9bc21dd04a5adc14889d4f9635d0fc814d60b5c8",
+  "shared_probe_sha256": "940d89f42c2daecb08de4776fa2c1a087b0b0d6a9927e96ce0275999b2086d37"
+}

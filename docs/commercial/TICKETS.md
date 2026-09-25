@@ -1,11 +1,15 @@
 # Tickets: the commercial phase (R1 + R2)
 
+Current checkpoint ticket (2026-09-21): [T13-H1 — Claude review, commit and return handoff to Codex](../t13/TICKET-HANDOFF-CLAUDE.md). Read it before changing or committing the pending E1/T13 work. T1 is committed; E1 and T13 S1/S2/S4 plus the S3 offline core are implemented locally. S3 live acceptance and S5–S7 remain open. Current AGENTS.md task-scoped autonomy supersedes the historical blanket network/install confirmation wording below.
+
 Spec: `spec.md`. Plan gate record: `grilling.md`. Onboarding for the executing host: `../handoff-codex.md`. Format per ticket: round, blocked by, `ready-for-agent`, owner steps (only the owner can do these; the agent stops and asks), acceptance (checkable), files, host note (Claude Code vs Codex vs Hermes). Take tickets in order unless the blocking edges allow otherwise. Every gated command (network, installs, `git commit`, `git push`) names its cost and waits for the yes.
 
 ## T1 · Host parity check on Codex (R1 · blocked by: none · ready-for-agent: yes)
 
+Status 2026-09-20: local scope completed; see `../experiments/codex-parity-2026-09.md`. The owner authorised runtime, links, eval fixes, visual dependencies and a T1 commit. All 41 Python tests, including both visual tests, passed without skips; the full runner passed. Live agent-host coverage remains a documented limitation. `../evals/PLAN.md` now takes priority over commercial execution; ADR 0006 records the decision.
+
 Owner steps: none.
-Acceptance: `python scripts/install.py --check` reports no drift after `--adopt`; `python -m unittest discover tests` (33 tests, the visual ones skip without Playwright), `node tests/test_driver.js` and `python evals/run.py selftest` pass; `$omniharness` loads the rules and reports the install; every divergence found (paths, junctions vs symlinks, `.cmd` wrappers, missing Workflow tool) is written to `docs/experiments/codex-parity-2026-09.md` as a numbered list with the command and its output, and mirrored as roadmap rows in T3. No fix beyond a one-line one is applied in this ticket.
+Acceptance (updated by owner): `scripts/check.ps1` passes the complete Python/Node/eval/install/graph battery with no skips; every divergence found (paths, junctions vs symlinks, `.cmd` wrappers, missing Workflow tool) is written to `docs/experiments/codex-parity-2026-09.md` and mirrored as roadmap rows in T3. Runtime, link, evaluator and validation fixes are explicitly authorised.
 Files: `docs/experiments/codex-parity-2026-09.md`.
 Host note: this ticket is the portability test itself; on Codex the scout fan-out is the one-by-one WebSearch path, the Gauntlet driver and the impeccable plugin are Claude-only (report their absence, do not emulate).
 
@@ -17,6 +21,8 @@ Files: `site/index.html`, `site/i18n/pt-BR.json`, `PRODUCT.md`, `site/showcase/l
 Host note: on Codex apply `site/DESIGN.md` by hand; the impeccable detector and critique run only on Claude Code, so leave a line in the log for a later pass.
 
 ## T3 · Roadmap: Linux-first parity and thesis-review as a rigour auditor (R1 · blocked by: T1 · ready-for-agent: yes)
+
+T1 follow-up rows (2026-09-20, not shipped): live Codex/Claude guard interception parity; POSIX execution of the revised installer; complete Codex plugin inventory in the graph; unclosed file-handle ResourceWarnings in graph tests. Visual dependencies and execution are now required locally. Evidence: `../experiments/codex-parity-2026-09.md`. The academic scope now follows ADR 0006's broader controlled-research direction, after eval integrity work.
 
 Owner steps: none.
 Acceptance: `docs/roadmap.md` exists with dated rows, each labelled `not shipped`, for (a) Linux-first parity: POSIX path normalisation in `scripts/install.py`, an `install.sh`, executables decoupled from `.cmd` wrappers, symlinks where Windows uses junctions, plus every row T1 found; (b) thesis-review as a scientific-rigour auditor: repository results cross-check (clone behind the gate, locate result files, compare to the manuscript's tables), conference style rules for IEEE, ACM, SBC and Beamer as `references/`, mathematical consistency as an LLM rubric (explicitly not deterministic); (c) the members area items of R2. The portal's vault list "On the roadmap, not shipped" links to the file; README's tree lists it; nothing in `.agents/skills/thesis-review/SKILL.md` claims any of (b).
