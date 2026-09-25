@@ -1,13 +1,13 @@
 # Resume here: full OmniForge MVP
 
-Updated September 25, 2026. **Workspace checkpoint validated; complete MVP still active.** The owner asked to continue normally while retaining an interruption-ready handoff near the weekly credit limit. A read-only account query observed 25% weekly allowance remaining at the earlier checkpoint; that is account-wide, not task attribution. No reset was redeemed or credit purchased.
+Updated September 25, 2026. **Workspace checkpoint validated; complete MVP still active.** The owner asked to continue normally while retaining an interruption-ready handoff near the weekly credit limit. The later read-only account query observed **14% weekly allowance remaining** (earlier 25%); this is account-wide, not task attribution. No reset was redeemed or credit purchased.
 
 ## Start here
 
 1. Read this file, root AGENTS.md and [T13 handoff](../t13/TICKET-HANDOFF-CLAUDE.md); inspect actual Git status/log before editing.
-2. Reviewed implementation: **`9e2282e412fe418e551aeb89b56ed7faeed58304`**, pushed on `codex/mvp-workspace-flows`; [PR #6](https://github.com/ymauhn/omniharness/pull/6) records integration into master. Its runtime base is `17230c093f933c8cd943216a80bc02eea4530079` (PR #5). Earlier documentation backup `9e7a8b74e530d16e5ef673ee8c5964817d841d76` is also pushed. Subsequent checkpoint-identity edits are documentation only; inspect Git/PR for the current merge commit.
+2. Reviewed implementation: **`9e2282e412fe418e551aeb89b56ed7faeed58304`**, pushed on `codex/mvp-workspace-flows`; [PR #6](https://github.com/ymauhn/omniharness/pull/6) **merged** as `4f4fb0362dadbfdd7c78f6001a36e36a685ed4a0`. Its runtime base is `17230c093f933c8cd943216a80bc02eea4530079` (PR #5). The active continuation branch is `codex/mvp-arsenal-ui` from that merged commit; its [arsenal UI checkpoint](ARSENAL-UI-CHECKPOINT.md) is the immediate implementation handoff. Inspect Git for newer commits or dirty files.
 3. **Root is the source of truth.** Worktree `_intake/mvp-terminal-grid` lacks the final memory/Workflows index wiring; `_intake/mvp-workflows` lacks several root repairs. Do not copy either over root. Preserve worktrees, old backups and stash `8105be6`.
-4. Confirm PR #6's state: if already merged, start the next scoped branch from the integrated master; if interrupted before merge, finish the exact-head merge after confirming only the reviewed runtime and documentation are included. At PR creation GitHub reported CLEAN/MERGEABLE with no configured status checks; local test evidence above is the validation. No force push, unrelated PR #2 changes or deployment.
+4. PR #6 was merged after exact-head review. Continue the scoped `codex/mvp-arsenal-ui` branch, respecting the file ownership recorded in its checkpoint. No force push, unrelated PR #2 changes or deployment.
 
 ## Delivered and verified
 
