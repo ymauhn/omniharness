@@ -30,7 +30,11 @@ async function body(request) {
   let value;
   try { value = new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)); }
   catch { const error = new Error('Texto UTF-8 inválido'); error.status = 400; throw error; }
-  try { return JSON.parse(value); }
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error();
+    return parsed;
+  }
   catch { const error = new Error('JSON inválido'); error.status = 400; throw error; }
 }
 
@@ -42,9 +46,8 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
   const skills = listSkills(repoRoot);
   const state = () => {
     const snapshot = store.snapshot();
-    const memoryRevision = snapshot.notes.length;
     delete snapshot.notes; // note bodies are fetched for one selected project
-    return { ...snapshot, memoryRevision, skills };
+    return { ...snapshot, skills };
   };
   const broadcast = (name, data) => {
     const message = `event: ${name}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -70,6 +73,9 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
     const directAuth = headerToken === token || queryToken === token;
     const cookieAuth = cookieToken === token;
     if (!directAuth && !cookieAuth) return send(response, 403, { error: 'Token local inválido' });
+    if (request.method === 'POST' && request.headers.origin && request.headers.origin !== `http://${request.headers.host}`) {
+      return send(response, 403, { error: 'Origem local inválida' });
+    }
     if (request.method === 'POST' && !directAuth && request.headers['x-omniforge-client'] !== '1') {
       return send(response, 403, { error: 'Cabeçalho local obrigatório' });
     }
@@ -94,11 +100,15 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
       if (request.method === 'GET' && url.pathname === '/api/state') return send(response, 200, state());
       if (request.method === 'GET' && url.pathname === '/api/memory') {
         const projectId = url.searchParams.get('projectId');
-        if (projectId) store.project(projectId);
-        const notes = store.snapshot().notes.filter(note => note.scope === 'global' || (note.scope === 'project' && note.projectId === projectId));
-        return send(response, 200, { projectId, notes });
+        const sessionId = url.searchParams.get('sessionId');
+        const notes = store.notesFor({ projectId, sessionId, includeArchived: url.searchParams.get('includeArchived') === 'true' });
+        return send(response, 200, { projectId, sessionId, notes, memoryRevision: store.data.memoryRevision });
       }
-      if (request.method === 'GET' && url.pathname === '/api/context') return send(response, 200, store.contextBriefFor(url.searchParams.get('sessionId')));
+      const memoryHistory = url.pathname.match(/^\/api\/memory\/([^/]+)\/history$/);
+      if (request.method === 'GET' && memoryHistory) return send(response, 200, { history: store.noteHistory(memoryHistory[1], {
+        scope: url.searchParams.get('scope'), projectId: url.searchParams.get('projectId'), sessionId: url.searchParams.get('sessionId'),
+      }) });
+      if (request.method === 'GET' && url.pathname === '/api/context') return send(response, 200, store.contextBriefFor(url.searchParams.get('sessionId'), 4000, url.searchParams.get('projectId') ?? undefined));
       if (request.method === 'GET' && url.pathname === '/api/inventory') {
         const project = store.project(url.searchParams.get('projectId'));
         return send(response, 200, { projectId: project.id, ...await inventoryAssets(project.root) });
@@ -129,12 +139,14 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
         const stop = url.pathname.match(/^\/api\/sessions\/([^/]+)\/stop$/);
         const recovery = url.pathname.match(/^\/api\/sessions\/([^/]+)\/acknowledge$/);
         const taskStatus = url.pathname.match(/^\/api\/tasks\/([^/]+)\/status$/);
+        const memoryUpdate = url.pathname.match(/^\/api\/memory\/([^/]+)\/(update|archive|forget)$/);
         if (command) { output = shells.command(command[1], input.command); changed = false; }
         else if (write) { output = shells.write(write[1], input.data); changed = false; }
         else if (resize) { output = shells.resize(resize[1], input.cols, input.rows); changed = false; }
         else if (stop) { output = shells.stop(stop[1]); changed = false; }
         else if (recovery) output = store.acknowledgeInterruptedSession(recovery[1], input.verification);
         else if (taskStatus) output = store.setTaskStatus(taskStatus[1], input.status);
+        else if (memoryUpdate) output = memoryUpdate[2] === 'update' ? store.updateNote(memoryUpdate[1], input) : store.archiveNote(memoryUpdate[1], input);
         else return send(response, 404, { error: 'Rota não encontrada' });
       }
       if (changed) broadcast('state', state());

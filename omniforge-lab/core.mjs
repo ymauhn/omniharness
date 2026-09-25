@@ -24,7 +24,17 @@ function requiredText(value, label, limit = 120) {
 }
 
 function initialData() {
-  return { schema: 1, projects: [], sessions: [], tasks: [], notes: [], layout: { split: 50 } };
+  return { schema: 1, projects: [], sessions: [], tasks: [], notes: [], memoryRevision: 0, layout: { split: 50 } };
+}
+
+function noteVersion(note, operation) {
+  const { revision, mutationSequence, text, source, updatedAt, archivedAt } = note;
+  return { revision, mutationSequence, text, source, updatedAt, archivedAt, operation };
+}
+
+function currentNote(note) {
+  const { history, ...current } = note;
+  return structuredClone(current);
 }
 
 export class WorkspaceStore {
@@ -42,6 +52,23 @@ export class WorkspaceStore {
       this.durableData = structuredClone(this.data);
       // A layout may be restored, but a shell/process attempt cannot be resumed by assumption.
       let changed = false;
+      for (const note of this.data.notes) {
+        if (note.mutationSequence === undefined) {
+          // Historical cross-note ordering was not recorded; do not invent it.
+          note.mutationSequence = 0;
+          changed = true;
+        }
+        if (note.revision === undefined) {
+          Object.assign(note, { revision: 1, updatedAt: note.createdAt, archivedAt: null });
+          note.history = [noteVersion(note, 'create')];
+          changed = true;
+        }
+      }
+      if (this.data.memoryRevision === undefined) {
+        this.data.memoryRevision = this.data.notes.reduce((total, note) => total + note.revision, 0);
+        changed = true;
+      }
+      if (!Number.isSafeInteger(this.data.memoryRevision) || this.data.memoryRevision < 0) fail('Revisão de memória inválida', 500);
       for (const session of this.data.sessions) {
         if (['running', 'starting', 'stopping'].includes(session.status)) { session.status = 'interrupted'; changed = true; }
       }
@@ -206,30 +233,82 @@ export class WorkspaceStore {
     return task;
   }
 
-  addNote({ scope, projectId, sessionId, source, text }) {
+  memoryBinding({ scope, projectId = null, sessionId = null }) {
     if (!['global', 'project', 'session'].includes(scope)) fail('Escopo de memória inválido');
-    text = requiredText(text, 'Texto da memória', MAX_NOTE);
-    source = requiredText(source, 'Fonte da memória', 300);
+    if (scope === 'global' && (projectId !== null || sessionId !== null) || scope === 'project' && sessionId !== null) fail('Escopo de memória e seleção não coincidem');
     if (scope !== 'global') this.project(projectId);
     if (scope === 'session') {
       const session = this.session(sessionId);
       if (session.projectId !== projectId) fail('Sessão e projeto não coincidem');
     }
-    const note = { id: randomUUID(), scope, projectId: scope === 'global' ? null : projectId, sessionId: scope === 'session' ? sessionId : null, source, text, createdAt: new Date().toISOString() };
+    return { scope, projectId, sessionId };
+  }
+
+  addNote({ scope, projectId, sessionId, source, text }) {
+    const binding = this.memoryBinding({ scope, projectId, sessionId });
+    text = requiredText(text, 'Texto da memória', MAX_NOTE);
+    source = requiredText(source, 'Fonte da memória', 300);
+    const now = new Date().toISOString();
+    const note = { id: randomUUID(), ...binding, source, text, createdAt: now, updatedAt: now, revision: 1, mutationSequence: this.data.memoryRevision + 1, archivedAt: null };
+    note.history = [noteVersion(note, 'create')];
     this.data.notes.push(note);
+    this.data.memoryRevision++;
     this.save();
+    return currentNote(note);
+  }
+
+  boundNote(id, selection) {
+    const binding = this.memoryBinding(selection);
+    const note = this.data.notes.find(item => item.id === id && item.scope === binding.scope && item.projectId === binding.projectId && item.sessionId === binding.sessionId);
+    if (!note) fail('Memória não encontrada neste escopo', 404);
     return note;
   }
 
-  contextBriefFor(sessionId, limit = 4000) {
+  updateNote(id, input, archive = false) {
+    const note = this.boundNote(id, input);
+    if (!Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 1) fail('Revisão esperada inválida');
+    if (input.expectedRevision !== note.revision) fail('Memória alterada; recarregue antes de salvar', 409);
+    if (note.archivedAt) fail('Memória arquivada não pode ser alterada', 409);
+    const source = requiredText(input.source, 'Fonte da memória', 300);
+    const text = archive ? note.text : requiredText(input.text, 'Texto da memória', MAX_NOTE);
+    const now = new Date().toISOString();
+    Object.assign(note, { source, text, updatedAt: now, revision: note.revision + 1, mutationSequence: this.data.memoryRevision + 1, archivedAt: archive ? now : null });
+    note.history.push(noteVersion(note, archive ? 'archive' : 'update'));
+    this.data.memoryRevision++;
+    this.save();
+    return currentNote(note);
+  }
+
+  archiveNote(id, input) {
+    return this.updateNote(id, input, true);
+  }
+
+  noteHistory(id, selection) {
+    return structuredClone(this.boundNote(id, selection).history);
+  }
+
+  notesFor({ projectId = null, sessionId = null, includeArchived = false } = {}) {
+    if (projectId !== null) this.project(projectId);
+    if (sessionId !== null && this.session(sessionId).projectId !== projectId) fail('Sessão e projeto não coincidem');
+    return this.data.notes.filter(note => (includeArchived || !note.archivedAt) &&
+      (note.scope === 'global' || note.scope === 'project' && note.projectId === projectId ||
+       note.scope === 'session' && note.projectId === projectId && note.sessionId === sessionId)).map(currentNote);
+  }
+
+  contextBriefFor(sessionId, limit = 4000, projectId = undefined) {
     const session = this.session(sessionId);
+    if (projectId !== undefined && projectId !== session.projectId) fail('Sessão e projeto não coincidem');
+    const notes = this.notesFor({ projectId: session.projectId, sessionId });
+    // New committed mutations outrank legacy records even when timestamps tie
+    // or the clock moves backwards. Stable timestamp order is the legacy fallback.
+    notes.sort((a, b) => (a.mutationSequence ?? 0) - (b.mutationSequence ?? 0) ||
+      (a.updatedAt ?? a.createdAt).localeCompare(b.updatedAt ?? b.createdAt));
     const boundedLimit = Number.isInteger(limit) ? Math.max(128, Math.min(limit, 65536)) : 4000;
     const selected = [];
     let truncated = false;
     const fits = note => JSON.stringify({ notes: [...selected, note], truncated: false, limit: boundedLimit }).length <= boundedLimit;
-    for (let index = this.data.notes.length - 1; index >= 0; index--) {
-      const note = this.data.notes[index];
-      if (!(note.scope === 'global' || (note.scope === 'project' && note.projectId === session.projectId) || (note.scope === 'session' && note.sessionId === sessionId))) continue;
+    for (let index = notes.length - 1; index >= 0; index--) {
+      const note = notes[index];
       if (selected.length >= MAX_CONTEXT_NOTES) { truncated = true; break; }
       if (fits(note)) { selected.push(note); continue; }
       let low = 0;

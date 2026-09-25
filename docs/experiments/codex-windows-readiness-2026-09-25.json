@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-25",
+  "scope": "Model-free, read-only App Server readiness and configuration observations; no effective tool/process containment acceptance",
+  "executable": {
+    "version": "codex-cli 0.155.0-alpha.16.4",
+    "sha256": "9015c47d1714294ecd9033c4b5aefc3076797d867d1c36aa37749fcb76c8942f"
+  },
+  "transport": "codex app-server --stdio; installed generated TypeScript request/response schemas",
+  "observations": [
+    {
+      "observer": "codex_tool_bridge independent read-only probe",
+      "method": "windowsSandbox/readiness",
+      "result": {"status": "ready"}
+    },
+    {
+      "observer": "codex_tool_bridge independent read-only probe",
+      "method": "permissionProfile/list",
+      "cwd_scope": "repository root",
+      "result": {
+        "profiles": [
+          {"id": ":read-only", "allowed": true},
+          {"id": ":workspace", "allowed": true},
+          {"id": ":danger-full-access", "allowed": true}
+        ],
+        "next_cursor_observed": false
+      }
+    },
+    {
+      "observer": "root independent read-only follow-up",
+      "method": "config/read",
+      "params": {"includeLayers": false, "cwd_scope": "repository root"},
+      "selected_nonsecret_fields": {
+        "windows.sandbox": "elevated",
+        "sandbox_mode": null,
+        "default_permissions": null
+      },
+      "readiness_repeated": "ready"
+    }
+  ],
+  "actions": {
+    "model_turn_started": false,
+    "sandbox_setup_requested": false,
+    "configuration_modified": false,
+    "credential_files_read": false,
+    "credential_values_printed": false
+  },
+  "effective_isolation_verified": false,
+  "managed_turn_admitted": false,
+  "limitations": [
+    "The first attempt inside the restricted execution environment reported that it could not find the home directory; the normal approved host-context retry succeeded.",
+    "A ready/configured backend is not proof that a particular turn uses the intended filesystem or network policy.",
+    "Allowed profile names are available choices, not selected profiles. danger-full-access was not selected or executed.",
+    "No negative filesystem/network canary, model tool call, descendant cancellation or usage reconciliation was performed in this observation.",
+    "The earlier disposable unelevated canary remains inconclusive; this report does not overwrite that result."
+  ]
+}

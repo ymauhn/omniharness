@@ -29,6 +29,8 @@ try {
     }
     & npm --prefix omniforge-lab test
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    & node --test docs/omniforge/mascot/model.test.cjs
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     & $Python evals/run.py selftest
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     & $Python scripts/install.py --check

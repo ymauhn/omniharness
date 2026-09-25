@@ -2,6 +2,8 @@
 
 Status: **development prototype**, 2026-09-25. This is candidate A of the approved own-app versus Goose comparison, not the V1 release or an isolated agent executor. The first project for end-to-end evaluation is this OmniHarness repository.
 
+Foundation update: the [versioned memory backend](MEMORY.md) now supports concurrent update rejection, retained history, archival and mutation-aware context retrieval. The [full skill catalog engine](../skills-graph/SKILL-CATALOG.md) and [two-skin Companion Studio](mascot/README.md) are integrated source artifacts; the Lab still needs their production UI connection. Visual/provider checks that cannot currently run are tracked in [the final-round register](VALIDATION-PENDING.md). The 26-test results below are historical; consult [current validation](../t13/VALIDATION.md) for the integrated checkpoint.
+
 ## Run on Windows
 
 Prerequisites: Node.js 22 or newer, PowerShell 7 (`pwsh.exe` on `PATH`), and the repository checkout. In `omniforge-lab/`, run `npm ci`, then `npm start`; open the exact `http://127.0.0.1:<port>/?token=<random>` URL printed by the server. The first page request converts the launch token to an HttpOnly, SameSite=Strict cookie and removes it from browser history. The server binds loopback only. `npm test` runs the local store, API and real ConPTY checks. The repository-wide `scripts/check.ps1` also runs these tests.

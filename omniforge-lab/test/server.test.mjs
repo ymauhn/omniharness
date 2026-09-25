@@ -105,3 +105,99 @@ test('separate local instances use distinct authentication cookies', async t => 
   assert.equal((await fetch(`${secondBase}/api/state`, { headers: { cookie: firstCookie } })).status, 403);
   assert.equal((await fetch(`${secondBase}/api/state`, { headers: { cookie: secondCookie } })).status, 200);
 });
+
+test('memory API versions competing writes, denies mismatched scopes and explicitly forgets with retained history', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-lab-memory-api-'));
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+  const app = createOmniForgeServer({ dataDir: path.join(root, 'data'), repoRoot, token: 'memory-test-token' });
+  const url = await app.listen();
+  const base = new URL(url).origin;
+  t.after(async () => {
+    await app.close();
+    const relative = path.relative(os.tmpdir(), root);
+    if (relative.startsWith('omniforge-lab-memory-api-') && !relative.includes(path.sep)) fs.rmSync(root, { recursive: true, force: true });
+  });
+  const headers = { 'content-type': 'application/json', 'x-omniforge-token': 'memory-test-token' };
+  const post = (route, value, extraHeaders = {}) => fetch(`${base}${route}`, { method: 'POST', headers: { ...headers, ...extraHeaders }, body: JSON.stringify(value) });
+  const get = route => fetch(`${base}${route}`, { headers });
+  const makeProject = async name => {
+    const projectRoot = path.join(root, name);
+    fs.mkdirSync(projectRoot);
+    return (await post('/api/projects', { name, root: projectRoot })).json();
+  };
+  const a = await makeProject('A');
+  const b = await makeProject('B');
+  const sa = app.store.addSession({ projectId: a.id, name: 'A reader' });
+  const sibling = app.store.addSession({ projectId: a.id, name: 'A sibling' });
+  const sb = app.store.addSession({ projectId: b.id, name: 'B reader' });
+  const binding = { scope: 'session', projectId: a.id, sessionId: sa.id };
+  const note = await (await post('/api/memory', { ...binding, source: 'owner', text: 'ORIGINAL_PRIVATE_FACT' })).json();
+  assert.equal(note.revision, 1);
+  const update = { ...binding, expectedRevision: 1, source: 'owner correction', text: 'UPDATED_PRIVATE_FACT' };
+  const updatePath = `/api/memory/${note.id}/update`;
+  const historyPath = `/api/memory/${note.id}/history?${new URLSearchParams(binding)}`;
+  assert.equal((await fetch(`${base}${updatePath}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(update) })).status, 403);
+  assert.equal((await post(updatePath, update, { origin: 'https://foreign.example' })).status, 403);
+  const cookie = (await fetch(url)).headers.get('set-cookie');
+  assert.equal((await fetch(`${base}${updatePath}`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify(update) })).status, 403);
+  const competing = await Promise.all([post(updatePath, update, { origin: base }), post(updatePath, { ...update, text: 'COMPETING_PRIVATE_FACT' })]);
+  assert.deepEqual(competing.map(response => response.status).sort(), [200, 409]);
+  const winner = await competing.find(response => response.status === 200).json();
+  assert.equal(winner.revision, 2);
+  const state = await (await get('/api/state')).json();
+  assert.equal(state.memoryRevision, 2);
+  assert.equal(Object.hasOwn(state, 'notes'), false);
+  assert.equal(JSON.stringify(state).includes('_PRIVATE_FACT'), false);
+  for (const wrong of [{ ...binding, projectId: b.id }, { ...binding, sessionId: sibling.id }, { ...binding, sessionId: sb.id }]) {
+    const failed = await post(updatePath, { ...update, ...wrong, expectedRevision: 2 });
+    assert.ok([400, 404].includes(failed.status));
+    assert.equal((await failed.text()).includes('_PRIVATE_FACT'), false);
+    const history = await get(`/api/memory/${note.id}/history?${new URLSearchParams(wrong)}`);
+    assert.ok([400, 404].includes(history.status));
+    assert.equal((await history.text()).includes('_PRIVATE_FACT'), false);
+  }
+  for (const route of [`/api/memory?projectId=${b.id}&sessionId=${sa.id}`, `/api/context?projectId=${b.id}&sessionId=${sa.id}`]) {
+    const denied = await get(route);
+    assert.equal(denied.status, 400);
+    assert.equal((await denied.text()).includes('_PRIVATE_FACT'), false);
+  }
+  const foreign = await (await get(`/api/memory?projectId=${b.id}&sessionId=${sb.id}`)).json();
+  assert.deepEqual(foreign.notes, []);
+  const context = await (await get(`/api/context?projectId=${a.id}&sessionId=${sa.id}`)).json();
+  assert.equal(context.notes[0].revision, 2);
+  assert.equal(context.notes[0].text, winner.text);
+  assert.equal(Object.hasOwn(context.notes[0], 'history'), false);
+  assert.ok(JSON.stringify(context).length <= context.limit);
+  assert.equal((await post(updatePath, null)).status, 400);
+  assert.equal((await post(updatePath, { ...update, expectedRevision: 2, text: 'x'.repeat(4001) })).status, 400);
+  assert.equal((await post(updatePath, { ...update, text: 'x'.repeat(32769) })).status, 413);
+
+  const beforeFailedWrite = app.store.snapshot();
+  const rename = fs.renameSync;
+  try {
+    fs.renameSync = (source, target) => {
+      if (target === app.store.file) throw new Error('synthetic persistence failure');
+      return rename(source, target);
+    };
+    assert.equal((await post(updatePath, { ...update, expectedRevision: 2 })).status, 500);
+  } finally { fs.renameSync = rename; }
+  assert.deepEqual(app.store.snapshot(), beforeFailedWrite);
+  const forgotten = await (await post(`/api/memory/${note.id}/forget`, { ...binding, expectedRevision: 2, source: 'explicit owner forget' })).json();
+  assert.equal(forgotten.revision, 3);
+  assert.ok(forgotten.archivedAt);
+  assert.equal((await (await get('/api/state')).json()).memoryRevision, 3);
+  assert.deepEqual((await (await get(`/api/memory?projectId=${a.id}&sessionId=${sa.id}`)).json()).notes, []);
+  assert.deepEqual((await (await get(`/api/context?sessionId=${sa.id}`)).json()).notes, []);
+  const history = await (await get(historyPath)).json();
+  assert.deepEqual(history.history.map(version => version.operation), ['create', 'update', 'archive']);
+  assert.equal(history.history[0].text, 'ORIGINAL_PRIVATE_FACT');
+  assert.equal(history.history[2].source, 'explicit owner forget');
+  assert.equal((await post(`/api/memory/${note.id}/archive`, { ...binding, expectedRevision: 3, source: 'repeat' })).status, 409);
+  assert.equal((await post(updatePath, { ...update, expectedRevision: 3 })).status, 409);
+  const archived = await (await get(`/api/memory?projectId=${a.id}&sessionId=${sa.id}&includeArchived=true`)).json();
+  assert.equal(archived.notes[0].id, note.id);
+  assert.equal(Object.hasOwn(archived.notes[0], 'history'), false);
+  // A local owner token may explicitly select another project; this is scoped retrieval, not OS isolation.
+  const other = await (await post('/api/memory', { scope: 'project', projectId: b.id, source: 'owner', text: 'B_OWNER_SELECTED_FACT' })).json();
+  assert.equal((await (await get(`/api/memory?projectId=${b.id}`)).json()).notes[0].id, other.id);
+});

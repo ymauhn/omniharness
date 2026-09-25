@@ -59,6 +59,189 @@ test('task dependencies are project-scoped and block premature completion', t =>
   assert.throws(() => store.setTaskStatus(base.id, 'open'), /dependentes concluídos/);
 });
 
+test('memory revisions reject competing writes and preserve archived history across restart', t => {
+  const { root, projectRoot, store } = fixture(t);
+  const project = store.addProject({ name: 'Memory', root: projectRoot });
+  const session = store.addSession({ projectId: project.id, name: 'Reader' });
+  const binding = { scope: 'project', projectId: project.id };
+  const note = store.addNote({ ...binding, source: 'owner', text: 'First fact' });
+  assert.equal(note.revision, 1);
+  const edited = store.updateNote(note.id, { ...binding, expectedRevision: 1, source: 'review', text: 'Corrected fact' });
+  assert.equal(edited.revision, 2);
+  assert.equal(edited.createdAt, note.createdAt);
+  assert.ok(edited.updatedAt >= edited.createdAt);
+  assert.throws(() => store.updateNote(note.id, { ...binding, expectedRevision: 1, source: 'stale reader', text: 'Lost update' }), error => error.status === 409);
+  assert.equal(store.contextFor(session.id)[0].text, 'Corrected fact');
+  assert.equal(store.contextFor(session.id)[0].revision, 2);
+  assert.equal(Object.hasOwn(store.contextFor(session.id)[0], 'history'), false);
+  const archived = store.archiveNote(note.id, { ...binding, expectedRevision: 2, source: 'owner forget' });
+  assert.equal(archived.revision, 3);
+  assert.ok(archived.archivedAt);
+  assert.deepEqual(store.contextFor(session.id), []);
+  assert.equal(store.snapshot().memoryRevision, 3);
+  store.close();
+  const restored = new WorkspaceStore(path.join(root, 'data'));
+  try {
+    assert.deepEqual(restored.notesFor({ projectId: project.id }), []);
+    assert.deepEqual(restored.noteHistory(note.id, binding).map(version => version.text), ['First fact', 'Corrected fact', 'Corrected fact']);
+    assert.equal(restored.snapshot().memoryRevision, 3);
+  } finally { restored.close(); }
+});
+
+test('memory mutation and history require the immutable project and session binding', t => {
+  const { root, projectRoot, store } = fixture(t);
+  const otherRoot = path.join(root, 'other');
+  fs.mkdirSync(otherRoot);
+  const a = store.addProject({ name: 'A', root: projectRoot });
+  const b = store.addProject({ name: 'B', root: otherRoot });
+  const sa = store.addSession({ projectId: a.id, name: 'A1' });
+  const sibling = store.addSession({ projectId: a.id, name: 'A2' });
+  const sb = store.addSession({ projectId: b.id, name: 'B1' });
+  const binding = { scope: 'session', projectId: a.id, sessionId: sa.id };
+  const note = store.addNote({ ...binding, source: 'private', text: 'PRIVATE_SESSION_FACT' });
+  for (const wrong of [{ ...binding, projectId: b.id }, { ...binding, sessionId: sibling.id }, { ...binding, sessionId: sb.id }, { scope: 'project', projectId: a.id }]) {
+    for (const operation of [() => store.noteHistory(note.id, wrong), () => store.updateNote(note.id, { ...wrong, expectedRevision: 1, source: 'editor', text: 'overwrite' }), () => store.archiveNote(note.id, { ...wrong, expectedRevision: 1, source: 'owner' })]) {
+      assert.throws(operation, error => [400, 404].includes(error.status) && !error.message.includes('PRIVATE_SESSION_FACT'));
+    }
+  }
+  assert.throws(() => store.notesFor({ projectId: b.id, sessionId: sa.id }), error => error.status === 400);
+  assert.throws(() => store.contextBriefFor(sa.id, 4000, b.id), error => error.status === 400);
+  assert.deepEqual(store.notesFor({ projectId: b.id, sessionId: sb.id }), []);
+  assert.deepEqual(store.notesFor({ projectId: a.id, sessionId: sibling.id }), []);
+  assert.equal(store.contextFor(sa.id)[0].text, 'PRIVATE_SESSION_FACT');
+  assert.equal(store.snapshot().memoryRevision, 1);
+});
+
+test('legacy notes migrate without losing identity, scope, source, text or timestamps', t => {
+  const { root, projectRoot, store } = fixture(t);
+  const project = store.addProject({ name: 'Legacy', root: projectRoot });
+  const old = { id: 'legacy-note', scope: 'project', projectId: project.id, sessionId: null, source: 'CONTEXT.md', text: '  Texto antigo 🤖\ncom espaços  ', createdAt: '2025-01-02T03:04:05.000Z' };
+  const legacy = store.snapshot();
+  legacy.notes = [old];
+  delete legacy.memoryRevision;
+  store.close();
+  fs.writeFileSync(path.join(root, 'data', 'state.json'), JSON.stringify(legacy));
+  const migrated = new WorkspaceStore(path.join(root, 'data'));
+  try {
+    const note = migrated.notesFor({ projectId: project.id })[0];
+    for (const [key, value] of Object.entries(old)) assert.equal(note[key], value);
+    assert.equal(note.revision, 1);
+    assert.equal(note.mutationSequence, 0);
+    assert.equal(note.updatedAt, old.createdAt);
+    assert.equal(note.archivedAt, null);
+    assert.equal(migrated.noteHistory(old.id, { scope: 'project', projectId: project.id })[0].text, old.text);
+    assert.equal(migrated.snapshot().memoryRevision, 1);
+  } finally { migrated.close(); }
+  const reopened = new WorkspaceStore(path.join(root, 'data'));
+  try { assert.equal(reopened.noteHistory(old.id, { scope: 'project', projectId: project.id }).length, 1); }
+  finally { reopened.close(); }
+});
+
+test('versioned notes migrate with existing history intact and use timestamps until a new commit', t => {
+  const { root, projectRoot, store } = fixture(t);
+  const project = store.addProject({ name: 'Prior versions', root: projectRoot });
+  const session = store.addSession({ projectId: project.id, name: 'Reader' });
+  const binding = { scope: 'project', projectId: project.id };
+  const first = store.addNote({ ...binding, source: 'original source', text: 'First fact' });
+  const second = store.addNote({ ...binding, source: 'second source', text: 'Second fact' });
+  store.updateNote(first.id, { ...binding, expectedRevision: 1, source: 'saved review', text: 'Saved correction' });
+  const saved = store.snapshot();
+  saved.notes[0].updatedAt = '2026-09-25T12:00:01.000Z';
+  saved.notes[1].updatedAt = '2026-09-25T12:00:00.000Z';
+  for (const note of saved.notes) {
+    delete note.mutationSequence;
+    for (const version of note.history) delete version.mutationSequence;
+  }
+  store.close();
+  fs.writeFileSync(path.join(root, 'data', 'state.json'), JSON.stringify(saved));
+  const migrated = new WorkspaceStore(path.join(root, 'data'));
+  try {
+    assert.deepEqual(migrated.snapshot().notes, saved.notes.map(note => ({ ...note, mutationSequence: 0 })));
+    assert.equal(migrated.snapshot().memoryRevision, 3);
+    assert.deepEqual(migrated.contextFor(session.id).map(note => note.id), [second.id, first.id]);
+    t.mock.method(Date.prototype, 'toISOString', () => '2026-09-25T11:00:00.000Z');
+    const updated = migrated.updateNote(second.id, { ...binding, expectedRevision: 1, source: 'new review', text: 'New committed correction' });
+    assert.equal(updated.mutationSequence, 4);
+    assert.equal(migrated.contextFor(session.id).at(-1).id, second.id);
+    assert.deepEqual(migrated.noteHistory(second.id, binding).slice(0, -1), saved.notes[1].history);
+  } finally { migrated.close(); }
+});
+
+test('failed memory edits and archives roll back content, versions, history and invalidation counter', t => {
+  const { projectRoot, store } = fixture(t);
+  const project = store.addProject({ name: 'Durable', root: projectRoot });
+  const binding = { scope: 'project', projectId: project.id };
+  const note = store.addNote({ ...binding, source: 'owner', text: 'Durable fact' });
+  const before = store.snapshot();
+  const rename = fs.renameSync;
+  try {
+    fs.renameSync = (source, target) => {
+      if (target === store.file) throw new Error('memory disk write failed');
+      return rename(source, target);
+    };
+    assert.throws(() => store.updateNote(note.id, { ...binding, expectedRevision: 1, source: 'editor', text: 'Uncommitted fact' }), /memory disk write failed/);
+    assert.deepEqual(store.snapshot(), before);
+    assert.throws(() => store.archiveNote(note.id, { ...binding, expectedRevision: 1, source: 'owner forget' }), /memory disk write failed/);
+    assert.deepEqual(store.snapshot(), before);
+  } finally { fs.renameSync = rename; }
+  assert.deepEqual(JSON.parse(fs.readFileSync(store.file, 'utf8')), before);
+  assert.equal(store.updateNote(note.id, { ...binding, expectedRevision: 1, source: 'editor', text: 'Committed fact' }).revision, 2);
+});
+
+test('memory validates write bounds and context contains only bounded current versions', t => {
+  const { projectRoot, store } = fixture(t);
+  const project = store.addProject({ name: 'Bounds', root: projectRoot });
+  const session = store.addSession({ projectId: project.id, name: 'Reader' });
+  const binding = { scope: 'project', projectId: project.id };
+  const note = store.addNote({ ...binding, source: 'owner', text: 'OLD_BODY_ONLY'.repeat(300) });
+  const update = { ...binding, expectedRevision: 1, source: 'editor', text: 'Current fact' };
+  for (const change of [{ expectedRevision: 0 }, { expectedRevision: 1.5 }, { expectedRevision: '1' }, { text: 'x'.repeat(4001) }, { source: 'x'.repeat(301) }, { source: '' }]) {
+    assert.throws(() => store.updateNote(note.id, { ...update, ...change }), error => error.status === 400);
+  }
+  store.updateNote(note.id, update);
+  for (let index = 0; index < 30; index++) store.addNote({ ...binding, source: 'owner', text: `New note ${index}` });
+  for (const limit of [128, 4000, 65536, 999999]) {
+    const brief = store.contextBriefFor(session.id, limit);
+    assert.ok(JSON.stringify(brief).length <= brief.limit);
+    assert.ok(brief.notes.length <= 24);
+    assert.equal(JSON.stringify(brief).includes('OLD_BODY_ONLY'), false);
+    assert.ok(brief.notes.every(item => item.revision >= 1 && !Object.hasOwn(item, 'history')));
+  }
+  assert.equal(store.notesFor({ projectId: project.id })[0].text, 'Current fact');
+  assert.equal(store.snapshot().memoryRevision, 32);
+});
+
+test('context prioritizes the latest committed correction over creation order and local revision at equal timestamps', t => {
+  const { root, projectRoot, store } = fixture(t);
+  t.mock.method(Date.prototype, 'toISOString', () => '2026-09-25T12:00:00.000Z');
+  const project = store.addProject({ name: 'Recent corrections', root: projectRoot });
+  const session = store.addSession({ projectId: project.id, name: 'Reader' });
+  const binding = { scope: 'project', projectId: project.id };
+  const notes = Array.from({ length: 31 }, (_, index) => store.addNote({ ...binding, source: 'owner', text: `Fact ${index}` }));
+  for (let revision = 1; revision <= 4; revision++) {
+    store.updateNote(notes[1].id, { ...binding, expectedRevision: revision, source: 'earlier review', text: `Previous correction ${revision}` });
+  }
+  const latest = store.updateNote(notes[0].id, { ...binding, expectedRevision: 1, source: 'latest review', text: 'Newest corrected fact' });
+  for (const limit of [4000, 65536]) {
+    const brief = store.contextBriefFor(session.id, limit);
+    assert.equal(brief.notes.at(-1)?.text, 'Newest corrected fact', 'A recent correction of the oldest note must survive the bounded context selection');
+    assert.equal(brief.notes.at(-1).id, notes[0].id);
+    assert.ok(brief.notes.length <= 24);
+    assert.ok(JSON.stringify(brief).length <= brief.limit);
+    assert.equal(brief.truncated, true);
+  }
+  assert.equal(latest.updatedAt, notes[30].updatedAt);
+  assert.equal(latest.mutationSequence, 36);
+  assert.equal(store.noteHistory(notes[0].id, binding).at(-1).mutationSequence, 36);
+  const ids = store.contextFor(session.id, 65536).map(note => note.id);
+  store.close();
+  const restored = new WorkspaceStore(path.join(root, 'data'));
+  try {
+    assert.deepEqual(restored.contextFor(session.id, 65536).map(note => note.id), ids);
+    assert.equal(restored.snapshot().memoryRevision, 36);
+  } finally { restored.close(); }
+});
+
 test('restart does not pretend a shell process survived', t => {
   const { root, projectRoot, store } = fixture(t);
   const project = store.addProject({ name: 'Game', root: projectRoot });

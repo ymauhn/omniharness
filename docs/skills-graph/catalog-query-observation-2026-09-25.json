@@ -1,0 +1,242 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-25",
+  "status": "diagnostic only; agent labels not human calibrated",
+  "fixture_sha256": "564ccdaa555047fa3e6c9e6e74968fc5a3f817a244852ae5180fb78e2bc14a56",
+  "implementation_sha256": "46431e7a8795f97ed622fb51fae318d977300f6750e2ffd0675a232816e75234",
+  "overlay_sha256": "8d626ee4e95d07242691cdc5b21b7bf0368319ff6cdfe6892361e23fe80ad692",
+  "snapshot_id": "sha256:5a8be5fb236d29bd9b9b95b16d5c0f5b382f3cb8f12e39c9637342b93b847c42",
+  "coverage": {
+    "complete_for_discovery_scope": true,
+    "scope": "skills_graph.skill_files/build; no unregistered plugin-cache scan",
+    "discovered_paths": 130,
+    "canonical_installed_sources": 114,
+    "rows": 546,
+    "curated_rows": 10
+  },
+  "build_ms_single_observation": 310.843,
+  "model_calls": 0,
+  "results": [
+    {
+      "id": "dev-review-not-hook",
+      "split": "development",
+      "expected": "code-review",
+      "candidate_top3": [
+        "code-review",
+        "swarm",
+        "detour"
+      ],
+      "baseline_top3": [
+        "setup-pre-commit",
+        "commit-commands",
+        "code-review"
+      ],
+      "candidate_top1": true,
+      "candidate_top3_hit": true,
+      "baseline_top1": false,
+      "baseline_top3_hit": true,
+      "unsafe_runnable_claims": 0,
+      "query_ms_single_observation": 23.635
+    },
+    {
+      "id": "dev-hook",
+      "split": "development",
+      "expected": "setup-pre-commit",
+      "candidate_top3": [
+        "setup-pre-commit",
+        "skill-installer",
+        "falco"
+      ],
+      "baseline_top3": [
+        "setup-pre-commit",
+        "falco",
+        "fastly-fiddle"
+      ],
+      "candidate_top1": true,
+      "candidate_top3_hit": true,
+      "baseline_top1": true,
+      "baseline_top3_hit": true,
+      "unsafe_runnable_claims": 0,
+      "query_ms_single_observation": 23.819
+    },
+    {
+      "id": "hold-review",
+      "split": "holdout",
+      "expected": "code-review",
+      "candidate_top3": [
+        "thesis-review",
+        "code-review",
+        "ponytail-audit"
+      ],
+      "baseline_top3": [
+        "semgrep",
+        "trailofbits/skills-differential-review-variant-analysis",
+        "detour"
+      ],
+      "candidate_top1": false,
+      "candidate_top3_hit": true,
+      "baseline_top1": false,
+      "baseline_top3_hit": false,
+      "unsafe_runnable_claims": 0,
+      "query_ms_single_observation": 23.955
+    },
+    {
+      "id": "hold-manuscript",
+      "split": "holdout",
+      "expected": "thesis-review",
+      "candidate_top3": [
+        "thesis-review",
+        "skills-graph",
+        "swarm"
+      ],
+      "baseline_top3": [
+        "appautomaton/latex-arxiv-skill",
+        "thesis-review",
+        "semgrep"
+      ],
+      "candidate_top1": true,
+      "candidate_top3_hit": true,
+      "baseline_top1": false,
+      "baseline_top3_hit": true,
+      "unsafe_runnable_claims": 0,
+      "query_ms_single_observation": 24.105
+    },
+    {
+      "id": "hold-parallel",
+      "split": "holdout",
+      "expected": "swarm",
+      "candidate_top3": [
+        "using-git-worktrees",
+        "swarm",
+        "stablyai/orca"
+      ],
+      "baseline_top3": [
+        "using-git-worktrees",
+        "executing-plans",
+        "stablyai/orca"
+      ],
+      "candidate_top1": false,
+      "candidate_top3_hit": true,
+      "baseline_top1": false,
+      "baseline_top3_hit": false,
+      "unsafe_runnable_claims": 0,
+      "query_ms_single_observation": 25.224
+    },
+    {
+      "id": "hold-discovery",
+      "split": "holdout",
+      "expected": "skills-graph",
+      "candidate_top3": [
+        "skill-installer",
+        "skills-graph"
+      ],
+      "baseline_top3": [
+        "dispatching-parallel-agents",
+        "requesting-code-review",
+        "test-driven-development"
+      ],
+      "candidate_top1": false,
+      "candidate_top3_hit": true,
+      "baseline_top1": false,
+      "baseline_top3_hit": false,
+      "unsafe_runnable_claims": 0,
+      "query_ms_single_observation": 23.658
+    },
+    {
+      "id": "hold-hook",
+      "split": "holdout",
+      "expected": "setup-pre-commit",
+      "candidate_top3": [
+        "swarm",
+        "setup-pre-commit",
+        "code-review"
+      ],
+      "baseline_top3": [
+        "gitkraken",
+        "gitlab",
+        "sequential-thinking"
+      ],
+      "candidate_top1": false,
+      "candidate_top3_hit": true,
+      "baseline_top1": false,
+      "baseline_top3_hit": false,
+      "unsafe_runnable_claims": 0,
+      "query_ms_single_observation": 24.721
+    },
+    {
+      "id": "hold-activation",
+      "split": "holdout",
+      "expected": "omniharness",
+      "candidate_top3": [
+        "omniharness",
+        "thesis-review"
+      ],
+      "baseline_top3": [
+        "omniharness",
+        "requesting-code-review",
+        "setup-pre-commit"
+      ],
+      "candidate_top1": true,
+      "candidate_top3_hit": true,
+      "baseline_top1": true,
+      "baseline_top3_hit": true,
+      "unsafe_runnable_claims": 0,
+      "query_ms_single_observation": 24.639
+    },
+    {
+      "id": "hold-install-plan",
+      "split": "holdout",
+      "expected": "skill-installer",
+      "candidate_top3": [
+        "skill-installer",
+        "impeccable",
+        "skills-graph"
+      ],
+      "baseline_top3": [
+        "dispatching-parallel-agents",
+        "impeccable",
+        "requesting-code-review"
+      ],
+      "candidate_top1": true,
+      "candidate_top3_hit": true,
+      "baseline_top1": false,
+      "baseline_top3_hit": false,
+      "unsafe_runnable_claims": 0,
+      "query_ms_single_observation": 24.789
+    },
+    {
+      "id": "hold-empty",
+      "split": "holdout",
+      "expected": null,
+      "candidate_top3": [],
+      "baseline_top3": [],
+      "candidate_top1": true,
+      "candidate_top3_hit": true,
+      "baseline_top1": true,
+      "baseline_top3_hit": true,
+      "unsafe_runnable_claims": 0,
+      "query_ms_single_observation": 23.723
+    },
+    {
+      "id": "hold-unknown",
+      "split": "holdout",
+      "expected": null,
+      "candidate_top3": [],
+      "baseline_top3": [],
+      "candidate_top1": true,
+      "candidate_top3_hit": true,
+      "baseline_top1": true,
+      "baseline_top3_hit": true,
+      "unsafe_runnable_claims": 0,
+      "query_ms_single_observation": 25.597
+    }
+  ],
+  "final_code_recheck": {
+    "implementation_sha256": "65dde11e94571109a3837a225b85909580df7c88b8d6fb23cf1a76d954ca8e02",
+    "snapshot_id": "sha256:5a8be5fb236d29bd9b9b95b16d5c0f5b382f3cb8f12e39c9637342b93b847c42",
+    "cases_repeated": 11,
+    "ranking_and_abstention_unchanged": true,
+    "lexical_tuning_performed": false,
+    "repairs": "Discovery I/O bounds, coverage honesty, snapshot consistency and requested-host tie-break only"
+  }
+}

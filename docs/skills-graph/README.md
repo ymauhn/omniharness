@@ -2,6 +2,8 @@
 
 A graph of every skill the hosts can reach, in three rings, with typed edges. The skill is `.agents/skills/skills-graph/`; the generated files in this directory (`graph.json`, `graph.md`) are the reference machine's snapshot, rebuilt with one command and dated in their first line.
 
+The source-bound [skill catalog checkpoint](SKILL-CATALOG.md) adds canonical variants, hash-pinned curated metadata and PT/EN retrieval for the future Copilot. It keeps relevance, discovered availability and execution authority separate. The historical graph snapshot remains distinct from a current machine scan.
+
 ## What it does
 
 `skills_graph.py build` scans every SKILL.md the hosts read (the checkout's `.agents/skills`, `~/.claude/skills`, `~/.agents/skills`, `~/.codex/skills`, `~/.hermes/skills`, and the plugins listed in `~/.claude/plugins/installed_plugins.json`), takes `name` and `description` from the frontmatter, and parses `calls` edges from the bodies: a skill name quoted after the words "Skill tool", or a `/name` mention, that resolves to another scanned skill. That is the **installed** ring. The **catalog** ring is read from files already on disk: the official marketplace manifest (`~/.claude/plugins/marketplaces/claude-plugins-official/.claude-plugin/marketplace.json`, 291 plugins on the reference machine) and the tables in `docs/catalog/`. The **remote** ring is `remote.json`, a dated snapshot of the awesome lists named in `skills-graph.toml`, written only after the owner approved the fetch.
