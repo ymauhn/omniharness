@@ -5,7 +5,8 @@ const el = (tag, className, text) => { const node = document.createElement(tag);
 const add = (parent, tag, className, text) => { const node = el(tag, className, text); parent.append(node); return node; };
 const button = (parent, text, action, className = 'secondary') => { const node = add(parent, 'button', className, text); node.type = 'button'; node.addEventListener('click', action); return node; };
 const lines = value => value.split('\n').map(item => item.trim()).filter(Boolean);
-const errorText = error => error?.status === 409 ? 'Este workflow mudou. Recarregue a lista e abra a versão atual antes de tentar novamente; seu rascunho continua aqui.' : error?.status === 400 || error?.status === 413 ? error.message : 'Operação não confirmada. Verifique o servidor e tente novamente.';
+// Server messages for these statuses are fixed validation, conflict or capacity (507) texts.
+const errorText = error => [400, 409, 413, 507].includes(error?.status) ? error.message : 'Operação não confirmada. Verifique o servidor e tente novamente.';
 
 export function workflowLayout(nodes) {
   if (!Array.isArray(nodes) || !nodes.length || nodes.length > 16 || new Set(nodes.map(node => node.id)).size !== nodes.length) throw Error('Grafo inválido');
@@ -100,7 +101,7 @@ export function mountWorkflows({ root, api, getProjectId, draft, onTasksCreated 
   }
   function selectSaved(row) { openDraft(row, row.definition); }
   function markDirty() { state.dirty = true; if (reviewCheck) reviewCheck.checked = false; if (taskButton) taskButton.disabled = true; }
-  let reviewCheck, taskButton, nodePanel, graph, saveButton, historyPanel;
+  let reviewCheck, taskButton, nodePanel, graph, saveButton, saveActions, historyPanel;
   function field(parent, label, value, max, update, multiline = false) {
     const wrapper = add(parent, 'label', 'wf-field', label), input = add(wrapper, multiline ? 'textarea' : 'input');
     input.value = value; input.maxLength = max; input.disabled = !!state.selected?.archivedAt;
@@ -139,7 +140,7 @@ export function mountWorkflows({ root, api, getProjectId, draft, onTasksCreated 
     const footer = add(body, 'div', 'wf-save');
     const checkLabel = add(footer, 'label', 'wf-check'); reviewCheck = add(checkLabel, 'input'); reviewCheck.type = 'checkbox';
     add(checkLabel, 'span', '', 'Revisei prompts, dependências e referências desta versão.');
-    const actions = add(footer, 'div', 'wf-actions');
+    const actions = saveActions = add(footer, 'div', 'wf-actions');
     saveButton = button(actions, state.selected ? 'Salvar nova versão' : 'Salvar no projeto', save, 'button'); saveButton.disabled = !!state.selected?.archivedAt;
     button(actions, 'Descartar rascunho', () => { state.dirty = false; state.editing = null; state.selected = null; scope.invalidate(); renderLibrary(); resetDetail(); newButton.focus(); });
     if (state.selected) {
@@ -198,9 +199,15 @@ export function mountWorkflows({ root, api, getProjectId, draft, onTasksCreated 
     const retry = state.selected && state.requests.has(`${scope.projectId}/${state.selected.id}/${state.selected.revision}/${node.id}`);
     taskButton = button(actions, `Criar ${count || 'as'} tarefa${count === 1 ? '' : 's'} até este nó${retry ? ' · retomar envio' : ''}`, () => createTasks(node.id), 'button');
     taskButton.disabled = !state.selected || state.dirty || !!state.selected.archivedAt || !count;
+    const remove = button(actions, 'Remover etapa', () => {
+      const nodes = state.editing.nodes; nodes.splice(nodes.indexOf(node), 1);
+      // Dependents inherit the removed step's prerequisites, so a chain stays a chain.
+      for (const item of nodes) item.dependsOn = [...new Set(item.dependsOn.flatMap(dep => dep === node.id ? node.dependsOn : [dep]))];
+      state.selectedNode = nodes[0].id; markDirty(); renderGraph(); renderNode(); nodePanel.querySelector('h3')?.focus();
+    }); remove.disabled = !!state.selected?.archivedAt || state.editing.nodes.length < 2;
     add(nodePanel, 'p', 'wf-hint', `${count ? `${count} nó(s), incluindo os pré-requisitos.` : 'Corrija as dependências.'} O prompt e a versão ficam vinculados às tarefas. Nenhum modelo é iniciado.`);
   }
-  async function mutate(path, input, success) {
+  async function mutate(path, input, success, conflict) {
     if (!usable()) return;
     const ticket = scope.capture(), operation = {}; state.busy = true; state.operation = operation;
     // Archival must refer to the displayed saved version, never in-flight edits.
@@ -210,7 +217,7 @@ export function mountWorkflows({ root, api, getProjectId, draft, onTasksCreated 
       const result = await api(path, { method: 'POST', body: { projectId: ticket.projectId, ...input } });
       if (!ticket.current() || state.destroyed) return;
       await success(result, ticket); return result;
-    } catch (error) { if (ticket.current() && !state.destroyed) say(errorText(error)); }
+    } catch (error) { if (ticket.current() && !state.destroyed) { const reason = errorText(error); say(reason); if ([409, 507].includes(error?.status)) await conflict?.(ticket, reason, error.status); } }
     finally {
       for (const [node, disabled] of frozen) node.disabled = disabled;
       if (state.operation === operation) { state.busy = false; state.operation = null; }
@@ -224,7 +231,22 @@ export function mountWorkflows({ root, api, getProjectId, draft, onTasksCreated 
       if (JSON.stringify(state.editing) !== captured) { say('Versão salva; alterações digitadas durante o envio continuam no rascunho.'); state.selected = row; return; }
       state.selected = row; state.editing = structuredClone(row.definition); state.dirty = false;
       renderDetail(); say(`Versão ${row.version} salva neste projeto.`); void load();
-    });
+    }, selected && (async (ticket, reason, status) => {
+      // 409: another window saved or archived. 507: this workflow is full. Keep the draft and
+      // offer an explicit base change that still needs a fresh review.
+      let current = null;
+      if (status === 409) { await load(); current = state.rows.find(row => row.id === selected.id); }
+      if (!ticket.current() || state.selected !== selected) return;
+      if (status === 409 && (!current || current.revision === selected.revision)) return say(reason);
+      const base = current?.archivedAt ? null : current; renderDetail();
+      button(saveActions, base ? `Salvar rascunho sobre a versão ${base.version}` : 'Salvar rascunho como novo workflow', () => {
+        if (!usable() || state.selected !== selected) return;
+        // Dirty even if unedited: the shown prompts are not the new base, so tasks and archival wait for a reviewed save.
+        state.selected = base; state.dirty = true; renderDetail(); renderLibrary();
+        say(`Rascunho mantido ${base ? `sobre a versão ${base.version}; salvar cria a versão ${base.version + 1}` : 'como novo workflow'}. Revise e marque a confirmação antes de salvar.`);
+      }, 'button');
+      say(status === 507 ? `${reason}. Seu rascunho continua aqui; salve-o como novo workflow ou descarte-o.` : `${base ? `Outra janela salvou a versão ${base.version}` : 'Outra janela arquivou este workflow'}. Seu rascunho continua aqui e nada foi sobrescrito; compare em "Ver versões e tarefas".`);
+    }));
   }
   async function createTasks(nodeId) {
     if (state.dirty || !state.selected || state.selected.archivedAt) return say('Salve e revise o workflow antes de criar tarefas.');

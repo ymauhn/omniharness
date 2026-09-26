@@ -7,6 +7,8 @@ const MAX_BYTES = 4 * 1024 * 1024;
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/;
 const PILLARS = ['engineering', 'orchestration-os', 'science-thesis', 'education-community', 'technical-marketing'];
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
+// 507 (RFC 4331 quota) keeps capacity apart from 409 revision conflicts.
+const full = what => fail(`Limite de ${what} atingido; nada foi salvo`, 507);
 const clone = value => structuredClone(value);
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 function exact(value, keys) {
@@ -97,10 +99,19 @@ function ancestors(definition, nodeId) {
 }
 function validateRegistry(registry, store) {
   exact(registry, ['schema', 'workflows', 'runs']);
-  if (registry.schema !== 1 || !Array.isArray(registry.workflows) || registry.workflows.length > 128 || !Array.isArray(registry.runs) || registry.runs.length > 256 || Buffer.byteLength(JSON.stringify(registry)) > MAX_BYTES) fail('Limite ou schema do registro de workflows inválido');
-  const workflowIds = new Set(), runIds = new Set(), requests = new Set();
+  if (registry.schema !== 1 || !Array.isArray(registry.workflows) || !Array.isArray(registry.runs)) fail('Schema do registro de workflows inválido');
+  const workflowIds = new Set(), runIds = new Set(), requests = new Set(), usage = new Map();
+  // Budgets are per project so one busy project cannot lock out another.
+  // ponytail: nothing prunes old runs or versions and the state file grows with project count; a full project stays full until an owner-approved cleanup path exists.
+  const charge = (row, kind) => {
+    const used = usage.get(row.projectId) ?? { workflows: 0, runs: 0, bytes: 0 }; usage.set(row.projectId, used);
+    used[kind]++; used.bytes += Buffer.byteLength(JSON.stringify(row));
+    if (used.workflows > 128) full('128 workflows neste projeto');
+    if (used.runs > 256) full('256 snapshots de tarefas neste projeto');
+    if (used.bytes > MAX_BYTES) full('4 MiB de workflows neste projeto');
+  };
   for (const workflow of registry.workflows) {
-    exact(workflow, ['id', 'projectId', 'revision', 'archivedAt', 'revisions']);
+    exact(workflow, ['id', 'projectId', 'revision', 'archivedAt', 'revisions']); charge(workflow, 'workflows');
     id(workflow.id); store.project(workflow.projectId);
     if (workflowIds.has(workflow.id) || !Array.isArray(workflow.revisions) || workflow.revisions.length < 1 || workflow.revisions.length > 32 || workflow.revision !== workflow.revisions.length + (workflow.archivedAt ? 1 : 0) || workflow.archivedAt !== null && !Number.isFinite(Date.parse(workflow.archivedAt))) fail('Histórico de workflow inválido');
     workflowIds.add(workflow.id);
@@ -111,7 +122,7 @@ function validateRegistry(registry, store) {
     });
   }
   for (const run of registry.runs) {
-    exact(run, ['id', 'projectId', 'workflowId', 'version', 'nodeId', 'requestId', 'definition', 'hash', 'taskIds', 'createdAt', 'dispatch', 'outcome']);
+    exact(run, ['id', 'projectId', 'workflowId', 'version', 'nodeId', 'requestId', 'definition', 'hash', 'taskIds', 'createdAt', 'dispatch', 'outcome']); charge(run, 'runs');
     id(run.id); id(run.requestId);
     const workflow = registry.workflows.find(item => item.id === run.workflowId && item.projectId === run.projectId);
     const version = workflow?.revisions.find(item => item.version === run.version);
@@ -171,7 +182,6 @@ export function createWorkflowService({ store }) {
       exact(input, ['projectId', 'definition', 'reviewed']); store.project(input.projectId); reviewed(input);
       const definition = validateWorkflow(input.definition);
       return transaction((tx, registry) => {
-        if (registry.workflows.length >= 128) fail('Limite de 128 workflows atingido', 409);
         const row = { id: randomUUID(), projectId: input.projectId, revision: 1, archivedAt: null, revisions: [version(definition, 1)] };
         registry.workflows.push(row); return summary(row);
       });
@@ -181,7 +191,7 @@ export function createWorkflowService({ store }) {
       const definition = validateWorkflow(input.definition);
       return transaction((tx, registry) => {
         const row = bound(registry, workflowId, input.projectId); writable(row, input);
-        if (row.revisions.length >= 32) fail('Limite de 32 versões atingido', 409);
+        if (row.revisions.length >= 32) full('32 versões deste workflow');
         row.revisions.push(version(definition, row.revisions.length + 1)); row.revision++;
         return summary(row);
       });
@@ -203,7 +213,6 @@ export function createWorkflowService({ store }) {
       }
       writable(row, input);
       return transaction((tx, registry) => {
-        if (registry.runs.length >= 256) fail('Limite de 256 snapshots de tarefas atingido', 409);
         const frozen = current(row), nodes = ancestors(frozen.definition, input.nodeId);
         const run = { id: randomUUID(), projectId: row.projectId, workflowId, version: frozen.version, nodeId: input.nodeId, requestId: input.requestId, definition: clone(frozen.definition), hash: frozen.hash, taskIds: {}, createdAt: new Date().toISOString(), dispatch: 'none', outcome: null };
         for (const node of nodes) {

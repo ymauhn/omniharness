@@ -191,6 +191,104 @@ test('an uncertain task request preserves its identity across project switches',
   assert.equal(ids.length, 2); assert.equal(ids[0], ids[1]);
 });
 
+test('a revision conflict keeps the draft and offers a reviewed save on top of the current version', async t => {
+  const value = workflowPresets()[0].definition, saves = [];
+  let server = { id: 'w1', projectId: 'a', version: 1, revision: 1, archivedAt: null, definition: value }, created;
+  const api = async (url, options) => {
+    if (url === '/api/workflows' && options) return created = { ...server, id: 'w2', version: 1, revision: 1, archivedAt: null, definition: options.body.definition };
+    if (url.endsWith('/update')) {
+      saves.push(options.body.expectedRevision);
+      if (options.body.expectedRevision !== server.revision) throw Object.assign(Error('Workflow alterado; recarregue antes de continuar'), { status: 409 });
+      return server = { ...server, version: server.version + 1, revision: server.revision + 1, definition: options.body.definition };
+    }
+    return { projectId: 'a', rows: url.includes('/presets') ? [] : [server], runs: [] };
+  };
+  const { root } = ui(t, api); await tick(); await findButton(root, value.title).click();
+  const prompt = root.querySelectorAll('textarea').find(node => node.value === value.nodes[0].prompt); prompt.value = 'Draft edit'; await prompt.dispatchEvent({ type: 'input' });
+  server = { ...server, version: 2, revision: 2, definition: { ...value, title: 'Other window' } };
+  const review = () => root.querySelectorAll('input').find(input => input.type === 'checkbox');
+  review().checked = true; await findButton(root, 'Salvar nova versão').click();
+  assert.deepEqual(saves, [1]); assert.match(root.textContent, /versão 2/);
+  await findButton(root, 'Salvar rascunho sobre a versão 2').click();
+  assert.equal(!!review().checked, false, 'the rebased draft needs a fresh review');
+  assert.ok(root.querySelectorAll('textarea').some(node => node.value === 'Draft edit'), 'draft kept');
+  await findButton(root, 'Salvar nova versão').click(); assert.deepEqual(saves, [1], 'no save without the review confirmation');
+  review().checked = true; await findButton(root, 'Salvar nova versão').click();
+  assert.deepEqual(saves, [1, 2]); assert.equal(server.version, 3); assert.equal(server.definition.nodes[0].prompt, 'Draft edit');
+  const again = root.querySelectorAll('textarea').find(node => node.value === 'Draft edit'); again.value = 'After archive'; await again.dispatchEvent({ type: 'input' });
+  server = { ...server, revision: 4, archivedAt: 'now' };
+  review().checked = true; await findButton(root, 'Salvar nova versão').click(); assert.match(root.textContent, /arquivou/);
+  await findButton(root, 'Salvar rascunho como novo workflow').click();
+  review().checked = true; await findButton(root, 'Salvar no projeto').click();
+  assert.equal(created.definition.nodes[0].prompt, 'After archive'); assert.deepEqual(saves, [1, 2, 3]);
+});
+
+test('rebasing an unedited draft still needs a reviewed save before tasks or archival', async t => {
+  const value = workflowPresets()[0].definition, posts = [];
+  let server = { id: 'w1', projectId: 'a', version: 1, revision: 1, archivedAt: null, definition: value };
+  const api = async (url, options) => {
+    if (!options) return { projectId: 'a', rows: url.includes('/presets') ? [] : [server], runs: [] };
+    posts.push(url);
+    if (options.body.expectedRevision !== server.revision) throw Object.assign(Error('Workflow alterado; recarregue antes de continuar'), { status: 409 });
+    return server;
+  };
+  const { root } = ui(t, api); await tick(); await findButton(root, value.title).click();
+  server = { ...server, version: 2, revision: 2, definition: { ...value, nodes: [{ ...value.nodes[0], prompt: 'OTHER WINDOW PROMPT' }, ...value.nodes.slice(1)] } };
+  root.querySelectorAll('input').find(input => input.type === 'checkbox').checked = true;
+  await findButton(root, 'Salvar nova versão').click();
+  await findButton(root, 'Salvar rascunho sobre a versão 2').click();
+  assert.equal(findButton(root, 'Criar 1 tarefa').disabled, true, 'tasks would pin v2 prompts the panel is not showing');
+  await findButton(root, 'Arquivar fluxo').click();
+  assert.deepEqual(posts, ['/api/workflows/w1/update'], 'archival would target v2 while v1 is displayed');
+});
+
+test('a workflow at its version cap keeps the draft and offers saving it as a new workflow', async t => {
+  const value = workflowPresets()[0].definition, row = { id: 'w1', projectId: 'a', version: 32, revision: 32, archivedAt: null, definition: value };
+  let created;
+  const api = async (url, options) => {
+    if (url.endsWith('/update')) throw Object.assign(Error('Limite de 32 versões deste workflow atingido; nada foi salvo'), { status: 507 });
+    if (options) return created = { ...row, id: 'w2', version: 1, revision: 1, definition: options.body.definition };
+    return { projectId: 'a', rows: url.includes('/presets') ? [] : [row], runs: [] };
+  };
+  const { root } = ui(t, api); await tick(); await findButton(root, value.title).click();
+  const prompt = root.querySelectorAll('textarea').find(node => node.value === value.nodes[0].prompt); prompt.value = 'Draft edit'; await prompt.dispatchEvent({ type: 'input' });
+  const review = () => root.querySelectorAll('input').find(input => input.type === 'checkbox');
+  review().checked = true; await findButton(root, 'Salvar nova versão').click();
+  assert.match(root.textContent, /Limite de 32 versões/);
+  await findButton(root, 'Salvar rascunho como novo workflow').click();
+  assert.equal(!!review().checked, false, 'the new workflow needs a fresh review');
+  review().checked = true; await findButton(root, 'Salvar no projeto').click();
+  assert.equal(created.definition.nodes[0].prompt, 'Draft edit');
+});
+
+test('capacity limits show their own server message instead of a revision conflict', async t => {
+  const value = workflowPresets()[0].definition, row = { id: 'w1', projectId: 'a', version: 1, revision: 1, archivedAt: null, definition: value };
+  const api = async (url, options) => {
+    if (options) throw Object.assign(Error('Limite de 256 snapshots de tarefas neste projeto atingido; nada foi salvo'), { status: 507 });
+    return { projectId: 'a', rows: url.includes('/presets') ? [] : [row], runs: [] };
+  };
+  const { root } = ui(t, api); await tick(); await findButton(root, value.title).click();
+  await findButton(root, 'Criar 1 tarefa').click();
+  assert.match(root.textContent, /Limite de 256 snapshots/); assert.doesNotMatch(root.textContent, /mudou/);
+});
+
+test('a step can be removed and its dependents keep the remaining chain', async t => {
+  const preset = workflowPresets()[0]; let body;
+  const api = async (url, options) => {
+    if (options) { body = options.body; return { id: 'w1', projectId: 'a', revision: 1, version: 1, archivedAt: null, definition: options.body.definition }; }
+    return { projectId: 'a', rows: url.includes('/presets') ? [preset] : [], runs: [] };
+  };
+  const { root } = ui(t, api); await tick(); await findButton(root, 'Do bug').click();
+  const node = id => root.querySelectorAll('button').find(item => item.className === 'wf-node' && item.textContent.includes(id));
+  await node('step-2').click(); await findButton(root, 'Remover etapa').click();
+  assert.equal(node('step-2'), undefined);
+  root.querySelectorAll('input').find(input => input.type === 'checkbox').checked = true;
+  await findButton(root, 'Salvar no projeto').click();
+  assert.deepEqual(body.definition.nodes.map(item => [item.id, item.dependsOn]), [['step-1', []], ['step-3', ['step-1']]]);
+  await node('step-3').click(); await findButton(root, 'Remover etapa').click();
+  assert.equal(findButton(root, 'Remover etapa').disabled, true, 'the last step stays');
+});
+
 test('delayed workflow history preserves focus after the user returns to the composer', async t => {
   const definition = workflowPresets()[0].definition;
   const row = { id: 'w1', projectId: 'a', version: 1, revision: 1, archivedAt: null, definition };

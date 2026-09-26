@@ -34,6 +34,22 @@ test('a stale saved-workflow edit cannot silently overwrite a newer revision', t
   assert.equal(service.get(row.id, a.id).workflow.revisions.at(-1).definition.title, 'Reviewed correction');
 });
 
+test('capacity caps are per project and reported apart from revision conflicts', t => {
+  const { store, service, a, b } = fixture(t), row = save(service, a.id);
+  const full = e => e.status === 507 && /Limite de/.test(e.message);
+  const small = service.create({ projectId: b.id, definition: { ...definition(), nodes: [definition().nodes[0]] }, reviewed: true });
+  for (let index = 0; index < 256; index++) service.tasks(small.id, { projectId: b.id, expectedRevision: 1, nodeId: 'step-1', requestId: `b-${index}` });
+  assert.throws(() => service.tasks(small.id, { projectId: b.id, expectedRevision: 1, nodeId: 'step-1', requestId: 'b-over' }), full);
+  assert.equal(service.tasks(row.id, { projectId: a.id, expectedRevision: 1, nodeId: 'step-1', requestId: 'a-1' }).projectId, a.id, 'a full project must not lock out another project');
+  const seeded = store.data.workflowRegistry.workflows.find(item => item.id === row.id);
+  store.data.workflowRegistry.workflows.push(...Array.from({ length: 127 }, (_, index) => ({ ...structuredClone(seeded), id: `seed-${index}` })));
+  seeded.revisions = Array.from({ length: 32 }, (_, index) => ({ ...seeded.revisions[0], version: index + 1 })); seeded.revision = 32;
+  const busy = createWorkflowService({ store });
+  assert.throws(() => busy.update(row.id, { projectId: a.id, expectedRevision: 32, definition: definition(), reviewed: true }), full);
+  assert.throws(() => save(busy, a.id), full);
+  assert.equal(save(busy, b.id).projectId, b.id);
+});
+
 test('presets span five pillars but are defensive non-executable suggestions', () => {
   const rows = workflowPresets();
   assert.equal(new Set(rows.map(row => row.definition.pillar)).size, 5);
