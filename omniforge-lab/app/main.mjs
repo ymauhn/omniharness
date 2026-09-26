@@ -1,0 +1,68 @@
+// Composition root: builds every panel and feature module, wires the page chrome that is not
+// owned by any single view (theme, navigation, resize), and starts the state/SSE bootstrap.
+// This is the only module that talks to the network and the real EventSource; every other
+// app/*.mjs file exports a plain factory a test can import and drive on its own.
+import { $ } from './dom.mjs';
+import { local, api, toast, log, safeTheme, bindRefresher, connect } from './state.mjs';
+import { createWorkspace } from './workspace.mjs';
+import { createTasks } from './tasks.mjs';
+import { createGraphs } from './graphs.mjs';
+import { createAssets } from './assets.mjs';
+import { createNavigation } from './navigation.mjs';
+import { mountCopilot, mountCatalog } from '../copilot.mjs';
+import { mountMemoryPanel } from '../memory-panel.mjs';
+import { mountWorkflows } from '../workflow-panel.mjs';
+import { mountArsenalPanel } from '../arsenal-panel.mjs';
+import { mountExtensionsPanel } from '../extensions-panel.mjs';
+import { mountUsagePanel } from '../usage-panel.mjs';
+
+let nav; // assigned once every module below is built; callbacks only read it after that.
+
+const getProjectId = () => local.projectId;
+const openSkills = name => { $('#skill-search').value = name; catalog.search('installed'); nav.showView('skills'); };
+const catalog = mountCatalog({ root: $('#skill-catalog'), search: $('#skill-search'), list: $('#skill-list'), count: $('#skills-count'), api, fallback: () => local.state.skills, getProjectId });
+const copilot = mountCopilot({ root: $('#prompt-copilot'), draft: $('#coord-text'), api, getProjectId, getNotes: () => local.notes, openSkills });
+const onMemoryChanged = () => { void refresh().catch(error => toast(error.message)); void graphs.loadMemory(); };
+const memoryPanel = mountMemoryPanel({ root: $('#memory-list'), api, getProjectId, getSessions: () => local.state.sessions, onChanged: onMemoryChanged });
+const onTasksCreated = async run => { log('Workflow', `Snapshot ${run.id}: tarefas criadas sem iniciar modelos.`); await refresh(); };
+const workflows = mountWorkflows({ root: $('#workflow-panel'), api, getProjectId, draft: $('#coord-text'), onInsert: () => nav.showView('workspace'), onTasksCreated });
+const arsenal = mountArsenalPanel({ root: $('#arsenal-panel'), api, getProjectId, getSessions: () => local.state.sessions, getTasks: () => local.state.tasks, onChanged: () => tasks.renderTasks() });
+const extensionsPanel = mountExtensionsPanel({ root: $('#extensions-panel'), api, getProjectId, toast });
+const usagePanel = mountUsagePanel({ root: $('#usage-panel'), api, toast });
+
+const showView = view => nav.showView(view);
+const workspace = createWorkspace({ renderAll: () => nav.renderAll(), loadMemory: () => graphs.loadMemory(), clearContext: () => graphs.clearContext(), showView, copilot });
+const tasks = createTasks({ showView, arsenal });
+const graphs = createGraphs({ assignPane: workspace.assignPane, renderWorkspace: workspace.renderWorkspace, catalog, memoryPanel, showView });
+const assets = createAssets();
+nav = createNavigation({ workspace, tasks, graphs, assets, catalog, copilot, workflows, arsenal, extensionsPanel, usagePanel, memoryPanel });
+
+async function refresh() { nav.applyState(await api('/api/state')); }
+bindRefresher(refresh);
+
+$('#theme').addEventListener('change', event => {
+  const theme = safeTheme(event.target.value);
+  document.body.dataset.theme = theme;
+  workspace.applyTheme();
+  try { localStorage.setItem('omniforge-theme', theme); } catch { /* private mode or storage disabled */ }
+});
+document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => nav.showView(button.dataset.view)));
+
+let resizePending = false;
+window.addEventListener('resize', () => {
+  workspace.fitTerminals();
+  if (local.view !== 'graphs' || resizePending) return;
+  resizePending = true;
+  requestAnimationFrame(() => { resizePending = false; graphs.renderGraph(); });
+});
+
+try { const theme = safeTheme(localStorage.getItem('omniforge-theme')); document.body.dataset.theme = theme; $('#theme').value = theme; } catch { /* private mode or storage disabled */ }
+log('Sistema', 'OmniForge Lab pronto para conectar ao serviço local.', 'PTY interativo quando disponível; nenhum agente iniciado.');
+try { await refresh(); }
+catch (error) { if (!local.tokenInvalid) { $('#connection').dataset.state = 'error'; $('#connection').textContent = 'Reconectando'; toast(error.message); } nav.renderAll(); }
+if (!local.tokenInvalid) connect({
+  onOpen: () => { for (const id of local.paneSessions) if (id) workspace.replayTerminal(id); },
+  onTerminal: payload => workspace.acceptTerminal(payload),
+  onState: state => nav.applyState(state),
+  onArsenal: update => { if (update.projectId === local.projectId && local.view === 'arsenal') void arsenal.load(); },
+});
