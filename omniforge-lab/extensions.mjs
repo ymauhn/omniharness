@@ -3,10 +3,10 @@ import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { runExtension } from './extension-runner.mjs';
+import { SKIP_DIRS } from './core.mjs';
 
 const TEMPLATE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'extension-templates', 'asset-link-checker.js');
 const EXTENSION_ID = 'asset-link-checker';
-const SKIP_DIRS = new Set(['.git', 'node_modules', '.venv', '__pycache__', '.omniforge-lab']);
 const TEXT = new Set(['.md', '.markdown', '.html', '.htm', '.css', '.js', '.mjs', '.cjs', '.json', '.tex', '.txt', '.yml', '.yaml', '.svg']);
 const ID = /^[A-Za-z0-9_-]{1,120}$/;
 const MAX_VERSIONS = 32;
@@ -27,10 +27,12 @@ function fail(message, status = 400) { throw Object.assign(new Error(message), {
 const sha256 = value => createHash('sha256').update(value).digest('hex');
 
 /** Scoped, bounded view of one project: every file path plus the text of small text files. */
-export async function projectSnapshot(root, { maxFiles = 5000, maxText = 256 * 1024, maxTotal = 4 * 1024 * 1024 } = {}) {
-  const files = [], pending = [''];
-  let total = 0, truncated = false, skipped = 0;
+export async function projectSnapshot(root, { maxFiles = 5000, maxDirs = 2000, maxMs = 3000, maxText = 256 * 1024, maxTotal = 4 * 1024 * 1024 } = {}) {
+  const files = [], pending = [''], deadline = Date.now() + maxMs;
+  let total = 0, truncated = false, skipped = 0, dirs = 0;
+  const full = () => files.length >= maxFiles || Date.now() >= deadline;
   while (pending.length) {
+    if (dirs++ >= maxDirs || full()) { truncated = true; break; }
     const relative = pending.pop();
     let entries;
     try { entries = await fs.promises.readdir(path.join(root, relative), { withFileTypes: true }); }
@@ -39,7 +41,7 @@ export async function projectSnapshot(root, { maxFiles = 5000, maxText = 256 * 1
       const file = relative ? `${relative}/${entry.name}` : entry.name;
       if (entry.isDirectory()) { if (!SKIP_DIRS.has(entry.name)) pending.push(file); continue; }
       if (!entry.isFile()) continue;
-      if (files.length >= maxFiles) { truncated = true; break; }
+      if (full()) { truncated = true; break; }
       const row = { path: file };
       if (TEXT.has(path.extname(entry.name).toLowerCase())) {
         try {
@@ -77,8 +79,9 @@ export class ExtensionService {
   }
 
   save(projectId, registry, expectedRevision) {
+    if (!Number.isSafeInteger(expectedRevision)) fail('Revisão esperada inválida');
     const current = this.list(projectId);
-    if (expectedRevision !== undefined && expectedRevision !== current.revision) fail('Registro de extensões mudou; atualize e confirme a revisão', 409);
+    if (expectedRevision !== current.revision) fail('Registro de extensões mudou; atualize e confirme a revisão', 409);
     registry.revision = current.revision + 1;
     fs.mkdirSync(this.root, { recursive: true });
     const temp = `${this.file(projectId)}.${randomUUID()}.tmp`;
@@ -111,7 +114,7 @@ export class ExtensionService {
       preview: null, review: null };
     registry.versions.push(row);
     registry.history.push({ action: 'generate', version, at: row.createdAt });
-    this.save(projectId, registry);
+    this.save(projectId, registry, registry.revision);
     return row;
   }
 
@@ -133,6 +136,7 @@ export class ExtensionService {
     if (reviewed !== true) fail('Confirme a revisão do código e do manifesto antes de ativar', 400);
     if (sha256(fs.readFileSync(row.path)) !== row.sha256) fail('O módulo mudou depois da geração; gere uma nova versão', 409);
     row.review = { by: 'local-owner', at: new Date().toISOString() };
+    if (registry.enabled && registry.enabled.version !== number) (registry.previous ??= []).push(registry.enabled.version);
     registry.enabled = { id: row.id, version: number };
     registry.history.push({ action: 'enable', version: number, at: row.review.at });
     return this.save(projectId, registry, expectedRevision);
@@ -141,15 +145,16 @@ export class ExtensionService {
   async disable(projectId, { expectedRevision } = {}) {
     const registry = this.list(projectId);
     registry.history.push({ action: 'disable', version: registry.enabled?.version ?? null, at: new Date().toISOString() });
+    if (registry.enabled) (registry.previous ??= []).push(registry.enabled.version);
     registry.enabled = null;
     return this.save(projectId, registry, expectedRevision);
   }
 
+  /** `previous` is a stack of the versions that were active before each enable or disable; rollback pops it. */
   async rollback(projectId, { expectedRevision } = {}) {
     const registry = this.list(projectId);
-    const enabled = registry.history.filter(item => item.action === 'enable').map(item => item.version);
-    const previous = [...enabled].reverse().find(version => version !== registry.enabled?.version);
-    if (!previous) fail('Não há versão ativada anterior para restaurar', 409);
+    const previous = registry.previous?.pop();
+    if (previous === undefined) fail('Não há versão ativada anterior para restaurar', 409);
     registry.enabled = { id: EXTENSION_ID, version: previous };
     registry.history.push({ action: 'rollback', version: previous, at: new Date().toISOString() });
     return this.save(projectId, registry, expectedRevision);
@@ -159,14 +164,18 @@ export class ExtensionService {
     const registry = this.list(projectId);
     if (!registry.enabled) return { ok: false, reason: 'disabled', error: 'Nenhuma versão ativada para este projeto' };
     const snapshot = await projectSnapshot(projectRoot);
-    const verdict = await this.execute(this.version(registry, registry.enabled.version), { files: snapshot.files });
-    return { ...verdict, version: registry.enabled.version, truncated: snapshot.truncated, skipped: snapshot.skipped };
+    // A disable or rollback during the snapshot wins: only the version still enabled now may run.
+    const current = this.list(projectId);
+    if (current.enabled?.version !== registry.enabled.version) return { ok: false, reason: 'disabled', error: 'A versão ativa mudou durante a leitura do projeto' };
+    const verdict = await this.execute(this.version(current, current.enabled.version), { files: snapshot.files });
+    return { ...verdict, version: current.enabled.version, truncated: snapshot.truncated, skipped: snapshot.skipped };
   }
 
+  /** The bytes hashed here are the bytes the child runs: it gets them on stdin and never reads the module file. */
   async execute(row, input) {
-    let current;
-    try { current = sha256(fs.readFileSync(row.path)); } catch { current = null; }
-    if (current !== row.sha256) return { ok: false, reason: 'denied', error: 'O módulo não corresponde ao hash registrado' };
-    return runExtension({ modulePath: row.path, input, timeoutMs: this.timeoutMs });
+    let source = null;
+    try { const bytes = fs.readFileSync(row.path); if (sha256(bytes) === row.sha256) source = bytes.toString('utf8'); } catch { /* missing module */ }
+    if (source === null) return { ok: false, reason: 'denied', error: 'O módulo não corresponde ao hash registrado' };
+    return runExtension({ source, input, timeoutMs: this.timeoutMs });
   }
 }

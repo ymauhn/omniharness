@@ -1,18 +1,18 @@
-// Child side of extension-runner.mjs. Runs under --permission with read access to this file and the module only.
-// The module is a plain script defining check(input); it runs in a fresh context with no host objects: the input
-// arrives as a string and is parsed inside, and string code generation is disabled in both realms.
-import fs from 'node:fs';
+// Child side of extension-runner.mjs. Runs under --permission with read access to this file only. The parent sends
+// { source, input } on stdin: source is the module text whose hash it verified, a plain script defining check(input).
+// It runs in a fresh context with no host objects; the input stays a string until it is parsed inside that context,
+// and string code generation is disabled in both realms.
 import vm from 'node:vm';
 
-const [modulePath, timeoutArg] = process.argv.slice(2);
-const timeout = Number(timeoutArg) || 5000;
-let input = '';
+const timeout = Number(process.argv[2]) || 5000;
+let stdin = '';
 process.stdin.setEncoding('utf8');
-for await (const chunk of process.stdin) input += chunk;
+for await (const chunk of process.stdin) stdin += chunk;
 const reply = value => process.stdout.write(JSON.stringify(value));
 try {
+  const { source, input } = JSON.parse(stdin);
   const context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
-  vm.runInContext(fs.readFileSync(modulePath, 'utf8'), context, { timeout });
+  vm.runInContext(source, context, { timeout });
   const call = `(() => {
     if (typeof check !== 'function') return JSON.stringify({ invalid: 'check ausente' });
     const value = check(JSON.parse(${JSON.stringify(input)}));

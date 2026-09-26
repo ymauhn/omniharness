@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -6,18 +5,17 @@ import { fileURLToPath } from 'node:url';
 const SANDBOX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'extension-sandbox.mjs');
 
 /**
- * Run a reviewed extension module on scoped input and fail closed on anything but plain data.
+ * Run the verified source of a reviewed extension on scoped input and fail closed on anything but plain data.
  * ponytail: layered containment, not a certified sandbox — a context without host objects, no string code
- * generation, Node's --permission (no file writes, reads limited to the module, no child processes or workers),
- * a memory cap, a deadline and an output bound. Node 24 cannot deny sockets, but the context never receives a
- * reference that reaches them. Move to the Docker worker profile if extensions ever get richer inputs.
+ * generation, Node's --permission (no file writes, reads limited to the sandbox script, no child processes or
+ * workers), a memory cap, a deadline and an output bound. The source arrives on stdin, so no file is re-read
+ * after its hash was checked. Node 24 cannot deny sockets, but the context never receives a reference that
+ * reaches them. Move to the Docker worker profile if extensions ever get richer inputs.
  */
-export async function runExtension({ modulePath, input, timeoutMs = 5000, maxOutput = 256 * 1024, memoryMb = 64 }) {
-  if (typeof modulePath !== 'string' || !fs.existsSync(modulePath) || !fs.statSync(modulePath).isFile()) {
-    return { ok: false, reason: 'denied', error: 'Módulo da extensão ausente' };
-  }
-  const child = spawn(process.execPath, ['--permission', `--allow-fs-read=${SANDBOX}`, `--allow-fs-read=${path.resolve(modulePath)}`,
-    '--disallow-code-generation-from-strings', `--max-old-space-size=${memoryMb}`, SANDBOX, path.resolve(modulePath), String(timeoutMs)],
+export async function runExtension({ source, input, timeoutMs = 5000, maxOutput = 256 * 1024, memoryMb = 64 }) {
+  if (typeof source !== 'string') return { ok: false, reason: 'denied', error: 'Módulo da extensão ausente' };
+  const child = spawn(process.execPath, ['--permission', `--allow-fs-read=${SANDBOX}`,
+    '--disallow-code-generation-from-strings', `--max-old-space-size=${memoryMb}`, SANDBOX, String(timeoutMs)],
   { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env: { SystemRoot: process.env.SystemRoot ?? '' } });
   return await new Promise(resolve => {
     let output = '', settled = false;
@@ -38,6 +36,6 @@ export async function runExtension({ modulePath, input, timeoutMs = 5000, maxOut
       } catch { finish({ ok: false, reason: 'crash', error: 'A extensão terminou sem resultado válido' }); }
     });
     child.stdin.on('error', () => {});
-    child.stdin.end(JSON.stringify(input ?? {}));
+    child.stdin.end(JSON.stringify({ source, input: JSON.stringify(input ?? {}) }));
   });
 }

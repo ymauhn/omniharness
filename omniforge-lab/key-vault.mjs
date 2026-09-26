@@ -76,6 +76,14 @@ export class KeyVault {
   constructor({ dataDir, backend = windowsCredentialBackend() }) {
     this.file = path.join(dataDir, 'keys.json');
     this.backend = backend;
+    this.queue = Promise.resolve();
+  }
+
+  /** One vault change at a time: two windows must not interleave their read-modify-write of keys.json. */
+  serial(work) {
+    const run = this.queue.then(work);
+    this.queue = run.catch(() => {});
+    return run;
   }
 
   list() {
@@ -93,18 +101,23 @@ export class KeyVault {
   async store({ provider, secret }) {
     if (typeof provider !== 'string' || !PROVIDER.test(provider)) throw Object.assign(new Error('Provedor inválido'), { status: 400 });
     if (typeof secret !== 'string' || secret.trim() !== secret || secret.length < 12 || secret.length > MAX_SECRET) throw Object.assign(new Error('Chave inválida'), { status: 400 });
-    const ref = `OmniForge:key:${provider}:${randomUUID()}`;
-    await this.backend.write(ref, secret);
-    const row = { provider, ref, suffix: secret.slice(-4), createdAt: new Date().toISOString(), validation: { status: 'não verificada', at: null } };
-    this.save([...this.list(), row]);
-    return row;
+    return this.serial(async () => {
+      this.list(); // unreadable metadata fails before any secret reaches the vault
+      const ref = `OmniForge:key:${provider}:${randomUUID()}`;
+      await this.backend.write(ref, secret);
+      const row = { provider, ref, suffix: secret.slice(-4), createdAt: new Date().toISOString(), validation: { status: 'não verificada', at: null } };
+      try { this.save([...this.list(), row]); }
+      catch (error) { await this.backend.remove(ref).catch(() => {}); throw error; }
+      return row;
+    });
   }
 
-  async remove(ref) {
-    const keys = this.list();
-    if (!keys.some(row => row.ref === ref)) throw Object.assign(new Error('Chave não encontrada'), { status: 404 });
-    await this.backend.remove(ref);
-    this.save(keys.filter(row => row.ref !== ref));
+  remove(ref) {
+    return this.serial(async () => {
+      if (!this.list().some(row => row.ref === ref)) throw Object.assign(new Error('Chave não encontrada'), { status: 404 });
+      await this.backend.remove(ref);
+      this.save(this.list().filter(row => row.ref !== ref));
+    });
   }
 
   /** Coordinator-side only: never exposed over HTTP, logged or placed in agent context. */

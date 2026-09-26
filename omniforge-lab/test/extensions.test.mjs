@@ -25,6 +25,53 @@ test('the project snapshot is scoped, bounded and skips dependency folders', asy
   assert.equal(snapshot.truncated, false);
 });
 
+test('the snapshot stops walking at its file, directory and time caps', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-snap-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  for (let i = 0; i < 300; i++) { fs.mkdirSync(path.join(root, `d${i}`)); fs.writeFileSync(path.join(root, `d${i}`, 'f.txt'), 'x'); }
+  const readdir = fs.promises.readdir;
+  let reads = 0;
+  fs.promises.readdir = (...args) => { reads++; return readdir(...args); };
+  t.after(() => { fs.promises.readdir = readdir; });
+  for (const [limits, most] of [[{ maxFiles: 5 }, 10], [{ maxDirs: 10 }, 10], [{ maxMs: 0 }, 0]]) {
+    reads = 0;
+    const snapshot = await projectSnapshot(root, limits);
+    assert.equal(snapshot.truncated, true, JSON.stringify(limits));
+    assert.ok(reads <= most, `${JSON.stringify(limits)}: ${reads} leituras de pasta`);
+  }
+});
+
+test('mutations need the registry revision, rollback walks back and a run re-checks the enabled version', async t => {
+  const { service, project } = fixture(t);
+  const projectId = 'p5';
+  const revision = () => ({ expectedRevision: service.list(projectId).revision });
+  for (let version = 1; version <= 3; version++) {
+    await service.generate(projectId, 'verificador de links de assets');
+    await assert.rejects(service.preview(projectId, version), /Revisão esperada/);
+    await service.preview(projectId, version, revision());
+    await service.enable(projectId, version, { reviewed: true, ...revision() });
+  }
+  for (const action of ['disable', 'rollback']) await assert.rejects(service[action](projectId, {}), /Revisão esperada/);
+  await assert.rejects(service.enable(projectId, 1, { reviewed: true }), /Revisão esperada/);
+  const walked = [];
+  for (let step = 0; step < 2; step++) { await service.rollback(projectId, revision()); walked.push(service.list(projectId).enabled.version); }
+  assert.deepEqual(walked, [2, 1]);
+  await assert.rejects(service.rollback(projectId, revision()), /Não há versão/);
+  const running = service.run(projectId, project);
+  await service.disable(projectId, revision());
+  assert.deepEqual(Object.values(await running).slice(0, 2), [false, 'disabled']);
+});
+
+test('the runner executes the bytes whose hash was verified, not a later edit of the module', async t => {
+  const { service } = fixture(t);
+  const row = await service.generate('p6', 'verificador de links de assets');
+  const pending = service.execute(row, { files: [] });
+  fs.writeFileSync(row.path, 'function check() { return { tampered: true }; }');
+  const result = await pending;
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.result.tampered, undefined);
+});
+
 test('a generated checker is versioned, previewed on fixtures, enabled only after review and finds broken links', async t => {
   const { service, project } = fixture(t);
   const projectId = 'p1';

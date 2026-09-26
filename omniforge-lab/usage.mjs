@@ -27,6 +27,8 @@ export async function readCodexRateLimits({ codexPath, spawnProcess = spawn, tim
     const timer = setTimeout(() => finish(unknown('O App Server do Codex não respondeu a tempo')), timeoutMs);
     const send = message => child.stdin.write(`${JSON.stringify(message)}\n`);
     child.on('error', error => finish(unknown(`Codex CLI indisponível: ${error.message}`)));
+    // 'close' follows the last stdout chunk, so a reply sent just before exiting is still read first.
+    child.on('close', code => finish(unknown(`O App Server do Codex encerrou sem responder (código ${code})`)));
     child.stdin.on('error', () => {});
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', chunk => {

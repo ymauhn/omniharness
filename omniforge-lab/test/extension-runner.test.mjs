@@ -5,22 +5,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { runExtension } from '../extension-runner.mjs';
 
-function moduleFile(t, source) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-ext-run-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const file = path.join(dir, 'module.js');
-  fs.writeFileSync(file, source);
-  return { dir, file };
-}
-
-test('a pure extension receives only its input and returns plain data', async t => {
-  const { file } = moduleFile(t, 'function check(input) { return { count: input.files.length, first: input.files[0].path }; }');
-  const result = await runExtension({ modulePath: file, input: { files: [{ path: 'a.md', text: 'x' }] } });
+test('a pure extension receives only its input and returns plain data', async () => {
+  const source = 'function check(input) { return { count: input.files.length, first: input.files[0].path }; }';
+  const result = await runExtension({ source, input: { files: [{ path: 'a.md', text: 'x' }] } });
   assert.deepEqual(result, { ok: true, result: { count: 1, first: 'a.md' } });
 });
 
 test('malicious or broken variants fail closed without touching the host', async t => {
-  const { dir } = moduleFile(t, '');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-ext-run-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const secret = path.join(dir, 'outside-secret.txt');
   fs.writeFileSync(secret, 'HOST_SECRET');
   const cases = {
@@ -37,9 +30,7 @@ test('malicious or broken variants fail closed without touching the host', async
     syntax: 'function check( {',
   };
   for (const [name, source] of Object.entries(cases)) {
-    const file = path.join(dir, `${name}.js`);
-    fs.writeFileSync(file, source);
-    const result = await runExtension({ modulePath: file, input: { files: [] }, timeoutMs: 1500 });
+    const result = await runExtension({ source, input: { files: [] }, timeoutMs: 1500 });
     if (name === 'network') {
       // No host globals exist in the context: the probe sees only undefined values.
       assert.deepEqual(result, { ok: true, result: { leaked: 'undefinedundefinedundefined' } }, name);
@@ -51,7 +42,7 @@ test('malicious or broken variants fail closed without touching the host', async
   }
 });
 
-test('a module path that does not exist is refused before any process runs', async () => {
-  const result = await runExtension({ modulePath: path.join(os.tmpdir(), 'omniforge-no-such-module.js'), input: {} });
+test('a missing module source is refused before any process runs', async () => {
+  const result = await runExtension({ source: null, input: {} });
   assert.deepEqual(result, { ok: false, reason: 'denied', error: 'Módulo da extensão ausente' });
 });

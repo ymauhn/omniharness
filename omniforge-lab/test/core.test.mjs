@@ -503,6 +503,29 @@ test('blocking a prerequisite deterministically blocks its open dependents and u
   assert.equal(store.task(manual.id).status, 'blocked');
 });
 
+test('replan keeps a dependent blocked while any prerequisite is blocked and restores its previous status', t => {
+  const { projectRoot, store } = fixture(t);
+  const project = store.addProject({ name: 'Replan2', root: projectRoot });
+  const add = (title, dependsOn = []) => store.addTask({ projectId: project.id, title, dependsOn });
+  const status = task => [store.task(task.id).status, store.task(task.id).blockedBy];
+  const set = (task, value) => store.setTaskStatus(task.id, value, store.task(task.id).revision);
+  const a = add('A'), b = add('B'), d = add('D', [a.id, b.id]);
+  const r = add('R', [a.id]);
+  const c = add('C', [r.id]), e = add('E', [a.id, c.id]);
+  set(r, 'running');
+  set(c, 'running');
+  set(a, 'blocked');
+  set(b, 'blocked');
+  assert.deepEqual(status(d), ['blocked', a.id]);
+  set(a, 'open');
+  assert.deepEqual(status(d), ['blocked', b.id]);
+  assert.deepEqual([status(r), status(c), status(e)], [['running', undefined], ['running', undefined], ['open', undefined]]);
+  const late = add('Late', [b.id]);
+  assert.deepEqual(status(late), ['blocked', b.id]);
+  set(b, 'open');
+  assert.deepEqual([status(d), status(late)], [['open', undefined], ['open', undefined]]);
+});
+
 test('a task owner is a session of the same project, and handoffs are recorded on the task with revision checks', t => {
   const { root, projectRoot, store } = fixture(t);
   const project = store.addProject({ name: 'Own', root: projectRoot });
