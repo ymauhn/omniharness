@@ -95,7 +95,7 @@ class ReviewE2E(LabCase):
         self.assertEqual(next(t for t in self.api(page, "/api/state")["tasks"] if t["id"] == task["id"])["status"], "done")
         panel.locator(".review-attempt").nth(1).wait_for()
         self.assertIn(f"Merge {head}", panel.locator(".review-attempt").first.inner_text(), "attempts are listed newest first")
-        self.assertIn("Uso: observado", panel.locator(".review-attempt").first.inner_text())
+        self.assertIn("Tokens observados:", panel.locator(".review-attempt").first.inner_text())
         evidence(page, "review-merged")
         context.close()
 
@@ -163,7 +163,7 @@ class ReviewE2E(LabCase):
         entry.wait_for(timeout=30000)
         self.assertIn("Gauntlet rápido: alta 1 · média 0 · baixa 2 · sem verificação 0", entry.inner_text())
         self.assertIn(os.path.join(worktree, ".gauntlet", "relatorio-fake.md"), entry.inner_text())
-        self.assertIn("Uso: observado", entry.inner_text())
+        self.assertIn("Tokens observados:", entry.inner_text())
         panel.get_by_text("Gauntlet: Concluído").wait_for()
         recorded = self.api(page, f"/api/tasks/{task['id']}/evidence")
         self.assertEqual([g["runId"] for g in recorded["gauntlet"]], [review["id"]])

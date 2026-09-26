@@ -2,14 +2,12 @@
 // the task's evidence bundle. Diff, test output, report paths and refusal reasons are untrusted agent output: they reach
 // the page as textContent only.
 import { one, asArray } from './dom.mjs';
-import { runLabel } from './fleet.mjs';
+import { runLabel, usageText, HOST, ACTIVE } from './fleet.mjs';
 
 const FILE_STATUS = { A: 'adicionado', M: 'modificado', D: 'removido', T: 'tipo alterado' };
-const HOST = { claude: 'Claude', codex: 'Codex' };
 const testKey = projectId => `omniforge-review-test:${projectId}`;
 const PRESET = { rapido: 'rápido', padrao: 'padrão' };
 const SEVERITY = [['high', 'alta'], ['medium', 'média'], ['low', 'baixa'], ['unverified', 'sem verificação']];
-const ACTIVE = new Set(['starting', 'working', 'blocked', 'idle']); // the engine's own active states
 // Changes worth an adversarial look, and the size (changed lines) past which a human review starts missing things.
 const SENSITIVE = /auth|token|secret|key|permission|sandbox|credential/i;
 const LARGE_DIFF = 400;
@@ -41,14 +39,6 @@ export function classifyPatch(patch) {
   });
 }
 
-/** Token usage as the engine recorded it; unknown (or a field the CLI did not report) is never shown as zero. */
-export function usageText(usage) {
-  if (usage?.status !== 'observed') return `desconhecido: ${usage?.reason || 'sem registro de uso'}`;
-  const figures = [['entrada', usage.inputTokens, 'desconhecida'], ['saída', usage.outputTokens, 'desconhecida'],
-    ['cache lido', usage.cacheReadTokens, 'desconhecido'], ['cache criado', usage.cacheCreationTokens, 'desconhecido']];
-  return `observado: ${figures.map(([label, value, unknown]) => `${label} ${Number.isSafeInteger(value) ? value.toLocaleString('pt-BR') : unknown}`).join(' · ')}`;
-}
-
 const when = at => {
   const date = new Date(at);
   return Number.isNaN(date.getTime()) ? String(at ?? '') : date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'medium' });
@@ -61,7 +51,7 @@ export function describeAttempt(attempt) {
   details.push(test ? `Teste: ${test.command} · código ${test.exitCode ?? 'desconhecido'}${test.timedOut ? ' · tempo esgotado' : ''} · SHA-256 da saída ${test.outputSha256}`
     : attempt.mergeSha ? 'Sem comando de teste' : 'Teste não executado');
   if (stat) details.push(`Diff: ${stat.files} arquivo${stat.files === 1 ? '' : 's'}, +${stat.additions} −${stat.deletions}`);
-  details.push(`Uso: ${usageText(attempt.usage)}`);
+  details.push(usageText(attempt.usage));
   if (attempt.note) details.push(`Nota: ${attempt.note}`);
   const merged = Boolean(attempt.mergeSha);
   return { kind: merged ? 'merged' : 'refused', title: merged ? `Merge ${attempt.mergeSha}` : `Recusado: ${attempt.refused?.reason ?? 'motivo não registrado'}`,
@@ -72,7 +62,7 @@ export function describeAttempt(attempt) {
 export function describeGauntlet(entry) {
   const counts = SEVERITY.filter(([key]) => Number.isSafeInteger(entry.summary?.[key])).map(([key, label]) => `${label} ${entry.summary[key]}`);
   const details = [entry.reportPath ? `Relatório: ${entry.reportPath}` : 'Relatório não encontrado na worktree', `Saída: código ${entry.exitCode ?? 'desconhecido'}`,
-    `Uso: ${usageText(entry.usage)}`];
+    usageText(entry.usage)];
   return { kind: 'gauntlet', title: `Gauntlet ${PRESET[entry.preset] ?? entry.preset}: ${counts.join(' · ') || 'gravidades desconhecidas'}`, details, at: entry.at, when: when(entry.at) };
 }
 
@@ -139,21 +129,24 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
     if (taskId) render();
   }
 
+  // The approval names the content it approves: the tree of the diff on screen. The server refuses it when the worktree
+  // changed since then (409), so after any attempt the diff is dropped and read again before another approval.
   async function merge() {
-    const id = taskId, owner = projectId, task = getTask(id);
-    if (merging || !task) return;
+    const id = taskId, owner = projectId, task = getTask(id), reviewedTree = diff?.tree ?? null;
+    if (merging || !task || !diff) return;
     const testCommand = draft.testCommand.trim(), note = draft.note.trim();
     keepTest(owner, testCommand);
     merging = id; outcome = null; render(); // one merge at a time in this page; only its own task shows it running
     let result, failure;
-    try { result = await api(`/api/tasks/${encodeURIComponent(id)}/merge`, { method: 'POST', body: { expectedRevision: task.revision, testCommand: testCommand || null, note: note || null } }); }
+    const body = { expectedRevision: task.revision, testCommand: testCommand || null, note: note || null, reviewedTree };
+    try { result = await api(`/api/tasks/${encodeURIComponent(id)}/merge`, { method: 'POST', body }); }
     catch (error) { failure = error; }
     finally { merging = null; }
     if (current(id, owner)) {
       if (failure) outcome = { kind: 'refused', text: `${failure.status === 409 ? 'Merge recusado' : 'Merge não concluído'}: ${failure.message}` };
       else { outcome = { kind: 'merged', text: `Merge concluído: ${result.attempt?.mergeSha}` }; draft.note = ''; }
       toast(outcome.text);
-      void load();
+      diff = null; void load();
     }
     if (taskId) render();
   }
@@ -197,7 +190,7 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
     Object.assign(note, { value: draft.note, maxLength: 2000 });
     note.addEventListener('input', () => { draft.note = note.value; });
     const submit = keyed(one(form, 'button', 'button', merging === taskId ? 'Executando teste e merge…' : merging ? 'Aguardando outro merge…' : 'Aprovar e fazer merge'), 'merge');
-    submit.type = 'submit'; submit.disabled = Boolean(merging);
+    submit.type = 'submit'; submit.disabled = Boolean(merging) || !diff;
     if (outcome) one(form, 'p', 'review-outcome', outcome.text).dataset.kind = outcome.kind;
     form.addEventListener('submit', event => { event.preventDefault(); void merge(); });
   }
