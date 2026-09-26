@@ -26,8 +26,8 @@ export function mountClassifierControls({ root, api, getProjectId, onChange }) {
   const choice = add(field, 'select');
   for (const [value, text] of [['lexical', 'Metadados · sem modelo'], ['laya', 'Laya local · opcional']]) { const option = add(choice, 'option', text); option.value = value; }
   const controls = add(root, 'div'); controls.className = 'cp-actions';
-  const status = add(root, 'p', 'Laya descarregado; consulta de metadados disponível.'); status.className = 'microcopy'; status.setAttribute('role', 'status');
-  const note = add(root, 'p', 'Laya pode ocupar cerca de 1,6 GiB neste host e demora na primeira carga. Descarregar afeta este aplicativo inteiro. JEV: adaptador disponível; conexão e teste com conta/créditos pendentes.'); note.className = 'microcopy';
+  const status = add(root, 'p', 'Verificando estado do Laya… Metadados locais permanecem disponíveis.'); status.className = 'microcopy'; status.setAttribute('role', 'status');
+  const note = add(root, 'p', 'Laya pode ocupar cerca de 1,6 GiB neste host e demora na primeira carga. Descarregar afeta este aplicativo inteiro. JEV: o adaptador existe no harness, mas não está conectado a este Lab; ainda não há entrada de chave.'); note.className = 'microcopy';
   let generation = 0, preferenceRevision = 0, busy = false;
   const makeButton = (label, handler) => { const button = add(controls, 'button', label); button.type = 'button'; button.className = 'secondary'; button.addEventListener('click', handler); return button; };
   const activate = makeButton('Carregar Laya', () => changeState('enable'));
