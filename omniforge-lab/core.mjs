@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { writeFileDurable } from './lib/fsutil.mjs';
+import { writeFileAtomic, writeFileDurable } from './lib/fsutil.mjs';
 
 const MAX_NOTE = 4000;
 const MAX_CONTEXT_NOTES = 24;
@@ -149,16 +149,13 @@ export class WorkspaceStore {
 
   save() {
     if (this.lockFd === undefined) fail('Estado local sem lock exclusivo', 409);
-    const temp = path.join(this.dataDir, `state-${randomUUID()}.tmp`);
     try {
-      // The new state is on disk before it replaces state.json; the backup is the last committed state.
+      // The backup is the last committed state; the new state is on disk before it replaces state.json.
       // ponytail: full-state backup per save; move to a journal if state.json grows past a few MB.
-      writeFileDurable(temp, JSON.stringify(this.data, null, 2), { mode: 0o600 });
       if (fs.existsSync(this.file)) writeFileDurable(this.backupFile, JSON.stringify(this.durableData, null, 2), { mode: 0o600 });
-      fs.renameSync(temp, this.file);
+      writeFileAtomic(this.file, JSON.stringify(this.data, null, 2), { mode: 0o600 });
       this.durableData = structuredClone(this.data);
     } catch (error) {
-      fs.rmSync(temp, { force: true });
       this.data = structuredClone(this.durableData);
       throw error;
     }
