@@ -1,10 +1,31 @@
-// Review of a task run (review.mjs): the worktree's diff, the gated "Aprovar e fazer merge" and the task's evidence
-// bundle. Diff, test output and refusal reasons are untrusted agent output: they reach the page as textContent only.
+// Review of a task run (review.mjs): the worktree's diff, the gated "Aprovar e fazer merge", the Gauntlet on demand and
+// the task's evidence bundle. Diff, test output, report paths and refusal reasons are untrusted agent output: they reach
+// the page as textContent only.
 import { one, asArray } from './dom.mjs';
+import { runLabel } from './fleet.mjs';
 
 const FILE_STATUS = { A: 'adicionado', M: 'modificado', D: 'removido', T: 'tipo alterado' };
 const HOST = { claude: 'Claude', codex: 'Codex' };
 const testKey = projectId => `omniforge-review-test:${projectId}`;
+const PRESET = { rapido: 'rápido', padrao: 'padrão' };
+const SEVERITY = [['high', 'alta'], ['medium', 'média'], ['low', 'baixa'], ['unverified', 'sem verificação']];
+const ACTIVE = new Set(['starting', 'working', 'blocked', 'idle']); // the engine's own active states
+// Changes worth an adversarial look, and the size (changed lines) past which a human review starts missing things.
+const SENSITIVE = /auth|token|secret|key|permission|sandbox|credential/i;
+const LARGE_DIFF = 400;
+const COST = 'custo: desconhecido até terminar; roda na sua sessão Claude';
+
+/** Deterministic reasons to suggest a Gauntlet run, never a model call: a security-sensitive path, a diff over LARGE_DIFF
+ * changed lines, or a last merge attempt whose test failed. The owner still decides. */
+export function gauntletSignals(diff, attempts) {
+  const reasons = [], sensitive = asArray(diff?.files).map(file => file.path).filter(name => SENSITIVE.test(name));
+  if (sensitive.length) reasons.push(`mexe em caminho sensível (${[...sensitive.slice(0, 3), ...(sensitive.length > 3 ? ['…'] : [])].join(', ')})`);
+  const lines = (diff?.stat?.additions ?? 0) + (diff?.stat?.deletions ?? 0);
+  if (lines > LARGE_DIFF) reasons.push(`diff grande: ${lines} linhas alteradas (limite ${LARGE_DIFF})`);
+  const test = asArray(attempts).at(-1)?.test;
+  if (test && (test.timedOut || test.exitCode !== 0)) reasons.push(`o último merge falhou no teste (${test.timedOut ? 'tempo esgotado' : `código ${test.exitCode ?? 'desconhecido'}`})`);
+  return reasons;
+}
 
 /** Each patch line with its kind: 'file' (diff --git), 'meta' (the rest of a file header, "\ No newline"), 'hunk', 'add',
  * 'del' or 'context'. In a file header every line is meta, even one starting with +++ or ---; inside a hunk the first
@@ -47,7 +68,16 @@ export function describeAttempt(attempt) {
     details, output: test?.outputTail || null, at: attempt.at, when: when(attempt.at) };
 }
 
-export function createReviewPanel({ root, api, getProjectId, getTask, toast = () => {}, storage }) {
+/** One Gauntlet evidence entry as display text; a severity the report did not state is left out, never shown as 0. */
+export function describeGauntlet(entry) {
+  const counts = SEVERITY.filter(([key]) => Number.isSafeInteger(entry.summary?.[key])).map(([key, label]) => `${label} ${entry.summary[key]}`);
+  const details = [entry.reportPath ? `Relatório: ${entry.reportPath}` : 'Relatório não encontrado na worktree', `Saída: código ${entry.exitCode ?? 'desconhecido'}`,
+    `Uso: ${usageText(entry.usage)}`];
+  return { kind: 'gauntlet', title: `Gauntlet ${PRESET[entry.preset] ?? entry.preset}: ${counts.join(' · ') || 'gravidades desconhecidas'}`, details, at: entry.at, when: when(entry.at) };
+}
+
+/** `getGauntlet(taskId)` is the task's latest Gauntlet run as the fleet holds it, live from the agent SSE, or null. */
+export function createReviewPanel({ root, api, getProjectId, getTask, toast = () => {}, storage, getGauntlet = () => null }) {
   let store = storage;
   if (store === undefined) { try { store = localStorage; } catch { /* private mode or storage disabled */ } }
   const lastTest = projectId => { try { return store?.getItem(testKey(projectId)) ?? ''; } catch { return ''; } };
@@ -55,6 +85,9 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
   let taskId = null, projectId = null, revision = null, diff = null, evidence = null, errors = {}, draft = null, request = 0, merging = null, focusKey = null;
   // The last merge outcome is drawn in the panel and announced once through the page's persistent toast live region.
   let outcome = null;
+  // Gauntlet: its evidence entries, the chosen preset, the confirmation step, the request in flight (a task id, one per
+  // page) and its outcome; `shownRun` is the run state last drawn, so only a change of it redraws the panel.
+  let gauntlets = null, preset = 'rapido', confirming = false, starting = null, gauntletNote = null, shownRun = '';
   const current = (id, owner) => id === taskId && owner === projectId && owner === getProjectId();
 
   function open(id) {
@@ -62,6 +95,7 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
     if (!task || task.projectId !== getProjectId()) return;
     errors = {};
     [taskId, projectId, revision, diff, evidence, outcome] = [id, task.projectId, task.revision, null, null, null];
+    [gauntlets, confirming, gauntletNote] = [null, false, null];
     draft = { testCommand: lastTest(task.projectId), note: '' };
     root.hidden = false;
     render();
@@ -73,6 +107,7 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
 
   function close() {
     [taskId, projectId, diff, evidence, draft, focusKey, outcome] = [null, null, null, null, null, null, null];
+    [gauntlets, confirming, gauntletNote] = [null, false, null];
     request++;
     root.replaceChildren();
     root.hidden = true;
@@ -84,8 +119,24 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
     const [diffReply, evidenceReply] = await Promise.allSettled([api(`${route}/diff`), api(`${route}/evidence`)]);
     if (serial !== request || !current(id, owner)) return;
     diff = diffReply.value ?? null; evidence = evidenceReply.status === 'fulfilled' ? asArray(evidenceReply.value.attempts) : null;
+    gauntlets = evidence && asArray(evidenceReply.value.gauntlet);
     errors = { diff: diffReply.reason?.message, evidence: evidenceReply.reason?.message };
     render();
+  }
+
+  // Only the second, confirming click gets here; its outcome is drawn only for the task and project still open.
+  async function startGauntlet() {
+    const id = taskId, owner = projectId, task = getTask(id), chosen = preset;
+    if (starting || !task) return;
+    starting = id; confirming = false; gauntletNote = null; render();
+    let note;
+    try {
+      await api(`/api/tasks/${encodeURIComponent(id)}/gauntlet`, { method: 'POST', body: { expectedRevision: task.revision, preset: chosen } });
+      note = 'Gauntlet iniciado na sua sessão Claude.';
+    } catch (error) { note = `Gauntlet não iniciado: ${error.message}`; }
+    finally { starting = null; }
+    if (current(id, owner)) { gauntletNote = note; toast(note); }
+    if (taskId) render();
   }
 
   async function merge() {
@@ -151,13 +202,11 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
     form.addEventListener('submit', event => { event.preventDefault(); void merge(); });
   }
 
-  function renderEvidence(section) {
-    one(section, 'h3', '', 'Evidências');
-    if (!evidence) return one(section, 'p', 'microcopy', errors.evidence ? `Evidências indisponíveis: ${errors.evidence}` : 'Carregando evidências…');
-    if (!evidence.length) return one(section, 'p', 'empty', 'Nenhuma tentativa de merge registrada.');
+  // An evidence list, newest first: each entry's title, time and detail lines, then any test output tail.
+  function renderEntries(section, views) {
     const list = one(section, 'ul', 'review-attempts');
-    for (const attempt of [...evidence].reverse()) {
-      const view = describeAttempt(attempt), item = one(list, 'li', 'list-item review-attempt');
+    for (const view of views.reverse()) {
+      const item = one(list, 'li', 'list-item review-attempt');
       item.dataset.kind = view.kind;
       const top = one(item, 'div', 'topline');
       one(top, 'strong', 'title', view.title);
@@ -167,6 +216,51 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
       const output = one(item, 'pre', 'review-output', view.output);
       output.tabIndex = 0; output.setAttribute('aria-label', 'Final da saída do teste');
     }
+  }
+
+  function renderEvidence(section) {
+    one(section, 'h3', '', 'Evidências');
+    if (!evidence) return one(section, 'p', 'microcopy', errors.evidence ? `Evidências indisponíveis: ${errors.evidence}` : 'Carregando evidências…');
+    if (!evidence.length) return one(section, 'p', 'empty', 'Nenhuma tentativa de merge registrada.');
+    renderEntries(section, evidence.map(describeAttempt));
+  }
+
+  // Runs only on the owner's second, confirming click (the token policy); a suggestion appears only on a deterministic signal.
+  function renderGauntlet(section) {
+    const run = getGauntlet(taskId), running = ACTIVE.has(run?.state);
+    one(section, 'h3', '', 'Revisão adversarial (Gauntlet)');
+    one(section, 'p', 'microcopy', 'Abre uma sessão Claude na worktree da tarefa com o Gauntlet só em relatório: ele não corrige nada. '
+      + 'O agente precisa estar ocioso ou encerrado, e uma sessão dele interrompida precisa ser reconhecida no terminal antes.');
+    const reasons = gauntletSignals(diff, evidence);
+    if (reasons.length) one(section, 'p', 'review-suggestion', `Sugestão: rodar o Gauntlet — ${reasons.join('; ')} — ${COST}.`);
+    const select = keyed(one(one(section, 'label', 'field', 'Profundidade'), 'select'), 'gauntlet-preset');
+    for (const [value, label] of Object.entries(PRESET)) one(select, 'option', '', label).value = value;
+    select.value = preset; select.disabled = confirming || Boolean(starting);
+    select.addEventListener('change', () => { preset = select.value; });
+    const actions = one(section, 'div', 'review-actions');
+    const start = button(actions, 'secondary', confirming ? `Confirmar: rodar Gauntlet (${PRESET[preset]})` : 'Rodar Gauntlet (revisão adversarial)', 'gauntlet', event => {
+      if (starting || running) return;
+      if (!confirming) { confirming = true; render(); return; }
+      // A double-click's second click lands on the relabelled button: it is no confirmation.
+      if (event.detail > 1) return;
+      void startGauntlet();
+    });
+    // A held Enter repeats its keydown and the browser clicks on each one: only the first press counts.
+    start.addEventListener('keydown', event => { if (event.repeat) event.preventDefault(); });
+    // The merge's test runs in this worktree, and the server refuses a Gauntlet meanwhile.
+    start.disabled = !diff?.files.length || Boolean(starting) || running || merging === taskId;
+    if (confirming) {
+      // Same focus key: after cancelling, focus returns to the Gauntlet button.
+      button(actions, 'ghost', 'Cancelar', 'gauntlet', () => { confirming = false; render(); });
+      one(section, 'p', 'microcopy', `Confirme para rodar /gauntlet-loop ${preset} so-relatorio sem-perguntas na worktree desta tarefa — ${COST}.`);
+    }
+    if (gauntletNote) one(section, 'p', 'microcopy', gauntletNote);
+    if (run) {
+      one(section, 'p', 'meta', `Gauntlet: ${runLabel(run)}`);
+      if (running) one(section, 'p', 'microcopy', 'Acompanhe no terminal dele (Agentes → Abrir terminal); depois do relatório, encerre-o (/exit) para registrar a evidência.');
+    }
+    if (gauntlets && !gauntlets.length) one(section, 'p', 'empty', 'Nenhuma revisão do Gauntlet registrada.');
+    else if (gauntlets) renderEntries(section, gauntlets.map(describeGauntlet));
   }
 
   // Every render rebuilds the panel; keyboard focus returns to the control with the same data-focus-key (the
@@ -180,7 +274,7 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
     const head = one(root, 'div', 'card-head'), titles = one(head, 'div');
     const heading = keyed(one(titles, 'h2', '', `Revisão: ${getTask(taskId)?.title ?? ''}`), 'heading');
     heading.id = 'review-title'; heading.tabIndex = -1;
-    one(titles, 'small', '', 'Diff da worktree da tarefa contra a base, merge com portões e evidências');
+    one(titles, 'small', '', 'Diff da worktree da tarefa contra a base, Gauntlet sob demanda, merge com portões e evidências');
     const actions = one(head, 'div', 'review-actions');
     button(actions, 'secondary', 'Atualizar', 'refresh', () => void load());
     button(actions, 'ghost', 'Fechar revisão', 'close', () => {
@@ -192,9 +286,18 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
     renderDiff(one(body, 'section', 'review-diff'));
     const side = one(body, 'div', 'review-side');
     renderMerge(side);
+    shownRun = runKey();
+    renderGauntlet(one(side, 'section', 'review-gauntlet'));
     renderEvidence(one(side, 'section', 'review-evidence'));
     const target = focusKey && [...root.querySelectorAll('[data-focus-key]')].find(node => node.dataset.focusKey === focusKey);
     if (target && !target.disabled) { target.focus(); focusKey = null; }
+  }
+
+  const runKey = () => { const run = taskId && getGauntlet(taskId); return run ? `${run.id}:${run.state}:${run.detail}` : ''; };
+
+  /** Called when the fleet's runs change (agent SSE): redraws only when the open task's Gauntlet run changed. */
+  function onRuns() {
+    if (taskId && runKey() !== shownRun) render();
   }
 
   /** Called on every state render: a project switch or a removed task closes the panel; a new task revision reloads it. */
@@ -209,5 +312,5 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
     if (taskId && event?.taskId === taskId && event.projectId === projectId) void load();
   }
 
-  return { open, close, sync, onEvidence };
+  return { open, close, sync, onEvidence, onRuns };
 }

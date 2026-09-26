@@ -39,8 +39,8 @@ const openSession = id => {
   workspace.renderWorkspace(); showView('workspace');
   $('#terminal-grid').children[index]?.querySelector('.pane-select')?.focus();
 };
-const fleet = createFleet({ openSession, onChange: () => tasks.renderTasks() });
-const reviewPanel = createReviewPanel({ root: $('#review-panel'), api, getProjectId, getTask: taskById, toast });
+const fleet = createFleet({ openSession, onChange: () => { tasks.renderTasks(); reviewPanel.onRuns(); } });
+const reviewPanel = createReviewPanel({ root: $('#review-panel'), api, getProjectId, getTask: taskById, toast, getGauntlet: fleet.gauntletRun });
 const tasks = createTasks({ showView, runControls: fleet.taskControls, reviewPanel });
 const graphs = createGraphs({ assignPane: workspace.assignPane, renderWorkspace: workspace.renderWorkspace, catalog, memoryPanel, showView });
 const assets = createAssets();

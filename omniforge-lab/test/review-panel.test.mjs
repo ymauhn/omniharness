@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import './support/browser-globals.mjs';
-import { classifyPatch, describeAttempt, usageText, createReviewPanel } from '../app/review-panel.mjs';
+import { classifyPatch, describeAttempt, describeGauntlet, gauntletSignals, usageText, createReviewPanel } from '../app/review-panel.mjs';
 
 // The review panel's pure parts, then the panel itself against a minimal DOM seam (the same kind of fake as
 // page-rerender.test.mjs): only what the panel touches. Diff and evidence content is untrusted agent output,
@@ -15,7 +15,7 @@ class Element {
   setAttribute(name, value) { this.attributes[name] = String(value); }
   getAttribute(name) { return this.attributes[name] ?? null; }
   addEventListener(name, callback) { (this.events[name] ||= []).push(callback); }
-  fire(name) { return Promise.all((this.events[name] || []).map(callback => callback({ currentTarget: this, target: this, preventDefault() {} }))); }
+  fire(name, init = {}) { return Promise.all((this.events[name] || []).map(callback => callback({ currentTarget: this, target: this, preventDefault() {}, ...init }))); }
   focus() { doc.activeElement = this; }
   scrollIntoView(options) { doc.scrolledTo = { node: this, options }; }
   contains(node) { for (let item = node; item; item = item.parent) if (item === this) return true; return false; }
@@ -41,7 +41,10 @@ function environment({ storage = new Map() } = {}) {
   };
   env.root = new Element('section'); env.root.hidden = true; doc.body.append(env.root);
   const store = { getItem: key => (storage.has(key) ? storage.get(key) : null), setItem: (key, value) => storage.set(key, value) };
-  env.panel = createReviewPanel({ root: env.root, api, getProjectId: () => env.projectId, getTask: id => env.tasks.get(id), toast: text => env.toasts.push(text), storage: store });
+  // The Gauntlet run as the fleet's run list holds it (live from the agent SSE).
+  env.gauntlet = null;
+  env.panel = createReviewPanel({ root: env.root, api, getProjectId: () => env.projectId, getTask: id => env.tasks.get(id), toast: text => env.toasts.push(text), storage: store,
+    getGauntlet: id => (env.gauntlet?.taskId === id ? env.gauntlet : null) });
   env.find = key => env.root.descendants().find(node => node.dataset.focusKey === key);
   env.text = () => env.root.textContent;
   env.form = () => env.root.descendants().find(node => node.tag === 'form');
@@ -258,4 +261,126 @@ test('a merge running for one task never shows as running on another task', asyn
   assert.doesNotMatch(env.find('merge').textContent, /Executando/);
   assert.equal(env.find('merge').disabled, true, 'one merge at a time in this page');
   assert.match(env.find('merge').textContent, /Aguardando outro merge/);
+});
+
+test('Gauntlet signals are deterministic: a sensitive path, a diff over 400 changed lines, or a last merge that failed its test', () => {
+  const file = (path, additions = 1, deletions = 0) => ({ path, status: 'M', additions, deletions, binary: false });
+  const changes = (...files) => ({ files, stat: { files: files.length, additions: files.reduce((n, f) => n + f.additions, 0), deletions: files.reduce((n, f) => n + f.deletions, 0) } });
+  assert.deepEqual(gauntletSignals(changes(file('README.md')), []), []);
+  assert.deepEqual(gauntletSignals(null, null), [], 'nothing loaded, nothing suggested');
+  for (const path of ['src/auth.mjs', 'lib/Token-store.js', 'secrets.env', 'key-vault.mjs', 'permissions.json', 'extension-sandbox.mjs', 'credentials/x']) {
+    assert.equal(gauntletSignals(changes(file(path)), []).length, 1, path);
+  }
+  const many = gauntletSignals(changes(...['a/auth.js', 'b/token.js', 'c/secret.js', 'd/key.js'].map(path => file(path))), []);
+  assert.deepEqual(many, ['mexe em caminho sensível (a/auth.js, b/token.js, c/secret.js, …)']);
+  assert.deepEqual(gauntletSignals(changes(file('a.txt', 400)), []), [], '400 changed lines is not yet large');
+  assert.deepEqual(gauntletSignals(changes(file('a.txt', 300, 101)), []), ['diff grande: 401 linhas alteradas (limite 400)']);
+  const failed = { test: { command: 'npm test', exitCode: 3, timedOut: false } }, passed = { test: { command: 'npm test', exitCode: 0, timedOut: false } };
+  assert.deepEqual(gauntletSignals(changes(file('a.txt')), [passed, failed]), ['o último merge falhou no teste (código 3)']);
+  assert.deepEqual(gauntletSignals(changes(file('a.txt')), [{ test: { exitCode: null, timedOut: true } }]), ['o último merge falhou no teste (tempo esgotado)']);
+  assert.deepEqual(gauntletSignals(changes(file('a.txt')), [failed, passed]), [], 'only the last attempt counts');
+  assert.deepEqual(gauntletSignals(changes(file('a.txt')), [{ refused: { reason: 'Dependências não concluídas' } }]), [], 'a refusal before any test is no test failure');
+});
+
+test('a Gauntlet evidence entry reads as its preset, severity counts, report path, exit code and usage, unknown never as zero', () => {
+  const found = describeGauntlet({ at: '2026-09-26T12:00:00.000Z', runId: 'g1', preset: 'rapido', exitCode: 0, reportPath: 'C:\\wt\\.gauntlet\\relatorio-1.md',
+    summary: { high: 1, medium: 0, low: 2, unverified: 0 }, usage: { status: 'observed', inputTokens: 11, outputTokens: 7, cacheReadTokens: 103, cacheCreationTokens: 24 } });
+  assert.equal(found.title, 'Gauntlet rápido: alta 1 · média 0 · baixa 2 · sem verificação 0');
+  assert.deepEqual(found.details, ['Relatório: C:\\wt\\.gauntlet\\relatorio-1.md', 'Saída: código 0', 'Uso: observado: entrada 11 · saída 7 · cache lido 103 · cache criado 24']);
+  assert.ok(found.when.includes('2026'));
+  const unknown = describeGauntlet({ at: 'x', preset: 'padrao', exitCode: null, reportPath: null, summary: 'desconhecido',
+    usage: { status: 'unknown', reason: 'Transcrição da sessão Claude não encontrada' } });
+  assert.equal(unknown.title, 'Gauntlet padrão: gravidades desconhecidas');
+  assert.deepEqual(unknown.details, ['Relatório não encontrado na worktree', 'Saída: código desconhecido', 'Uso: desconhecido: Transcrição da sessão Claude não encontrada']);
+  assert.equal(describeGauntlet({ at: 'x', preset: 'rapido', summary: { high: 2 } }).title, 'Gauntlet rápido: alta 2', 'a level the report did not state is left out');
+});
+
+test('the Gauntlet button waits for a diff, suggests only on a signal, and runs only after a second, confirming click', async () => {
+  const env = environment();
+  const button = () => env.find('gauntlet');
+  const posts = () => env.calls.filter(call => call.route === '/api/tasks/t/gauntlet');
+  env.panel.open('t');
+  assert.equal(button().disabled, true, 'no diff yet');
+  await env.answer('/api/tasks/t/diff', diff({ files: [], stat: { files: 0, additions: 0, deletions: 0 }, patch: '' }));
+  await env.answer('/api/tasks/t/evidence', { taskId: 't', attempts: [] });
+  assert.equal(button().disabled, true, 'an empty diff has nothing to review');
+  assert.equal(button().textContent, 'Rodar Gauntlet (revisão adversarial)');
+  assert.match(env.text(), /Nenhuma revisão do Gauntlet registrada/);
+
+  env.panel.onEvidence({ taskId: 't', projectId: 'a' });
+  await env.answer('/api/tasks/t/diff', diff({ files: [{ path: 'README.md', status: 'M', additions: 1, deletions: 0, binary: false }] }));
+  await env.answer('/api/tasks/t/evidence', { taskId: 't', attempts: [] });
+  assert.equal(button().disabled, false);
+  assert.doesNotMatch(env.text(), /Sugestão/, 'no signal, no suggestion');
+
+  env.panel.onEvidence({ taskId: 't', projectId: 'a' });
+  await env.answer('/api/tasks/t/diff', diff({ files: [{ path: 'src/auth/token.mjs', status: 'M', additions: 2, deletions: 1, binary: false }] }));
+  await env.answer('/api/tasks/t/evidence', { taskId: 't', attempts: [], gauntlet: [{ at: '2026-09-26T12:00:00.000Z', runId: 'g0', preset: 'rapido', exitCode: 0,
+    reportPath: 'C:\\wt\\.gauntlet\\relatorio-0.md', summary: { high: 1, medium: 0, low: 2, unverified: 0 }, usage: { status: 'unknown', reason: 'sem transcrição' } }] });
+  assert.match(env.text(), /Sugestão: rodar o Gauntlet — mexe em caminho sensível \(src\/auth\/token\.mjs\) — custo: desconhecido até terminar; roda na sua sessão Claude\./);
+  assert.match(env.text(), /Gauntlet rápido: alta 1 · média 0 · baixa 2 · sem verificação 0/);
+  assert.match(env.text(), /relatorio-0\.md/);
+
+  const preset = env.find('gauntlet-preset');
+  preset.value = 'padrao'; await preset.fire('change');
+  button().focus();
+  await button().fire('click');
+  assert.equal(posts().length, 0, 'the first click only asks for confirmation');
+  assert.equal(button().textContent, 'Confirmar: rodar Gauntlet (padrão)');
+  assert.equal(doc.activeElement, button(), 'focus stays on the relabelled button');
+  assert.match(env.text(), /\/gauntlet-loop padrao so-relatorio sem-perguntas/);
+  await env.root.descendants().find(node => node.tag === 'button' && node.textContent === 'Cancelar').fire('click');
+  assert.equal(button().textContent, 'Rodar Gauntlet (revisão adversarial)');
+  assert.equal(posts().length, 0, 'cancelled: nothing runs');
+
+  await button().fire('click');
+  void button().fire('click');
+  void button().fire('click');
+  assert.deepEqual(posts().map(call => [call.method, call.body]), [['POST', { expectedRevision: 3, preset: 'padrao' }]], 'one request, on the confirming click');
+  assert.equal(button().disabled, true, 'disabled while the request runs');
+  await env.answer('/api/tasks/t/gauntlet', { id: 'g1', taskId: 't', kind: 'gauntlet', state: 'working' });
+  assert.match(env.toasts.at(-1), /Gauntlet iniciado/);
+
+  // Its state comes from the fleet's runs, which the agent SSE keeps live.
+  env.gauntlet = { id: 'g1', taskId: 't', kind: 'gauntlet', state: 'blocked', detail: 'permission_prompt' };
+  env.panel.onRuns();
+  assert.match(env.text(), /Gauntlet: Aguardando você · pedido de permissão/);
+  assert.equal(button().disabled, true, 'one Gauntlet at a time');
+  env.gauntlet = { ...env.gauntlet, state: 'done', detail: '' };
+  env.panel.onRuns();
+  assert.match(env.text(), /Gauntlet: Concluído/);
+  assert.equal(button().disabled, false);
+
+  await button().fire('click');
+  await button().fire('click');
+  await env.answer('/api/tasks/t/gauntlet', refusal('O agente da tarefa precisa ter terminado'));
+  assert.match(env.text(), /Gauntlet não iniciado: O agente da tarefa precisa ter terminado/);
+});
+
+test('the Gauntlet button waits while its task merges, and neither a double-click nor a held Enter confirms it', async () => {
+  const env = environment();
+  const button = () => env.find('gauntlet');
+  const posts = () => env.calls.filter(call => call.route === '/api/tasks/t/gauntlet');
+  const loaded = async () => { await env.answer('/api/tasks/t/diff', diff()); await env.answer('/api/tasks/t/evidence', { taskId: 't', attempts: [] }); };
+  env.panel.open('t');
+  await loaded();
+  void env.form().fire('submit');
+  assert.equal(button().disabled, true, 'the merge test runs in this worktree');
+  await env.answer('/api/tasks/t/merge', refusal('O comando de teste falhou (código 3)'));
+  await loaded();
+  assert.equal(button().disabled, false);
+
+  // The second click of a double-click lands on the relabelled button in the same place: it keeps the confirmation step.
+  await button().fire('click', { detail: 1 });
+  await button().fire('click', { detail: 2 });
+  assert.equal(button().textContent, 'Confirmar: rodar Gauntlet (rápido)');
+  assert.equal(posts().length, 0);
+  // A held Enter repeats its keydown, and the browser clicks on each one it is not told to skip.
+  const key = repeat => { const event = { key: 'Enter', repeat, prevented: false, preventDefault() { event.prevented = true; } }; return event; };
+  const [held, fresh] = [key(true), key(false)];
+  await button().fire('keydown', held);
+  await button().fire('keydown', fresh);
+  assert.deepEqual([held.prevented, fresh.prevented], [true, false]);
+  await button().fire('click', { detail: 1 });
+  assert.deepEqual(posts().map(call => call.body), [{ expectedRevision: 3, preset: 'rapido' }], 'a deliberate click confirms');
 });

@@ -100,8 +100,9 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
       }
     }
   };
-  // getRun(taskId) is the engine's latest run record for the task, or null.
-  const review = createReview({ store, getRun: getRun ?? (taskId => engine.runForTask(taskId)), runTest, token, onEvidence: event => broadcast('evidence', event) });
+  // getRun(taskId, kind) is the engine's latest agent run for the task (or of that kind), or null.
+  const review = createReview({ store, getRun: getRun ?? ((taskId, kind) => engine.runForTask(taskId, kind)), startRun: (taskId, options) => engine.run(taskId, options),
+    runTest, token, onEvidence: event => broadcast('evidence', event) });
   shells.on('terminal', event => {
     const { projectId } = store.session(event.sessionId);
     // Replay and SSE share exact frames; slow consumers reconnect by cursor.
@@ -109,7 +110,13 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
   });
   shells.on('closed', () => broadcast('state', state()));
   shells.on('state', () => broadcast('state', state()));
-  engine.on('agent', event => broadcast('agent', event));
+  engine.on('agent', event => {
+    broadcast('agent', event);
+    if (event.kind !== 'gauntlet' || !['done', 'failed'].includes(event.state)) return;
+    // This runs in the PTY exit path (or a failed launch): a failed evidence write is reported, never thrown.
+    try { review.recordGauntlet(engine.runForTask(event.taskId, 'gauntlet')); }
+    catch (error) { console.error(`OmniForge: evidência do Gauntlet ${event.runId} não foi salva: ${error.message}`); }
+  });
 
   const server = http.createServer(async (request, response) => {
     const url = new URL(request.url || '/', 'http://127.0.0.1');
@@ -160,7 +167,7 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
         return send(response, 200, { id: task.id, details: task.details ?? null });
       }
       if (request.method === 'GET') {
-        const result = await review({ method: request.method, url });
+        const result = await review.handle({ method: request.method, url });
         if (result) return send(response, result.status, result.body);
       }
       if (request.method === 'GET') {
@@ -236,7 +243,7 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
       }
       if (request.method !== 'POST') return send(response, 404, { error: 'Rota não encontrada' });
       const input = await body(request);
-      const reviewResult = await review({ method: request.method, url, input });
+      const reviewResult = await review.handle({ method: request.method, url, input });
       if (reviewResult) {
         if (reviewResult.changed) broadcast('state', state());
         return send(response, reviewResult.status, reviewResult.body);
@@ -294,7 +301,8 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
         const memoryUpdate = url.pathname.match(/^\/api\/memory\/([^/]+)\/(update|archive|forget)$/);
         if (command) { output = shells.command(command[1], input.command); engine.input(command[1], '\r'); changed = false; }
         else if (write) { output = shells.write(write[1], input.data); engine.input(write[1], input.data); changed = false; }
-        else if (taskRun) output = engine.run(taskRun[1], input);
+        // Only host and revision: a review kind and its prompt come from the gauntlet route, never from the page.
+        else if (taskRun) output = engine.run(taskRun[1], { host: input.host, expectedRevision: input.expectedRevision });
         else if (resize) { output = shells.resize(resize[1], input.cols, input.rows); changed = false; }
         else if (stop) { output = shells.stop(stop[1]); changed = false; }
         else if (recovery) output = store.acknowledgeInterruptedSession(recovery[1], input.verification);

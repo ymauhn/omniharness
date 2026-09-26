@@ -96,6 +96,80 @@ class ReviewE2E(LabCase):
         evidence(page, "review-merged")
         context.close()
 
+    def test_gauntlet_waits_for_a_diff_suggests_on_a_signal_and_runs_only_after_a_confirming_click(self):
+        context, page = self.open()
+        project = self.scratch_repo(page, "Gauntlet E2E")
+        task = self.finished_task(page, project, "Mexer na autenticação")
+        agent = self.wait_run(page, project, task, "done")
+        panel = self.open_review(page, project, task)
+        start = panel.get_by_role("button", name="Rodar Gauntlet (revisão adversarial)")
+        self.assertTrue(start.is_enabled(), "the agent's file is a diff to review")
+        self.assertEqual(panel.locator(".review-suggestion").count(), 0, "no signal, no suggestion")
+
+        # An empty diff: the fake agent's only file leaves the worktree (a scratch repository this test owns).
+        worktree = agent["worktree"]
+        os.replace(os.path.join(worktree, "agent-call.json"), os.path.join(self.demo.temp, f"agent-call-{task['id']}.json"))
+        panel.get_by_role("button", name="Atualizar").click()
+        panel.get_by_text("Nenhuma mudança na worktree em relação à base.").wait_for()
+        self.assertTrue(start.is_disabled(), "nothing to review")
+
+        # A security-sensitive path is a deterministic signal: the suggestion names it and the unknown cost.
+        os.makedirs(os.path.join(worktree, "auth"))
+        with open(os.path.join(worktree, "auth", "token.txt"), "w", encoding="utf-8") as handle:
+            handle.write("rotacionar\n")
+        panel.get_by_role("button", name="Atualizar").click()
+        suggestion = panel.locator(".review-suggestion")
+        suggestion.wait_for()
+        self.assertIn("mexe em caminho sensível (auth/token.txt)", suggestion.inner_text())
+        self.assertIn("custo: desconhecido até terminar; roda na sua sessão Claude", suggestion.inner_text())
+        self.assertTrue(start.is_enabled())
+
+        gauntlets = lambda: [r for r in self.api(page, f"/api/agents?projectId={project['id']}")["runs"] if r.get("kind") == "gauntlet"]
+        posts = []
+        page.on("request", lambda request: posts.append(request.url) if request.method == "POST" and request.url.endswith("/gauntlet") else None)
+        # A double-click's second click, or a held Enter's repeats, land on the relabelled button: neither confirms.
+        start.dblclick()
+        confirm = panel.get_by_role("button", name="Confirmar: rodar Gauntlet (rápido)")
+        self.assertTrue(confirm.is_visible(), "a double-click only asks for confirmation")
+        panel.get_by_role("button", name="Cancelar").click()
+        start.focus()
+        page.keyboard.down("Enter")
+        confirm.wait_for()
+        page.keyboard.down("Enter")
+        page.keyboard.down("Enter")
+        page.keyboard.up("Enter")
+        self.assertTrue(confirm.is_visible(), "a held Enter only asks for confirmation")
+        self.assertEqual(posts, [])
+        self.assertEqual(gauntlets(), [], "the first click only asks for confirmation")
+        # The agent exited on its own, so its session is uncertain: the Lab refuses until the owner checks it.
+        confirm.click()
+        panel.get_by_text("Gauntlet não iniciado: Há uma sessão incerta nesta pasta do projeto").wait_for()
+        self.assertEqual(len(posts), 1, "the deliberate confirmation posts once")
+        self.assertEqual(gauntlets(), [])
+        self.api(page, f"/api/sessions/{agent['sessionId']}/acknowledge", {"verification": "Processo do agente encerrado (E2E)"})
+        start.click()
+        panel.get_by_role("button", name="Confirmar: rodar Gauntlet (rápido)").click()
+
+        # Its state comes from the agent SSE: the fake Claude waits on a permission prompt, then saves its report and exits.
+        panel.get_by_text("Gauntlet: Aguardando você · pedido de permissão").wait_for(timeout=30000)
+        self.assertTrue(start.is_disabled(), "one Gauntlet at a time")
+        [review] = gauntlets()
+        self.assertEqual(review["worktree"], worktree)
+        self.api(page, f"/api/sessions/{review['sessionId']}/write", {"data": "\r"})
+        entry = panel.locator(".review-attempt[data-kind=gauntlet]")
+        entry.wait_for(timeout=30000)
+        self.assertIn("Gauntlet rápido: alta 1 · média 0 · baixa 2 · sem verificação 0", entry.inner_text())
+        self.assertIn(os.path.join(worktree, ".gauntlet", "relatorio-fake.md"), entry.inner_text())
+        self.assertIn("Uso: observado", entry.inner_text())
+        panel.get_by_text("Gauntlet: Concluído").wait_for()
+        recorded = self.api(page, f"/api/tasks/{task['id']}/evidence")
+        self.assertEqual([g["runId"] for g in recorded["gauntlet"]], [review["id"]])
+        self.assertEqual(recorded["attempts"], [], "no merge was attempted")
+        self.assertNotIn(".gauntlet", panel.locator(".review-files").inner_text(), "the report never enters the diff")
+        self.assertFalse(SENTINEL in page.content(), "the runner's environment is shown in the review")
+        evidence(page, "review-gauntlet")
+        context.close()
+
     def test_narrow_panel_is_keyboard_reachable_named_and_closes_on_a_project_switch(self):
         context, page = self.open(viewport=(390, 844))
         project = self.scratch_repo(page, "Revisão estreita")
