@@ -1,6 +1,8 @@
 # Runs the OmniForge Lab and Python test suites on a clean Windows runner. No secrets, no deploy, never touches
 # site/public (that is pages.yml's job). Every test here is offline/fake-CLI (see each file's own docstring): a
 # real Claude/Codex CLI, Docker daemon or Windows Sandbox is never required to reach zero failures and zero skips.
+# tests/test_nist_longley.py does import a third-party package (numpy, via experiments/nist-longley/run.py),
+# so its requirements.txt is installed below alongside the Playwright one.
 name: ci
 on:
   push:
@@ -25,7 +27,7 @@ jobs:
       - name: Install Lab dependencies
         run: npm ci --prefix omniforge-lab
       - name: Install Python test dependencies
-        run: pip install -r tests/visual/requirements.txt
+        run: pip install -r tests/visual/requirements.txt -r experiments/nist-longley/requirements.txt
       - name: Install Chromium for Playwright
         run: python -m playwright install chromium
       - name: OmniForge Lab suite
