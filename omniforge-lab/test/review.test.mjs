@@ -53,9 +53,11 @@ async function fixture(t, { title = 'Adicionar saudação' } = {}) {
   const headers = { 'x-omniforge-token': TOKEN, 'content-type': 'application/json' };
   const get = route => fetch(`${base}${route}`, { headers });
   const post = (route, body) => fetch(`${base}${route}`, { method: 'POST', headers, body: JSON.stringify(body) });
-  const merge = body => post(`/api/tasks/${task.id}/merge`, { expectedRevision: app.store.task(task.id).revision, ...body });
+  // As the page does: the merge carries the tree of the diff the owner just reviewed.
+  const reviewedTree = async () => (await (await get(`/api/tasks/${task.id}/diff`)).json()).tree;
+  const merge = async body => post(`/api/tasks/${task.id}/merge`, { expectedRevision: app.store.task(task.id).revision, reviewedTree: body.reviewedTree ?? await reviewedTree(), ...body });
   const evidence = async () => (await get(`/api/tasks/${task.id}/evidence`)).json();
-  return { dir, root, worktree, baseSha, app, base, project, task, runs, timing, setRun, get, post, merge, evidence };
+  return { dir, root, worktree, baseSha, app, base, project, task, runs, timing, setRun, get, post, merge, reviewedTree, evidence };
 }
 
 const write = (dir, file, content) => fs.writeFileSync(path.join(dir, file), content);
@@ -117,7 +119,7 @@ test('merge commits pending work, runs the test, merges with --no-ff and records
   const reader = events.body.getReader(), decoder = new TextDecoder();
   let received = decoder.decode((await reader.read()).value);
 
-  const body = { testCommand: 'node -e "process.stdout.write(\'tests passed\')"', note: 'Revisado pelo dono' };
+  const body = { testCommand: 'node -e "process.stdout.write(\'tests passed\')"', note: 'Revisado pelo dono', reviewedTree: await f.reviewedTree() };
   const replies = await Promise.all([f.merge(body), f.merge(body)]);
   const [response, concurrent] = replies[0].status === 200 ? replies : replies.reverse();
   const result = await response.json();
@@ -171,6 +173,33 @@ test('merge commits pending work, runs the test, merges with --no-ff and records
 
   const again = await f.merge({});
   assert.equal(again.status, 409, 'a merged branch has nothing new to integrate');
+});
+
+test('merge takes only the reviewed content: a missing or stale reviewed tree is refused before any commit', async t => {
+  const f = await fixture(t);
+  f.setRun();
+  write(f.worktree, 'hello.txt', 'olá\n');
+  const reviewed = await f.reviewedTree();
+  assert.match(reviewed, /^[0-9a-f]{40,64}$/);
+  const refusal = 'O conteúdo da worktree mudou desde a revisão; abra o diff de novo';
+  const refused = async body => {
+    const response = await f.post(`/api/tasks/${f.task.id}/merge`, { expectedRevision: f.app.store.task(f.task.id).revision, ...body });
+    assert.equal(response.status, 409);
+    assert.equal((await response.json()).error, refusal);
+  };
+  await refused({});
+  // Written after the owner's review: it must not ride along with the reviewed diff.
+  write(f.worktree, 'late.txt', 'not reviewed\n');
+  await refused({ reviewedTree: reviewed });
+  assert.equal(git(f.worktree, 'rev-parse', 'HEAD'), f.baseSha, 'nothing was committed');
+  assert.deepEqual((await f.evidence()).attempts.map(attempt => attempt.refused.reason), [refusal, refusal]);
+
+  fs.rmSync(path.join(f.worktree, 'late.txt'));
+  assert.equal(await f.reviewedTree(), reviewed, 'the same content is the same tree');
+  const response = await f.merge({ reviewedTree: reviewed });
+  const { attempt, error } = await response.json();
+  assert.equal(response.status, 200, error);
+  assert.equal(git(f.root, 'rev-parse', `${attempt.headSha}^{tree}`), reviewed, 'the merged commit is the reviewed tree');
 });
 
 test('merge refusals leave the root untouched and are recorded as evidence', async t => {
@@ -400,12 +429,12 @@ test('no Gauntlet starts while its task merges: the gate test and the hunters wo
   // A review of its own with a stub startRun: nothing could start an agent even if the guard failed.
   const review = createReview({ store: f.app.store, getRun: (id, kind) => (kind ? null : f.runs.get(id) ?? null), startRun: (id, options) => started.push(options),
     runTest: async ({ command }) => { testing(); await finished; return { command, exitCode: 0, timedOut: false, outputSha256: sha256(''), outputTail: '', durationMs: 1 }; } });
-  const expectedRevision = f.app.store.task(f.task.id).revision;
+  const expectedRevision = f.app.store.task(f.task.id).revision, reviewedTree = await f.reviewedTree();
   const post = (route, input) => review.handle({ method: 'POST', url: new URL(`http://lab/api/tasks/${f.task.id}/${route}`), input });
   const gauntlet = () => post('gauntlet', { expectedRevision, preset: 'rapido' });
   // Asked just before the merge, it is still reading its diff when the merge begins.
   const early = gauntlet();
-  const merge = post('merge', { expectedRevision, testCommand: 'npm test' });
+  const merge = post('merge', { expectedRevision, reviewedTree, testCommand: 'npm test' });
   await assert.rejects(early, { status: 409, message: /merge/ });
   await inTest;
   await assert.rejects(gauntlet(), { status: 409, message: /merge/ }, 'none starts while the merge test runs');

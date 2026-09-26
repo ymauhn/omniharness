@@ -81,7 +81,8 @@ function summarize(numstat) {
 }
 
 // The worktree's whole content (tracked, uncommitted and untracked, .gitignore respected) against baseSha,
-// staged into a throwaway copy of the worktree's index so the agent's own index never changes.
+// staged into a throwaway copy of the worktree's index so the agent's own index never changes. `tree` names that
+// content: the merge takes it only when the worktree still holds the same tree.
 async function worktreeDiff(run) {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-diff-'));
   try {
@@ -91,16 +92,17 @@ async function worktreeDiff(run) {
     const env = gitEnv({ GIT_INDEX_FILE: index });
     await gitOk(run.worktree, ['add', '-A'], { env });
     const diff = (...format) => ['diff', '--cached', '--no-renames', '--no-color', '--no-ext-diff', '--no-textconv', ...format, run.baseSha, '--'];
-    const [numstat, names, patch] = await Promise.all([
+    const [numstat, names, patch, tree] = await Promise.all([
       gitOk(run.worktree, diff('--numstat', '-z'), { env }),
       gitOk(run.worktree, diff('--name-status', '-z'), { env }),
       git(run.worktree, diff(), { env, limit: MAX_PATCH }),
+      gitOk(run.worktree, ['write-tree'], { env }),
     ]);
     if (patch.code !== 0) fail(`Falha do git: ${firstLine(patch.err)}`, 500);
     const { counts, stat } = summarize(numstat);
     const parts = names.split('\0'), files = [];
     for (let i = 0; i + 1 < parts.length; i += 2) files.push({ path: parts[i + 1], status: parts[i], ...counts.get(parts[i + 1]) });
-    return { baseSha: run.baseSha, branch: run.branch, files, stat, patch: patch.out, truncated: patch.truncated };
+    return { baseSha: run.baseSha, branch: run.branch, tree: tree.trim(), files, stat, patch: patch.out, truncated: patch.truncated };
   } finally {
     fs.rmSync(temp, { recursive: true, force: true });
   }
@@ -257,7 +259,7 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     if (task.dependsOn.some(id => store.task(id).status !== 'done')) refuse('Dependências não concluídas');
   };
 
-  async function gatedMerge(task, run, attempt, testCommand, expectedRevision) {
+  async function gatedMerge(task, run, attempt, { testCommand, expectedRevision, reviewedTree }) {
     if (!run) refuse('Nenhuma execução registrada para esta tarefa');
     if (!validRun(run)) refuse('Registro de execução inválido');
     if (RUNNING.has(run.state)) refuse(`O agente ainda está em execução (${run.state}); aguarde terminar`);
@@ -273,7 +275,9 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     }
     if (await currentBranch(run.worktree) !== run.branch) refuse(`A worktree da tarefa não está na branch ${run.branch}`);
     await gitOk(run.worktree, ['add', '-A']);
-    if (token && (await git(run.worktree, ['grep', '--cached', '-q', '-F', '-e', token])).code === 0) refuse('O conteúdo da tarefa contém o token local do Lab; remova-o antes do merge');
+    // The commit takes this index: it must hold the tree of the diff the owner reviewed, not what arrived since.
+    if ((await gitOk(run.worktree, ['write-tree'])).trim() !== reviewedTree) refuse('O conteúdo da worktree mudou desde a revisão; abra o diff de novo');
+    if (token &&(await git(run.worktree, ['grep', '--cached', '-q', '-F', '-e', token])).code === 0) refuse('O conteúdo da tarefa contém o token local do Lab; remova-o antes do merge');
     if ((await git(run.worktree, ['diff', '--cached', '--quiet'])).code !== 0) {
       const commit = await git(run.worktree, [...STRICT_IDENTITY, 'commit', '-q', '-m', `omniforge: ${task.title}`]);
       if (commit.code !== 0) refuse(`O commit na branch da tarefa falhou: ${firstLine(commit.err)}`);
@@ -321,7 +325,7 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     if (merging) fail('Outro merge em andamento; aguarde', 409);
     merging = task.id;
     try {
-      await gatedMerge(task, run, attempt, testCommand, input.expectedRevision);
+      await gatedMerge(task, run, attempt, { testCommand, expectedRevision: input.expectedRevision, reviewedTree: input.reviewedTree });
     } catch (error) {
       if (!error.refused) throw error;
       attempt.refused = { reason: error.message };
