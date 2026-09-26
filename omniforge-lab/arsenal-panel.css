@@ -7,7 +7,7 @@
 .ars-list-item,.ars-profile { border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); color:var(--text); padding:11px; text-align:left; }
 .ars-list-item { display:grid; gap:6px; }
 .ars-list-item strong { font-size:12px; }
-.ars-list-item small,.ars-note small,.ars-rule small { display:block; color:var(--muted); font:10px/1.5 Consolas,monospace; overflow-wrap:anywhere; }
+.ars-list-item small,.ars-note small,.ars-rule small { display:block; color:var(--muted); font:11px/1.5 Consolas,monospace; overflow-wrap:anywhere; }
 .ars-profile { width:100%; font-size:12px; line-height:1.4; }
 .ars-profile:hover,.ars-profile[aria-pressed="true"] { border-color:var(--accent); background:var(--surface2); }
 .ars-detail,.ars-derive { display:grid; gap:13px; min-width:0; padding:18px; }

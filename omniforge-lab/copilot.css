@@ -13,25 +13,25 @@ body[data-theme="bridge"] .prompt-copilot { --robot-light:#e7f5f6; --robot-mid:#
 .cp-mascot .robot { width:100%; height:100%; overflow:visible; }
 .cp-heading { display:grid; gap:5px; min-width:0; }
 .cp-heading strong { font-size:12px; letter-spacing:-.02em; }
-.cp-heading small { font-size:10px; line-height:1.4; color:var(--muted); }
-.cp-provider { margin:0; color:var(--accent); font:9px/1.6 Consolas,monospace; }
+.cp-heading small { font-size:11px; line-height:1.4; color:var(--muted); }
+.cp-provider { margin:0; color:var(--accent); font:11px/1.6 Consolas,monospace; }
 .cp-settings { border-top:1px solid var(--line); padding-top:8px; }
-.cp-settings summary { color:var(--muted); cursor:pointer; font-size:10px; }
+.cp-settings summary { color:var(--muted); cursor:pointer; font-size:11px; }
 .cp-preferences { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:10px 0; }
-.cp-field { display:grid; gap:4px; color:var(--muted); font-size:10px; }
-.cp-field select { min-width:0; padding:6px; font-size:10px; }
+.cp-field { display:grid; gap:4px; color:var(--muted); font-size:11px; }
+.cp-field select { min-width:0; padding:6px; font-size:11px; }
 .cp-actions, .cp-tags { display:flex; flex-wrap:wrap; gap:5px; }
-.cp-actions button { min-height:30px; padding:5px 8px; font-size:10px; }
+.cp-actions button { min-height:30px; padding:5px 8px; font-size:11px; }
 .cp-panel, .cp-followup { min-width:0; display:grid; gap:9px; padding-top:10px; border-top:1px solid var(--line); }
 .cp-panel strong, .cp-followup p { font-size:11px; line-height:1.5; }
 .cp-panel p, .cp-followup p { margin:0; font-size:11px; line-height:1.5; overflow-wrap:anywhere; }
-.cp-panel pre { margin:6px 0 0; padding:9px; border-radius:6px; background:var(--bg); white-space:pre-wrap; overflow-wrap:anywhere; max-height:210px; overflow:auto; font:10px/1.6 Consolas,monospace; }
+.cp-panel pre { margin:6px 0 0; padding:9px; border-radius:6px; background:var(--bg); white-space:pre-wrap; overflow-wrap:anywhere; max-height:210px; overflow:auto; font:11px/1.6 Consolas,monospace; }
 .cp-preview { border-left:2px solid var(--accent); }
 .cp-skill { display:grid; gap:5px; padding:9px; border:1px solid var(--line); border-radius:6px; }
-.cp-skill code { font-size:9px; color:var(--muted); overflow-wrap:anywhere; }
-.cp-skill small { font-size:9px; color:var(--muted); }
-.cp-skill .ghost { justify-self:start; padding:2px 0; font-size:10px; min-height:25px; color:var(--accent); }
-.cp-undo { justify-self:start; padding:4px 0; font-size:10px; min-height:25px; }
+.cp-skill code { font-size:11px; color:var(--muted); overflow-wrap:anywhere; }
+.cp-skill small { font-size:11px; color:var(--muted); }
+.cp-skill .ghost { justify-self:start; padding:2px 0; font-size:11px; min-height:25px; color:var(--accent); }
+.cp-undo { justify-self:start; padding:4px 0; font-size:11px; min-height:25px; }
 .cp-mascot .sleep-line, .cp-mascot .question-mark { opacity:0; }
 [data-state="muted"] .cp-mascot .eye { opacity:0; }
 [data-state="muted"] .cp-mascot .sleep-line { opacity:1; }
@@ -58,7 +58,7 @@ body[data-theme="bridge"] .prompt-copilot { --robot-light:#e7f5f6; --robot-mid:#
 .catalog-detail > button { justify-self:start; }
 .catalog-metadata { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:16px; margin:0; }
 .catalog-field { padding:12px; background:var(--surface2); border-radius:var(--radius); min-width:0; }
-.catalog-field dt { font-size:10px; font-weight:650; color:var(--muted); }
+.catalog-field dt { font-size:11px; font-weight:650; color:var(--muted); }
 .catalog-field dd { margin:7px 0 0; font-size:12px; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere; }
 .skill-card > button { justify-self:start; margin-top:auto; }
 .skill-card .cp-tags .scope-badge { white-space:normal; }

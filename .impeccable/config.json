@@ -38,6 +38,15 @@
         ],
         "createdAt": "2026-09-11T06:36:04.394Z",
         "reason": "owner: Geist Mono chosen with Geist (sample A) on 2026-09-11"
+      },
+      {
+        "rule": "tiny-text",
+        "value": "*",
+        "files": [
+          "omniforge-lab/index.html"
+        ],
+        "createdAt": "2026-09-26T13:07:36.752Z",
+        "reason": "OmniForge Lab is a dense terminal/ops UI; task AGENTS.md sets an explicit 11px functional-text floor (not 14-16px), matching the pre-existing meta/label scale across the whole page"
       }
     ]
   }
