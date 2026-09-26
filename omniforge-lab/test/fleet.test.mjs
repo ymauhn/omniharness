@@ -215,10 +215,10 @@ test('a Gauntlet run from the agent SSE is named as such, exposed for the review
   assert.equal(find(card(), 'Rodar com Codex').disabled, true);
 });
 
-test('agent events rebuild the task list only on a run state change, and an open "Detalhes" stays open and loaded', async () => {
+test('agent events rebuild the task list only on a run state or prompt change, and an open "Detalhes" stays open and loaded', async () => {
   const env = environment(), { $, fleet, tasks, server, emit } = env;
   local.state.tasks[0].hasDetails = true;
-  server.runs = [run('r', { detail: 'Bash' })];
+  server.runs = [run('r')];
   const base = server.respond;
   server.respond = async (path, options) => (path.endsWith('/details') ? { ok: true, status: 200, json: async () => ({ id: 't', details: 'Contexto completo' }) } : base(path, options));
   fleet.sync(); await tick(); await tick();
@@ -230,8 +230,8 @@ test('agent events rebuild the task list only on a run state change, and an open
   opened.open = true; await opened.fire('toggle');
   assert.match(card().textContent, /Contexto completo/);
 
-  // Tool after tool, the run's detail and timing change while its state stays "working".
-  await emit('r', 'working', 'Read');
+  // Tool after tool, the run's timing and usage change while it stays "working" (the engine sends no tool name).
+  await emit('r', 'working', '');
   await emit('r', 'working', '');
   assert.equal(details(), opened, 'the task list is not rebuilt: the open Detalhes is the same element');
   assert.equal(control('status'), status, 'and an open status select is not replaced under the pointer');
@@ -242,6 +242,9 @@ test('agent events rebuild the task list only on a run state change, and an open
   assert.equal(details().open, true, 'the Detalhes the owner opened stays open');
   assert.match(details().textContent, /Contexto completo/, 'with its text');
   assert.equal(fetches(), 1, 'fetched once');
+  // Still blocked, on another prompt: the badge follows it.
+  await emit('r', 'blocked', 'approval_prompt');
+  assert.match(card().textContent, /Claude · Aguardando você · aprovação de comando/);
 
   details().open = false; await details().fire('toggle');
   tasks.renderTasks();

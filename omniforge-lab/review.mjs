@@ -1,14 +1,16 @@
 // Review and merge of a task run: the worktree's full diff, a gated merge into the owner's root, the Gauntlet on
 // the owner's request and an evidence bundle per task. This runs git in the owner's real repository, so: argv only
-// (never a shell), no reset, no force, no branch or worktree deletion, and the root's working tree is touched only by
-// `git merge` and `git merge --abort`. The task's worktree gets only the Gauntlet's self-ignoring report folder.
+// (never a shell), no repository hooks, no reset, no force, no branch or worktree deletion, and the root's working tree is
+// touched only by `git merge` and `git merge --abort`. The task's worktree gets only the Gauntlet's self-ignoring report folder.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn, execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { writeFileAtomic } from './lib/fsutil.mjs';
-import { gitEnv } from './lib/git-env.mjs';
+import { gitEnv, withoutGitLocation } from './lib/git-env.mjs';
+import { ACTIVE } from './engine.mjs';
 
 const MAX_PATCH = 256 * 1024;
 const MAX_LISTING = 16 * 1024 * 1024;
@@ -17,14 +19,18 @@ const MAX_ATTEMPTS = 20;
 const MAX_TEXT = 2000;
 const TEST_TIMEOUT_MS = 10 * 60_000;
 const MAX_REPORT = 64 * 1024;
-const RUNNING = new Set(['starting', 'working', 'blocked']);
-const ACTIVE = new Set([...RUNNING, 'idle']);
+const RUNNING = new Set([...ACTIVE].filter(state => state !== 'idle'));
 // The agent's turn is over: it exited, or its session waits for a new prompt (idle).
 const FINISHED = new Set(['idle', 'done', 'failed']);
 const PRESETS = new Set(['rapido', 'padrao']);
 const SEVERITIES = [['high', 'ALTA'], ['medium', 'M[ÉE]DIA'], ['low', 'BAIXA'], ['unverified', 'SEM VERIFICA[ÇC][ÃA]O']];
 const SYSTEM32 = path.join(process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows', 'System32');
 const STRICT_IDENTITY = ['-c', 'user.useConfigOnly=true'];
+// No repository hook runs in any git call here: a pre-commit hook (lint-staged, or one the agent wrote in an ignored
+// husky folder) could stage content the owner never reviewed, a post-commit hook add commits, and post-index-change or
+// reference-transaction run on every add and merge. The hooks folder is this very file: a file holds no hooks, and
+// whatever could turn it into a folder could already rewrite the Lab. The command line's -c outranks every config file.
+const NO_HOOKS = ['-c', `core.hooksPath=${fileURLToPath(import.meta.url)}`];
 
 function fail(message, status = 400) {
   throw Object.assign(new Error(message), { status });
@@ -37,7 +43,7 @@ function refuse(reason) {
 
 function git(dir, args, { env = gitEnv(), limit = MAX_LISTING } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn('git', ['--no-optional-locks', '-C', dir, ...args], { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn('git', ['--no-optional-locks', ...NO_HOOKS, '-C', dir, ...args], { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     const chunks = [];
     let size = 0, err = '';
     child.stdout.on('data', chunk => { if (size < limit) chunks.push(chunk); size += chunk.length; });
@@ -124,7 +130,8 @@ export function runTestCommand({ command, cwd, timeoutMs = TEST_TIMEOUT_MS }) {
     : ['/bin/sh', ['-c', command]];
   const started = Date.now(), hash = createHash('sha256');
   let tail = Buffer.alloc(0), timedOut = false;
-  const child = spawn(file, args, { cwd, windowsHide: true, detached: !win, stdio: ['ignore', 'pipe', 'pipe'] });
+  // The owner's tests run git in this worktree, never in a repository or index the Lab's own environment points at.
+  const child = spawn(file, args, { cwd, env: withoutGitLocation(process.env), windowsHide: true, detached: !win, stdio: ['ignore', 'pipe', 'pipe'] });
   const take = chunk => { hash.update(chunk); tail = Buffer.concat([tail, chunk]).subarray(-MAX_TAIL); };
   child.stdout.on('data', take);
   child.stderr.on('data', take);
@@ -159,24 +166,23 @@ const validRun = run => /^[0-9a-f]{40,64}$/.test(run.baseSha) && run.branch !== 
   [run.branch, run.baseBranch].every(name => typeof name === 'string' && name && !name.startsWith('-')) &&
   [run.root, run.worktree].every(dir => typeof dir === 'string' && path.isAbsolute(dir));
 
-// Paths the task adds since the merge base (rows of `git diff --name-status -z --no-renames`) that something untracked
-// in the root already occupies, or whose parent folder is an untracked file there. Git treats ignored files as
-// expendable, so the merge would overwrite them, or `merge --abort` delete them. `rootAdded` (-z names) is what the
-// root added since the merge base.
-function untrackedInTheWay(root, nameStatus, rootAdded) {
-  // Tracked files git handles itself: one the root added, or one the task removes (a folder may go where it stood).
-  const rows = nameStatus.split('\0'), tracked = new Set(rootAdded.split('\0')), found = [];
-  for (let i = 0; i + 1 < rows.length; i += 2) if (rows[i] === 'D') tracked.add(rows[i + 1]);
-  for (let i = 0; i + 1 < rows.length; i += 2) {
-    if (rows[i] !== 'A') continue;
-    const parts = rows[i + 1].split('/');
+// Of `paths` (the ones the merge writes that the root's HEAD does not track), those something untracked in the root
+// already occupies, or whose parent folder is an untracked file there. Git treats ignored files as expendable: the
+// merge would overwrite them, or `merge --abort` delete them. A parent in `replaced` is a file the root's HEAD tracks
+// and the task turned into a folder: git replaces it itself.
+function untrackedInTheWay(root, paths, replaced) {
+  const found = new Set();
+  for (const name of paths) {
+    const parts = name.split('/');
     for (let n = 1; n <= parts.length; n++) {
-      const name = parts.slice(0, n).join('/');
-      const stat = fs.lstatSync(path.join(root, name), { throwIfNoEntry: false });
-      if (stat && (n === parts.length || !stat.isDirectory()) && !tracked.has(name)) { found.push(name); break; }
+      const prefix = parts.slice(0, n).join('/');
+      const stat = fs.lstatSync(path.join(root, prefix), { throwIfNoEntry: false });
+      if (stat?.isDirectory() && n < parts.length) continue;
+      if (stat && !replaced.has(prefix)) found.add(prefix);
+      break; // nothing on disk here, or not a folder: nothing below it either
     }
   }
-  return [...new Set(found)];
+  return [...found];
 }
 
 /** Severity counts of a Gauntlet Phase 3 report ("🔴 ALTA (n)", gauntlet/SKILL.md), or 'desconhecido' when it states
@@ -274,10 +280,12 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     if ((await gitOk(run.worktree, ['write-tree'])).trim() !== reviewedTree) refuse('O conteúdo da worktree mudou desde a revisão; abra o diff de novo');
     if (token && (await git(run.worktree, ['grep', '--cached', '-q', '-F', '-e', token])).code === 0) refuse('O conteúdo da tarefa contém o token local do Lab; remova-o antes do merge');
     if ((await git(run.worktree, ['diff', '--cached', '--quiet'])).code !== 0) {
-      const commit = await git(run.worktree, [...STRICT_IDENTITY, 'commit', '-q', '-m', `omniforge: ${task.title}`]);
+      const commit = await git(run.worktree, [...STRICT_IDENTITY, 'commit', '-q', '--no-verify', '-m', `omniforge: ${task.title}`]);
       if (commit.code !== 0) refuse(`O commit na branch da tarefa falhou: ${firstLine(commit.err)}`);
     }
     attempt.headSha = (await gitOk(run.worktree, ['rev-parse', 'HEAD'])).trim();
+    // Whatever else wrote in the worktree meanwhile, the commit tested and merged is the tree the owner reviewed.
+    if ((await gitOk(run.worktree, ['rev-parse', `${attempt.headSha}^{tree}`])).trim() !== reviewedTree) refuse('O commit da tarefa não tem o conteúdo revisado; abra o diff de novo');
     attempt.diffStat = summarize(await gitOk(run.worktree, ['diff', '--numstat', '-z', '--no-renames', run.baseSha, attempt.headSha, '--'])).stat;
     if ((await git(run.root, ['merge-base', '--is-ancestor', attempt.headSha, 'HEAD'])).code === 0) refuse('Nada para integrar: a branch da tarefa já está na raiz');
     if (testCommand) {
@@ -289,24 +297,28 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     const before = (await gitOk(run.root, ['rev-parse', 'HEAD'])).trim();
     const status = async () => new Set((await gitOk(run.root, ['status', '--porcelain', '-z'])).split('\0').filter(Boolean));
     const statusBefore = await status();
-    // Each side's changes since the merge base (A...B): against the root's HEAD, the root's own deletions would read
-    // as task additions and refuse the merge over files it never writes.
-    const [changes, rootAdded] = await Promise.all([
-      gitOk(run.root, ['diff', '--name-status', '-z', '--no-renames', `${before}...${attempt.headSha}`, '--']),
-      gitOk(run.root, ['diff', '--name-only', '-z', '--no-renames', '--diff-filter=A', `${attempt.headSha}...${before}`, '--']),
-    ]);
+    // The paths the merge writes that the root's HEAD does not track: the task's own changes since the merge base
+    // (before...head), deletions aside, that are new against the root's HEAD. A file the root stopped tracking counts
+    // only when the task changed it; the root's own deletions the task never touched are not written.
+    const names = async (...range) => (await gitOk(run.root, ['diff', '--name-only', '-z', '--no-renames', ...range, '--'])).split('\0').filter(Boolean);
+    const [touched, untracked, replaced] = await Promise.all([names('--diff-filter=d', `${before}...${attempt.headSha}`),
+      names('--diff-filter=A', before, attempt.headSha), names('--diff-filter=D', before, attempt.headSha)]);
+    const unowned = new Set(untracked), written = touched.filter(name => unowned.has(name));
     // Nothing awaits from here to the merge's spawn, so the task cannot change in between.
-    const inTheWay = untrackedInTheWay(run.root, changes, rootAdded);
+    const inTheWay = untrackedInTheWay(run.root, written, new Set(replaced));
     if (inTheWay.length) refuse(`A raiz tem arquivos não rastreados ou ignorados onde o merge escreveria: ${inTheWay.slice(0, 20).join(', ')}; mova-os antes do merge`);
     taskCurrent(task.id, expectedRevision);
     // The tested commit, not the branch name: the branch may have moved while the test ran.
-    const merged = await git(run.root, [...STRICT_IDENTITY, 'merge', '--no-ff', '--no-edit', '-m', `Merge branch '${run.branch}'`, attempt.headSha]);
+    const merged = await git(run.root, [...STRICT_IDENTITY, 'merge', '--no-ff', '--no-edit', '--no-verify', '-m', `Merge branch '${run.branch}'`, attempt.headSha]);
     if (merged.code !== 0) {
       // Not gitOk: nothing may skip the abort below.
       const conflicts = (await git(run.root, ['diff', '--name-only', '--diff-filter=U', '-z'])).out.split('\0').filter(Boolean);
       if (await hasMergeHead(run.root)) await git(run.root, ['merge', '--abort']);
-      // A merge git stopped partway (a file in use on Windows) leaves no MERGE_HEAD but may have written files.
-      const leftovers = [...await status()].filter(entry => !statusBefore.has(entry)).map(entry => entry.slice(3));
+      // A merge git stopped partway (a file in use on Windows) leaves no MERGE_HEAD but may have written files. `git status`
+      // lists no ignored file, so the merge's own untracked paths are looked up on disk too: none was there before, or
+      // the gate above would have refused.
+      const onDisk = name => { try { return Boolean(fs.lstatSync(path.join(run.root, name), { throwIfNoEntry: false })); } catch (error) { return error.code !== 'ENOTDIR'; } };
+      const leftovers = [...new Set([...[...await status()].filter(entry => !statusBefore.has(entry)).map(entry => entry.slice(3)), ...written.filter(onDisk)])];
       const restored = (await gitOk(run.root, ['rev-parse', 'HEAD'])).trim() === before && !(await hasMergeHead(run.root)) && !leftovers.length;
       const cause = conflicts.length ? `Conflito de merge em ${conflicts.length} arquivo(s): ${conflicts.slice(0, 20).join(', ')}` : `O git recusou o merge: ${firstLine(merged.err || merged.out)}`;
       refuse(`${cause}. ` +
@@ -378,7 +390,9 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     const run = getRun(task.id);
     if (!run) fail('Nenhuma execução registrada para esta tarefa', 404);
     if (!validRun(run)) fail('Registro de execução inválido', 409);
-    return { status: 200, body: await worktreeDiff(run) };
+    const body = await worktreeDiff(run), uncertain = store.uncertainSessionIn(task.projectId, run.worktree);
+    // The merge gate's own check, so the page shows what the gate will say: an interrupted session is verified there.
+    return { status: 200, body: { ...body, uncertainSession: uncertain && { id: uncertain.id, name: uncertain.name, status: uncertain.status } } };
   }
 
   // The server asks before a new agent run: the merge tests and commits this task's worktree, then marks it done.

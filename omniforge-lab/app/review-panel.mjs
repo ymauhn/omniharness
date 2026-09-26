@@ -1,7 +1,7 @@
 // Review of a task run (review.mjs): the worktree's diff, the gated "Aprovar e fazer merge", the Gauntlet on demand and
 // the task's evidence bundle. Diff, test output, report paths and refusal reasons are untrusted agent output: they reach
 // the page as textContent only.
-import { one, asArray } from './dom.mjs';
+import { one, asArray, keyed } from './dom.mjs';
 import { runLabel, usageText, HOST, ACTIVE } from './fleet.mjs';
 
 const FILE_STATUS = { A: 'adicionado', M: 'modificado', D: 'removido', T: 'tipo alterado' };
@@ -143,15 +143,16 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
     catch (error) { failure = error; }
     finally { merging = null; }
     if (current(id, owner)) {
-      if (failure) outcome = { kind: 'refused', text: `${failure.status === 409 ? 'Merge recusado' : 'Merge não concluído'}: ${failure.message}` };
-      else { outcome = { kind: 'merged', text: `Merge concluído: ${result.attempt?.mergeSha}` }; draft.note = ''; }
+      // The outcome stands; an evidence bundle that was not saved is said with it.
+      const lost = (failure ? failure.body : result)?.evidenceError, unsaved = lost ? ` (${lost})` : '';
+      if (failure) outcome = { kind: 'refused', text: `${failure.status === 409 ? 'Merge recusado' : 'Merge não concluído'}: ${failure.message}${unsaved}` };
+      else { outcome = { kind: 'merged', text: `Merge concluído: ${result.attempt?.mergeSha}${unsaved}` }; draft.note = ''; }
       toast(outcome.text);
       diff = null; void load();
     }
     if (taskId) render();
   }
 
-  const keyed = (node, key) => { node.dataset.focusKey = key; return node; };
   const button = (parent, className, text, key, onClick) => {
     const node = keyed(one(parent, 'button', className, text), key);
     node.type = 'button';
@@ -179,12 +180,8 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
   }
 
   // An agent that ended on its own leaves its session interrupted: the server refuses the merge until the owner records
-  // how they checked that nothing of it still runs. That check is taken here, with the same route as the session rail.
-  function uncertainSession() {
-    const worktree = getTask(taskId)?.worktree;
-    return worktree ? getSessions().find(item => item.cwd === worktree && item.status === 'interrupted') ?? null : null;
-  }
-
+  // how they checked that nothing of it still runs. The diff reports the gate's own session (diff.uncertainSession); an
+  // interrupted one is verified here, with the same route as the session rail.
   function renderUncertain(parent, session) {
     const form = one(parent, 'form', 'review-uncertain');
     one(form, 'p', 'microcopy', `A sessão “${session.name}” terminou sem o Lab confirmar o fim dos processos dela. `
@@ -199,14 +196,15 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
       if (!verification) return;
       try {
         await api(`/api/sessions/${encodeURIComponent(session.id)}/acknowledge`, { method: 'POST', body: { verification } });
-        if (current(id, owner)) { draft.verification = ''; toast(`Verificação registrada para ${session.name}.`); render(); }
+        if (current(id, owner)) { draft.verification = ''; toast(`Verificação registrada para ${session.name}.`); void load(); }
       } catch (error) { if (current(id, owner)) toast(error.message); }
     });
   }
 
   function renderMerge(parent) {
-    const uncertain = uncertainSession();
-    if (uncertain) renderUncertain(parent, uncertain);
+    const uncertain = diff?.uncertainSession;
+    if (uncertain?.status === 'interrupted') renderUncertain(parent, uncertain);
+    else if (uncertain) one(parent, 'p', 'microcopy', `A sessão “${uncertain.name}” na worktree da tarefa está sendo encerrada ou conferida pelo Lab; o merge espera por ela.`);
     const form = one(parent, 'form', 'review-merge');
     form.setAttribute('aria-busy', String(merging === taskId));
     one(form, 'h3', '', 'Aprovar e fazer merge');
@@ -321,12 +319,14 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
     if (taskId && runKey() !== shownRun) render();
   }
 
-  /** Called on every state render: a project switch or a removed task closes the panel; a new task revision reloads it. */
+  /** Called on every state render: a project switch or a removed task closes the panel; a new task revision, or a new
+   * status of the session the merge gate reported, reloads it. */
   function sync() {
     if (!taskId) return;
-    const task = getTask(taskId);
+    const task = getTask(taskId), shown = diff?.uncertainSession;
     if (projectId !== getProjectId() || task?.projectId !== projectId) return close();
     if (task.revision !== revision) { revision = task.revision; void load(); }
+    else if (shown && getSessions().find(item => item.id === shown.id)?.status !== shown.status) void load();
   }
 
   function onEvidence(event) {

@@ -70,11 +70,11 @@ export function createFleet({ openSession, onChange = () => {}, onRuns = () => {
   const suggestions = new Map();
   const focusTask = key => [...$('#task-list').querySelectorAll('[data-focus-key]')].find(node => node.dataset.focusKey === key)?.focus();
   const latestRun = taskId => runs.find(run => run.taskId === taskId) ?? null;
-  // The task list shows only each run's state (run buttons, badge): an agent's detail or timing update never rebuilds it,
-  // so an open <details> or <select> there stays open while the agent works.
+  // The task list shows only each run's state and prompt (run buttons, badge): a timing or usage update never rebuilds it,
+  // so an open <details> or <select> there stays open while the agent works. The engine sets a detail only on a prompt.
   const changed = () => {
     render(); onRuns();
-    const states = runs.map(run => `${run.id}:${run.state}`).join();
+    const states = runs.map(run => `${run.id}:${run.state}:${run.detail}`).join();
     if (states !== listed) { listed = states; onChange(); }
   };
 
