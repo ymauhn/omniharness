@@ -41,7 +41,8 @@ const openSession = id => {
   $('#terminal-grid').children[index]?.querySelector('.pane-select')?.focus();
 };
 const fleet = createFleet({ openSession, onChange: () => tasks.renderTasks(), onRuns: () => reviewPanel.onRuns() });
-const reviewPanel = createReviewPanel({ root: $('#review-panel'), api, getProjectId, getTask: taskById, toast, getGauntlet: fleet.gauntletRun });
+const reviewPanel = createReviewPanel({ root: $('#review-panel'), api, getProjectId, getTask: taskById, toast, getGauntlet: fleet.gauntletRun,
+  getSessions: () => local.state.sessions });
 const arsenal = mountArsenalPanel({ root: $('#arsenal-panel'), api, getProjectId, getSessions: () => local.state.sessions, getTasks: () => local.state.tasks, onChanged: () => tasks.renderTasks() });
 const tasks = createTasks({ showView, runControls: fleet.taskControls, reviewPanel, arsenal });
 const graphs = createGraphs({ assignPane: workspace.assignPane, renderWorkspace: workspace.renderWorkspace, catalog, memoryPanel, showView });

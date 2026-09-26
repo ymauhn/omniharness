@@ -67,7 +67,7 @@ export function describeGauntlet(entry) {
 }
 
 /** `getGauntlet(taskId)` is the task's latest Gauntlet run as the fleet holds it, live from the agent SSE, or null. */
-export function createReviewPanel({ root, api, getProjectId, getTask, toast = () => {}, storage, getGauntlet = () => null }) {
+export function createReviewPanel({ root, api, getProjectId, getTask, toast = () => {}, storage, getGauntlet = () => null, getSessions = () => [] }) {
   let store = storage;
   if (store === undefined) { try { store = localStorage; } catch { /* private mode or storage disabled */ } }
   const lastTest = projectId => { try { return store?.getItem(testKey(projectId)) ?? ''; } catch { return ''; } };
@@ -178,7 +178,35 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
     for (const line of classifyPatch(diff.patch)) one(patch, 'span', '', `${line.text}\n`).dataset.kind = line.kind;
   }
 
+  // An agent that ended on its own leaves its session interrupted: the server refuses the merge until the owner records
+  // how they checked that nothing of it still runs. That check is taken here, with the same route as the session rail.
+  function uncertainSession() {
+    const worktree = getTask(taskId)?.worktree;
+    return worktree ? getSessions().find(item => item.cwd === worktree && item.status === 'interrupted') ?? null : null;
+  }
+
+  function renderUncertain(parent, session) {
+    const form = one(parent, 'form', 'review-uncertain');
+    one(form, 'p', 'microcopy', `A sessão “${session.name}” terminou sem o Lab confirmar o fim dos processos dela. `
+      + 'Confira que nada dela ficou rodando na worktree (por exemplo, um servidor iniciado pelo agente) e registre como verificou.');
+    const field = keyed(one(one(form, 'label', 'field', 'Como você verificou'), 'input'), 'verification');
+    Object.assign(field, { value: draft.verification ?? '', maxLength: 500, required: true });
+    field.addEventListener('input', () => { draft.verification = field.value; });
+    keyed(one(form, 'button', 'secondary', 'Confirmar verificação'), 'acknowledge').type = 'submit';
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const id = taskId, owner = projectId, verification = field.value.trim();
+      if (!verification) return;
+      try {
+        await api(`/api/sessions/${encodeURIComponent(session.id)}/acknowledge`, { method: 'POST', body: { verification } });
+        if (current(id, owner)) { draft.verification = ''; toast(`Verificação registrada para ${session.name}.`); render(); }
+      } catch (error) { if (current(id, owner)) toast(error.message); }
+    });
+  }
+
   function renderMerge(parent) {
+    const uncertain = uncertainSession();
+    if (uncertain) renderUncertain(parent, uncertain);
     const form = one(parent, 'form', 'review-merge');
     form.setAttribute('aria-busy', String(merging === taskId));
     one(form, 'h3', '', 'Aprovar e fazer merge');
@@ -190,7 +218,7 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
     Object.assign(note, { value: draft.note, maxLength: 2000 });
     note.addEventListener('input', () => { draft.note = note.value; });
     const submit = keyed(one(form, 'button', 'button', merging === taskId ? 'Executando teste e merge…' : merging ? 'Aguardando outro merge…' : 'Aprovar e fazer merge'), 'merge');
-    submit.type = 'submit'; submit.disabled = Boolean(merging) || !diff;
+    submit.type = 'submit'; submit.disabled = Boolean(merging) || !diff || Boolean(uncertain);
     if (outcome) one(form, 'p', 'review-outcome', outcome.text).dataset.kind = outcome.kind;
     form.addEventListener('submit', event => { event.preventDefault(); void merge(); });
   }
@@ -223,7 +251,7 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
     const run = getGauntlet(taskId), running = ACTIVE.has(run?.state);
     one(section, 'h3', '', 'Revisão adversarial (Gauntlet)');
     one(section, 'p', 'microcopy', 'Abre uma sessão Claude na worktree da tarefa com o Gauntlet só em relatório: ele não corrige nada. '
-      + 'O agente precisa estar ocioso ou encerrado, e uma sessão dele interrompida precisa ser reconhecida no terminal antes.');
+      + 'O agente precisa estar ocioso ou encerrado, e uma sessão dele que terminou sozinha precisa da verificação acima antes.');
     const reasons = gauntletSignals(diff, evidence);
     if (reasons.length) one(section, 'p', 'review-suggestion', `Sugestão: rodar o Gauntlet — ${reasons.join('; ')} — ${COST}.`);
     const select = keyed(one(one(section, 'label', 'field', 'Profundidade'), 'select'), 'gauntlet-preset');

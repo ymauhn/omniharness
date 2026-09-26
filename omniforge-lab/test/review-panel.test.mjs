@@ -43,7 +43,8 @@ function environment({ storage = new Map() } = {}) {
   const store = { getItem: key => (storage.has(key) ? storage.get(key) : null), setItem: (key, value) => storage.set(key, value) };
   // The Gauntlet run as the fleet's run list holds it (live from the agent SSE).
   env.gauntlet = null;
-  env.panel = createReviewPanel({ root: env.root, api, getProjectId: () => env.projectId, getTask: id => env.tasks.get(id), toast: text => env.toasts.push(text), storage: store,
+  env.sessions = [];
+  env.panel = createReviewPanel({ root: env.root, api, getProjectId: () => env.projectId, getTask: id => env.tasks.get(id), toast: text => env.toasts.push(text), storage: store, getSessions: () => env.sessions,
     getGauntlet: id => (env.gauntlet?.taskId === id ? env.gauntlet : null) });
   env.find = key => env.root.descendants().find(node => node.dataset.focusKey === key);
   env.text = () => env.root.textContent;
@@ -405,4 +406,22 @@ test('the Gauntlet button waits while its task merges, and neither a double-clic
   assert.deepEqual([held.prevented, fresh.prevented], [true, false]);
   await button().fire('click', { detail: 1 });
   assert.deepEqual(posts().map(call => call.body), [{ expectedRevision: 3, preset: 'rapido' }], 'a deliberate click confirms');
+});
+
+test('an agent session that ended on its own is verified from the panel before the merge is offered', async () => {
+  const env = environment();
+  env.sessions = [{ id: 's1', projectId: 'a', name: 'Claude · Saudação', cwd: 'C:\\wt', status: 'interrupted' }];
+  env.panel.open('t');
+  await env.answer('/api/tasks/t/diff', diff());
+  await env.answer('/api/tasks/t/evidence', { taskId: 't', attempts: [] });
+  assert.match(env.text(), /“Claude · Saudação” terminou sem o Lab confirmar/);
+  assert.equal(env.find('merge').disabled, true, 'the merge waits for the verification');
+  const field = env.find('verification');
+  field.value = 'Gerenciador de tarefas: nenhum processo do agente'; await field.fire('input');
+  void env.root.descendants().find(node => node.tag === 'form' && node.className === 'review-uncertain').fire('submit');
+  assert.deepEqual(env.calls.at(-1), { route: '/api/sessions/s1/acknowledge', method: 'POST', body: { verification: 'Gerenciador de tarefas: nenhum processo do agente' } });
+  env.sessions[0].status = 'stopped';
+  await env.answer('/api/sessions/s1/acknowledge', { id: 's1', status: 'stopped' });
+  assert.doesNotMatch(env.text(), /terminou sem o Lab confirmar/);
+  assert.equal(env.find('merge').disabled, false);
 });
