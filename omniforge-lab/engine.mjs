@@ -15,6 +15,10 @@ const ACTIVE = new Set(['starting', 'working', 'blocked', 'idle']);
 const CLAUDE_HOOKS = ['UserPromptSubmit', 'PreToolUse', 'Notification', 'Stop'];
 const EVENTS = new Set([...CLAUDE_HOOKS, 'agent-turn-complete']);
 const LABEL = { claude: 'Claude', codex: 'Codex' };
+// Prompts that wait on the owner but fire no hook, as lowercase text without spaces (TUIs place words with cursor moves).
+const PROMPTS = [['trustthisfolder', 'trust_prompt'], ['hooksneedreview', 'hooks_review'], ['approachingratelimits', 'rate_limit_prompt'],
+  ['wouldyouliketorun', 'approval_prompt'], ['wouldyouliketomake', 'approval_prompt']];
+const plain = text => String(text).replace(/\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-_]/g, '').replace(/\s+/g, '').toLowerCase();
 
 function fail(message, status = 409) {
   const error = new Error(message);
@@ -28,12 +32,23 @@ export function findExecutable(name, fallbackDir, env = process.env) {
   const file = process.platform === 'win32' ? `${name}.exe` : name;
   const pathValue = Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1];
   const dirs = String(pathValue || '').split(path.delimiter).filter(dir => path.isAbsolute(dir));
-  if (fallbackDir) dirs.push(fallbackDir);
+  dirs.push(...[fallbackDir].flat().filter(Boolean));
   for (const dir of dirs) {
     const candidate = path.join(dir, file);
     try { if (fs.statSync(candidate).isFile()) return candidate; } catch { /* next */ }
   }
   return null;
+}
+
+/** Codex: PATH, then the Codex app's newest complete build (%LOCALAPPDATA%/OpenAI/Codex/bin/<build>/), then its
+ * .sandbox-bin copy, which has no code-mode host: an agent there cannot use any tool (fails closed), quota reads work. */
+export function findCodex(env = process.env) {
+  const bin = env.LOCALAPPDATA && path.join(env.LOCALAPPDATA, 'OpenAI', 'Codex', 'bin');
+  let builds = [];
+  try { builds = fs.readdirSync(bin).map(name => path.join(bin, name)).filter(dir => fs.existsSync(path.join(dir, 'codex-code-mode-host.exe'))); }
+  catch { /* no Codex app */ }
+  builds.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+  return findExecutable('codex', [...builds, env.USERPROFILE && path.join(env.USERPROFILE, '.codex', '.sandbox-bin')], env);
 }
 
 // argv only, never a shell: branch names and paths do not pass through a command interpreter.
@@ -56,10 +71,13 @@ function firstLine(file) {
 
 // Claude: <home>/.claude/projects/<any>/<session>.jsonl, found by file name (the folder encodes the cwd), plus its
 // subagent transcripts (workflow subagents nest in subagents/workflows/wf_*/). One API message spans several lines repeating the same usage, so each message.id counts once.
-function claudeUsage(homeDir, sessionId) {
+export function claudeUsage(homeDir, sessionId, worktree) {
   const projects = path.join(homeDir, '.claude', 'projects');
   const file = (fs.existsSync(projects) ? fs.readdirSync(projects) : []).map(dir => path.join(projects, dir, `${sessionId}.jsonl`)).find(candidate => fs.existsSync(candidate));
-  if (!file) return { usage: unknownUsage('Transcrição da sessão Claude não encontrada') };
+  // Claude names the folder after the cwd; without Windows long paths a transcript path over 259 characters is never written.
+  const expected = path.join(projects, String(worktree).replace(/[^a-zA-Z0-9]/g, '-'), `${sessionId}.jsonl`);
+  const tooLong = process.platform === 'win32' && expected.length > 259 ? ': o caminho esperado passa de 260 caracteres, o limite do Windows sem caminhos longos' : '';
+  if (!file) return { usage: unknownUsage(`Transcrição da sessão Claude não encontrada${tooLong}`) };
   const subagents = path.join(path.dirname(file), sessionId, 'subagents');
   const files = [file, ...(fs.existsSync(subagents) ? fs.readdirSync(subagents, { recursive: true }).filter(name => name.endsWith('.jsonl')).map(name => path.join(subagents, name)) : [])];
   const messages = new Map();
@@ -93,7 +111,7 @@ function codexUsage(homeDir, run) {
 }
 
 function readUsage(run, homeDir) {
-  try { return run.host === 'claude' ? claudeUsage(homeDir, run.hostSessionId) : codexUsage(homeDir, run); }
+  try { return run.host === 'claude' ? claudeUsage(homeDir, run.hostSessionId, run.worktree) : codexUsage(homeDir, run); }
   catch (error) { return { usage: unknownUsage(`Leitura de uso falhou: ${error.message}`) }; }
 }
 
@@ -105,6 +123,7 @@ export class AgentEngine extends EventEmitter {
     this.file = path.join(store.dataDir, 'runs.json');
     this.runs = fs.existsSync(this.file) ? JSON.parse(fs.readFileSync(this.file, 'utf8')) : [];
     this.secrets = new Map();
+    this.tails = new Map(); // recent output per run, for prompts without hooks
     // No PTY survives a Lab restart: an unfinished run is failed, never done.
     const orphans = this.runs.filter(run => ACTIVE.has(run.state));
     for (const run of orphans) this.finish(run, { state: 'failed', detail: 'interrompido', exitCode: null });
@@ -119,6 +138,16 @@ export class AgentEngine extends EventEmitter {
       // This runs inside node-pty's exit callback: a failed write must not take the Lab down.
       try { this.publish(run); }
       catch (error) { console.error(`OmniForge: fim da execução ${run.id} não foi salvo: ${error.message}`); }
+    });
+    // ponytail: a fixed text match on the run's own output; a redraw of an answered prompt shows blocked again until
+    // the next Enter or hook. Read the CLIs' structured events instead if they ever expose these prompts.
+    shells.on('terminal', ({ sessionId, text }) => {
+      const run = this.runs.find(item => item.sessionId === sessionId && ACTIVE.has(item.state));
+      if (!run) return;
+      const tail = ((this.tails.get(run.id) ?? '') + plain(text)).slice(-400);
+      const prompt = PROMPTS.find(([pattern]) => tail.includes(pattern));
+      this.tails.set(run.id, prompt ? '' : tail);
+      if (prompt) this.set(run, { state: 'blocked', detail: prompt[1] });
     });
   }
 
@@ -140,6 +169,7 @@ export class AgentEngine extends EventEmitter {
   /** Ends a run and reads its usage from the CLI's own session files (no model call). The caller saves. */
   finish(run, { state, detail, exitCode }) {
     this.secrets.delete(run.id);
+    this.tails.delete(run.id);
     const { usage, hostSessionId } = readUsage(run, this.homeDir);
     Object.assign(run, { state, detail, exitCode, endedAt: new Date().toISOString(), usage, hostSessionId: run.hostSessionId ?? hostSessionId ?? null });
   }
@@ -178,7 +208,8 @@ export class AgentEngine extends EventEmitter {
     const { file, args: hostArgs } = this.executable(host);
 
     const id = randomUUID();
-    const worktreeDir = path.join(this.store.dataDir, 'worktrees', id);
+    // A short folder keeps Claude's transcript path (~/.claude/projects/<cwd as name>/<session>.jsonl) under 260 characters.
+    const worktreeDir = path.join(this.store.dataDir, 'worktrees', id.slice(0, 8));
     const session = this.store.addSession({ projectId: task.projectId, name: `${LABEL[host]} · ${task.title}`.slice(0, 120), cwd: worktreeDir });
     const branchFor = n => `omniforge/${task.id.slice(0, 8)}-${n}`;
     let n = this.runs.filter(run => run.taskId === taskId).length + 1;

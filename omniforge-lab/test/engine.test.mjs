@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { createOmniForgeServer } from '../server.mjs';
 import { WorkspaceStore } from '../core.mjs';
 import { PtyCoordinator } from '../pty.mjs';
-import { AgentEngine } from '../engine.mjs';
+import { AgentEngine, claudeUsage, findCodex } from '../engine.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FAKE = path.join(HERE, 'engine-fake-agent.mjs');
@@ -143,7 +143,8 @@ test('a Claude task runs in its own worktree and branch, reports hook states and
   assert.equal(git(root, 'status', '--porcelain'), '');
   assert.equal(run.host, 'claude');
   assert.equal(run.root, fs.realpathSync.native(root));
-  assert.equal(run.worktree, fs.realpathSync.native(path.join(dataDir, 'worktrees', run.id)));
+  // A short folder name keeps Claude's transcript path under Windows' 260-character limit.
+  assert.equal(run.worktree, fs.realpathSync.native(path.join(dataDir, 'worktrees', run.id.slice(0, 8))));
   assert.equal(run.branch, `omniforge/${task.id.slice(0, 8)}-1`);
   assert.equal(run.baseBranch, 'main');
   assert.equal(run.baseSha, head);
@@ -379,4 +380,58 @@ test('a Lab restart turns an unfinished run into failed/interrompido, never done
   assert.equal(next.branch, `omniforge/${task.id.slice(0, 8)}-2`);
   // Let the PTY report its PID before teardown stops it; an uncommitted launch is (rightly) never a confirmed stop.
   await waitFor(() => fs.existsSync(path.join(next.worktree, 'agent-call.json')), 'second fake Codex started');
+});
+
+test('codex resolves to PATH, then the Codex app build that has its code-mode host, then .sandbox-bin', t => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-engine-'));
+  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+  const exe = process.platform === 'win32' ? 'codex.exe' : 'codex';
+  const put = (...parts) => { const file = path.join(temp, ...parts); fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, ''); return file; };
+  const sandbox = put('home', '.codex', '.sandbox-bin', exe);
+  const env = { USERPROFILE: path.join(temp, 'home'), LOCALAPPDATA: path.join(temp, 'local'), PATH: '' };
+  assert.equal(findCodex(env), sandbox);
+  put('local', 'OpenAI', 'Codex', 'bin', 'partial', exe);
+  assert.equal(findCodex(env), sandbox, 'a build without its code-mode host fails every tool closed');
+  const complete = put('local', 'OpenAI', 'Codex', 'bin', 'complete', exe);
+  put('local', 'OpenAI', 'Codex', 'bin', 'complete', 'codex-code-mode-host.exe');
+  assert.equal(findCodex(env), complete);
+  const onPath = put('path', exe);
+  assert.equal(findCodex({ ...env, PATH: path.dirname(onPath) }), onPath);
+});
+
+test('CLI prompts that fire no hook (folder trust, hook review, model switch, approvals) show the run as blocked', t => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-engine-'));
+  const store = new WorkspaceStore(path.join(temp, 'data'));
+  t.after(() => { store.close(); fs.rmSync(temp, { recursive: true, force: true, maxRetries: 5 }); });
+  const shells = Object.assign(new EventEmitter(), { start() {} });
+  const engine = new AgentEngine({ store, shells, hookUrl: () => 'http://127.0.0.1:9/api/agent-events', homeDir: path.join(temp, 'home'), hosts: { claude: { file: process.execPath, args: [] }, codex: { file: process.execPath, args: [] } } });
+  const project = store.addProject({ name: 'Repo', root: repo(path.join(temp, 'repo')) });
+  const run = host => engine.run(store.addTask({ projectId: project.id, title: host }).id, { host, expectedRevision: 1 });
+  const state = id => { const found = engine.list(project.id).find(item => item.id === id); return [found.state, found.detail]; };
+  const claude = run('claude');
+  // Real Claude output: words placed by cursor moves, split across chunks.
+  shells.emit('terminal', { sessionId: claude.sessionId, text: 'Quick safety check \x1b[1C❯ No, exit \x1b[2;4HYes, I tr' });
+  assert.deepEqual(state(claude.id), ['working', '']);
+  shells.emit('terminal', { sessionId: claude.sessionId, text: 'ust\x1b[1Cthis folder' });
+  assert.deepEqual(state(claude.id), ['blocked', 'trust_prompt']);
+  engine.input(claude.sessionId, '\r');
+  assert.deepEqual(state(claude.id), ['working', '']);
+  shells.emit('terminal', { sessionId: claude.sessionId, text: 'Read 1 file' });
+  assert.deepEqual(state(claude.id), ['working', ''], 'the answered prompt is not detected again');
+  const codex = run('codex');
+  for (const [text, detail] of [['Trust this folder? Codex can read', 'trust_prompt'], ['Hooks need review', 'hooks_review'],
+    ['Approaching rate limits', 'rate_limit_prompt'], ['Would you like to run the following command?', 'approval_prompt'], ['Would you like to make the following edits?', 'approval_prompt']]) {
+    shells.emit('terminal', { sessionId: codex.sessionId, text });
+    assert.deepEqual(state(codex.id), ['blocked', detail], text);
+    engine.input(codex.sessionId, '\r');
+  }
+});
+
+test('a missing Claude transcript names the Windows path limit when the expected path is too long', { skip: process.platform !== 'win32' && 'Windows path limit' }, () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-engine-'));
+  try {
+    fs.mkdirSync(path.join(home, '.claude', 'projects'), { recursive: true });
+    assert.equal(claudeUsage(home, '9eb69a4e-8692-4290-aa64-000470ad5a61', 'C:\\curto').usage.reason, 'Transcrição da sessão Claude não encontrada');
+    assert.match(claudeUsage(home, '9eb69a4e-8692-4290-aa64-000470ad5a61', 'C:\\' + 'pasta\\'.repeat(40)).usage.reason, /260 caracteres/);
+  } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });

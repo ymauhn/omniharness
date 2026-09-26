@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { WorkspaceStore, inventoryAssets, listSkills } from './core.mjs';
 import { PtyCoordinator } from './pty.mjs';
-import { AgentEngine, findExecutable } from './engine.mjs';
+import { AgentEngine, findCodex } from './engine.mjs';
 import { CatalogService } from './catalog-service.mjs';
 import { ClassifierService } from './classifier-service.mjs';
 import { classifyPrompt, classifierError } from './copilot-classification.mjs';
@@ -56,7 +56,6 @@ async function body(request, limit = MAX_BODY) {
 }
 
 // The installed Codex CLI (quota read and agent runs): PATH first, then the Codex app's own copy.
-const findCodex = () => findExecutable('codex', process.env.USERPROFILE && path.join(process.env.USERPROFILE, '.codex', '.sandbox-bin'));
 
 // `engineOptions` is a test seam (fake agent hosts, home folder for usage files); production passes none.
 export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omniforge-lab'), repoRoot = REPO_ROOT, token = randomBytes(24).toString('hex'), catalog = new CatalogService({ repoRoot, dataDir }), classifier = new ClassifierService({ repoRoot }), arsenalService = null, observeArsenalHosts, keyVault = null, readQuota = readCodexRateLimits, codexPath = findCodex(), engineOptions = {}, getRun, runTest } = {}) {
