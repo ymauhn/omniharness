@@ -70,7 +70,9 @@ def evidence(page, name):
     page.screenshot(path=os.path.join(target, f"{sha}-{name}.png"), full_page=True)
 
 
-class LabE2E(unittest.TestCase):
+class LabCase(unittest.TestCase):
+    """One demo server and browser per class, plus page helpers; holds no tests, so other E2E files can subclass it."""
+
     @classmethod
     def setUpClass(cls):
         from playwright.sync_api import sync_playwright
@@ -132,6 +134,8 @@ class LabE2E(unittest.TestCase):
         page.keyboard.type(text)
         page.keyboard.press("Enter")
 
+
+class LabE2E(LabCase):
     def test_launch_token_leaves_the_url_sets_no_cookie_and_opens_a_second_window(self):
         context, page = self.open()
         self.assertNotIn("token", page.url)
