@@ -125,13 +125,26 @@ class ReviewE2E(LabCase):
         self.assertTrue(start.is_enabled())
 
         gauntlets = lambda: [r for r in self.api(page, f"/api/agents?projectId={project['id']}")["runs"] if r.get("kind") == "gauntlet"]
-        start.click()
+        posts = []
+        page.on("request", lambda request: posts.append(request.url) if request.method == "POST" and request.url.endswith("/gauntlet") else None)
+        # A double-click's second click, or a held Enter's repeats, land on the relabelled button: neither confirms.
+        start.dblclick()
         confirm = panel.get_by_role("button", name="Confirmar: rodar Gauntlet (rápido)")
+        self.assertTrue(confirm.is_visible(), "a double-click only asks for confirmation")
+        panel.get_by_role("button", name="Cancelar").click()
+        start.focus()
+        page.keyboard.down("Enter")
         confirm.wait_for()
+        page.keyboard.down("Enter")
+        page.keyboard.down("Enter")
+        page.keyboard.up("Enter")
+        self.assertTrue(confirm.is_visible(), "a held Enter only asks for confirmation")
+        self.assertEqual(posts, [])
         self.assertEqual(gauntlets(), [], "the first click only asks for confirmation")
         # The agent exited on its own, so its session is uncertain: the Lab refuses until the owner checks it.
         confirm.click()
         panel.get_by_text("Gauntlet não iniciado: Há uma sessão incerta nesta pasta do projeto").wait_for()
+        self.assertEqual(len(posts), 1, "the deliberate confirmation posts once")
         self.assertEqual(gauntlets(), [])
         self.api(page, f"/api/sessions/{agent['sessionId']}/acknowledge", {"verification": "Processo do agente encerrado (E2E)"})
         start.click()

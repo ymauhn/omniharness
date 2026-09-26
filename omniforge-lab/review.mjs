@@ -226,8 +226,8 @@ function gauntletReport(run) {
  * `recordGauntlet(run)` adds a finished Gauntlet run to its task's evidence. `getRun(taskId, kind)` returns the engine's
  * latest agent run for the task (or of that kind, 'gauntlet'), or null; `startRun(taskId, options)` is the engine's run. */
 export function createReview({ store, getRun = () => null, startRun, runTest = runTestCommand, token = '', onEvidence = () => {} }) {
-  // ponytail: one merge at a time for the whole Lab; per-root locks if parallel merges ever matter.
-  let merging = false;
+  // The task being merged. ponytail: one merge at a time for the whole Lab; per-root locks if parallel merges ever matter.
+  let merging = null;
   const evidenceFile = taskId => path.join(store.dataDir, 'evidence', `${taskId}.json`);
   const readEvidence = taskId => {
     try { return JSON.parse(fs.readFileSync(evidenceFile(taskId), 'utf8')); }
@@ -316,7 +316,7 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     const attempt = { at: new Date().toISOString(), runId: run?.id ?? null, host: run?.host ?? null, baseSha: run?.baseSha ?? null, branch: run?.branch ?? null,
       headSha: null, mergeSha: null, refused: null, diffStat: null, test: null, usage: run?.usage ?? null, note };
     if (merging) fail('Outro merge em andamento; aguarde', 409);
-    merging = true;
+    merging = task.id;
     try {
       await gatedMerge(task, run, attempt, testCommand, input.expectedRevision);
     } catch (error) {
@@ -325,7 +325,7 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
       record(task, attempt);
       throw error;
     } finally {
-      merging = false;
+      merging = null;
     }
     // The merge has landed: the task follows it at its current revision, whether or not the evidence write fails.
     try { return { task: store.setTaskStatus(task.id, 'done', store.task(task.id).revision), attempt }; }
@@ -341,9 +341,11 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     // validRun also keeps baseSha plain hex, so it can go into the prompt.
     if (!validRun(run)) fail('Registro de execução inválido', 409);
     if (!(await worktreeDiff(run)).files.length) fail('A worktree da tarefa não tem mudanças para revisar', 409);
-    // After the diff, in the same tick as the start: the agent may have resumed, or another run begun, meanwhile.
+    // After the diff, in the same tick as the start: the agent may have resumed, another run begun, or a merge begun, meanwhile.
     const current = getRun(task.id);
     if (current?.id !== run.id || !FINISHED.has(current.state)) fail('O agente da tarefa precisa ter terminado (ocioso, concluído ou falho) antes do Gauntlet', 409);
+    // The merge's test runs in this worktree and its commit takes whatever is there: no hunters beside them.
+    if (merging === task.id) fail('O merge desta tarefa está em andamento; aguarde-o terminar antes do Gauntlet', 409);
     reportFolder(run.worktree);
     // gauntlet/SKILL.md: report only (no fixes), no scope questions, scoped to what changed since the task's base.
     const prompt = `/gauntlet-loop ${input.preset} so-relatorio sem-perguntas desde=${run.baseSha}`;

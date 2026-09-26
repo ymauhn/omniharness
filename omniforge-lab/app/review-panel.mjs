@@ -238,12 +238,17 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
     select.value = preset; select.disabled = confirming || Boolean(starting);
     select.addEventListener('change', () => { preset = select.value; });
     const actions = one(section, 'div', 'review-actions');
-    const start = button(actions, 'secondary', confirming ? `Confirmar: rodar Gauntlet (${PRESET[preset]})` : 'Rodar Gauntlet (revisão adversarial)', 'gauntlet', () => {
+    const start = button(actions, 'secondary', confirming ? `Confirmar: rodar Gauntlet (${PRESET[preset]})` : 'Rodar Gauntlet (revisão adversarial)', 'gauntlet', event => {
       if (starting || running) return;
       if (!confirming) { confirming = true; render(); return; }
+      // A double-click's second click lands on the relabelled button: it is no confirmation.
+      if (event.detail > 1) return;
       void startGauntlet();
     });
-    start.disabled = !diff?.files.length || Boolean(starting) || running;
+    // A held Enter repeats its keydown and the browser clicks on each one: only the first press counts.
+    start.addEventListener('keydown', event => { if (event.repeat) event.preventDefault(); });
+    // The merge's test runs in this worktree, and the server refuses a Gauntlet meanwhile.
+    start.disabled = !diff?.files.length || Boolean(starting) || running || merging === taskId;
     if (confirming) {
       // Same focus key: after cancelling, focus returns to the Gauntlet button.
       button(actions, 'ghost', 'Cancelar', 'gauntlet', () => { confirming = false; render(); });

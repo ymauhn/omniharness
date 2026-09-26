@@ -15,7 +15,7 @@ class Element {
   setAttribute(name, value) { this.attributes[name] = String(value); }
   getAttribute(name) { return this.attributes[name] ?? null; }
   addEventListener(name, callback) { (this.events[name] ||= []).push(callback); }
-  fire(name) { return Promise.all((this.events[name] || []).map(callback => callback({ currentTarget: this, target: this, preventDefault() {} }))); }
+  fire(name, init = {}) { return Promise.all((this.events[name] || []).map(callback => callback({ currentTarget: this, target: this, preventDefault() {}, ...init }))); }
   focus() { doc.activeElement = this; }
   scrollIntoView(options) { doc.scrolledTo = { node: this, options }; }
   contains(node) { for (let item = node; item; item = item.parent) if (item === this) return true; return false; }
@@ -355,4 +355,32 @@ test('the Gauntlet button waits for a diff, suggests only on a signal, and runs 
   await button().fire('click');
   await env.answer('/api/tasks/t/gauntlet', refusal('O agente da tarefa precisa ter terminado'));
   assert.match(env.text(), /Gauntlet não iniciado: O agente da tarefa precisa ter terminado/);
+});
+
+test('the Gauntlet button waits while its task merges, and neither a double-click nor a held Enter confirms it', async () => {
+  const env = environment();
+  const button = () => env.find('gauntlet');
+  const posts = () => env.calls.filter(call => call.route === '/api/tasks/t/gauntlet');
+  const loaded = async () => { await env.answer('/api/tasks/t/diff', diff()); await env.answer('/api/tasks/t/evidence', { taskId: 't', attempts: [] }); };
+  env.panel.open('t');
+  await loaded();
+  void env.form().fire('submit');
+  assert.equal(button().disabled, true, 'the merge test runs in this worktree');
+  await env.answer('/api/tasks/t/merge', refusal('O comando de teste falhou (código 3)'));
+  await loaded();
+  assert.equal(button().disabled, false);
+
+  // The second click of a double-click lands on the relabelled button in the same place: it keeps the confirmation step.
+  await button().fire('click', { detail: 1 });
+  await button().fire('click', { detail: 2 });
+  assert.equal(button().textContent, 'Confirmar: rodar Gauntlet (rápido)');
+  assert.equal(posts().length, 0);
+  // A held Enter repeats its keydown, and the browser clicks on each one it is not told to skip.
+  const key = repeat => { const event = { key: 'Enter', repeat, prevented: false, preventDefault() { event.prevented = true; } }; return event; };
+  const [held, fresh] = [key(true), key(false)];
+  await button().fire('keydown', held);
+  await button().fire('keydown', fresh);
+  assert.deepEqual([held.prevented, fresh.prevented], [true, false]);
+  await button().fire('click', { detail: 1 });
+  assert.deepEqual(posts().map(call => call.body), [{ expectedRevision: 3, preset: 'rapido' }], 'a deliberate click confirms');
 });

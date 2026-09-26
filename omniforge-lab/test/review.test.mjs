@@ -366,6 +366,30 @@ test('evidence keeps the last 20 attempts, a 4 KiB output tail and never the tok
   assert.match(last.test.outputSha256, /^[0-9a-f]{64}$/);
 });
 
+test('no Gauntlet starts while its task merges: the gate test and the hunters would share the worktree', async t => {
+  const f = await fixture(t);
+  f.setRun();
+  write(f.worktree, 'hello.txt', 'hi\n');
+  const started = [];
+  let testing, release;
+  const inTest = new Promise(resolve => { testing = resolve; }), finished = new Promise(resolve => { release = resolve; });
+  // A review of its own with a stub startRun: nothing could start an agent even if the guard failed.
+  const review = createReview({ store: f.app.store, getRun: (id, kind) => (kind ? null : f.runs.get(id) ?? null), startRun: (id, options) => started.push(options),
+    runTest: async ({ command }) => { testing(); await finished; return { command, exitCode: 0, timedOut: false, outputSha256: sha256(''), outputTail: '', durationMs: 1 }; } });
+  const expectedRevision = f.app.store.task(f.task.id).revision;
+  const post = (route, input) => review.handle({ method: 'POST', url: new URL(`http://lab/api/tasks/${f.task.id}/${route}`), input });
+  const gauntlet = () => post('gauntlet', { expectedRevision, preset: 'rapido' });
+  // Asked just before the merge, it is still reading its diff when the merge begins.
+  const early = gauntlet();
+  const merge = post('merge', { expectedRevision, testCommand: 'npm test' });
+  await assert.rejects(early, { status: 409, message: /merge/ });
+  await inTest;
+  await assert.rejects(gauntlet(), { status: 409, message: /merge/ }, 'none starts while the merge test runs');
+  release();
+  assert.match((await merge).body.attempt.mergeSha, /^[0-9a-f]{40}$/);
+  assert.deepEqual(started, []);
+});
+
 test('review routes require the master token', async t => {
   const f = await fixture(t);
   f.setRun();
