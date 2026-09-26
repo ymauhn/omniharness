@@ -151,9 +151,30 @@ function optionalText(value, label) {
   return value.trim();
 }
 
-const validRun = run => /^[0-9a-f]{40,64}$/.test(run.baseSha) &&
+// A task branch equal to the base would commit and merge in the root itself; git keeps a branch in one
+// worktree only, so this also rules out worktree === root.
+const validRun = run => /^[0-9a-f]{40,64}$/.test(run.baseSha) && run.branch !== run.baseBranch &&
   [run.branch, run.baseBranch].every(name => typeof name === 'string' && name && !name.startsWith('-')) &&
   [run.root, run.worktree].every(dir => typeof dir === 'string' && path.isAbsolute(dir));
+
+// Paths the merge would add (rows of `git diff --name-status -z --no-renames`) that something untracked in
+// the root already occupies, or whose parent folder is an untracked file there. Git treats ignored files as
+// expendable, so the merge would overwrite them, or `merge --abort` delete them.
+function untrackedInTheWay(root, nameStatus) {
+  const rows = nameStatus.split('\0'), removed = new Set(), found = [];
+  for (let i = 0; i + 1 < rows.length; i += 2) if (rows[i] === 'D') removed.add(rows[i + 1]);
+  for (let i = 0; i + 1 < rows.length; i += 2) {
+    if (rows[i] !== 'A') continue;
+    const parts = rows[i + 1].split('/');
+    for (let n = 1; n <= parts.length; n++) {
+      const name = parts.slice(0, n).join('/');
+      const stat = fs.lstatSync(path.join(root, name), { throwIfNoEntry: false });
+      // A tracked file the merge removes may stand where a folder goes; git replaces it itself.
+      if (stat && (n === parts.length || !stat.isDirectory()) && !removed.has(name)) { found.push(name); break; }
+    }
+  }
+  return [...new Set(found)];
+}
 
 /** Routes GET /api/tasks/:id/diff, GET /api/tasks/:id/evidence and POST /api/tasks/:id/merge.
  * `getRun(taskId)` returns the engine's latest run record for the task, or null. */
@@ -182,11 +203,17 @@ export function createReview({ store, getRun = () => null, runTest = runTestComm
     if ((await gitOk(run.root, ['status', '--porcelain', '--untracked-files=no'])).trim()) refuse('A raiz tem mudanças não commitadas em arquivos rastreados; faça commit ou stash antes do merge');
   };
 
-  async function gatedMerge(task, run, attempt, testCommand) {
+  const taskCurrent = (taskId, expectedRevision) => {
+    const task = store.task(taskId);
+    if (task.revision !== expectedRevision) refuse('Tarefa alterada em outra janela durante a revisão; confira o estado atual e tente de novo');
+    if (task.dependsOn.some(id => store.task(id).status !== 'done')) refuse('Dependências não concluídas');
+  };
+
+  async function gatedMerge(task, run, attempt, testCommand, expectedRevision) {
     if (!run) refuse('Nenhuma execução registrada para esta tarefa');
     if (!validRun(run)) refuse('Registro de execução inválido');
     if (RUNNING.has(run.state)) refuse(`O agente ainda está em execução (${run.state}); aguarde terminar`);
-    if (task.dependsOn.some(id => store.task(id).status !== 'done')) refuse('Dependências não concluídas');
+    taskCurrent(task.id, expectedRevision);
     await rootReady(run);
     for (const ident of ['GIT_AUTHOR_IDENT', 'GIT_COMMITTER_IDENT']) {
       if ((await git(run.root, [...STRICT_IDENTITY, 'var', ident])).code !== 0) refuse('O git não tem identidade configurada (user.name e user.email); configure-a antes do merge');
@@ -208,7 +235,13 @@ export function createReview({ store, getRun = () => null, runTest = runTestComm
     }
     await rootReady(run); // the owner may have used the root while the test ran
     const before = (await gitOk(run.root, ['rev-parse', 'HEAD'])).trim();
-    const merged = await git(run.root, [...STRICT_IDENTITY, 'merge', '--no-ff', '--no-edit', run.branch]);
+    const changes = await gitOk(run.root, ['diff', '--name-status', '-z', '--no-renames', before, attempt.headSha, '--']);
+    // Nothing awaits from here to the merge's spawn, so the task cannot change in between.
+    const inTheWay = untrackedInTheWay(run.root, changes);
+    if (inTheWay.length) refuse(`A raiz tem arquivos não rastreados ou ignorados onde o merge escreveria: ${inTheWay.slice(0, 20).join(', ')}; mova-os antes do merge`);
+    taskCurrent(task.id, expectedRevision);
+    // The tested commit, not the branch name: the branch may have moved while the test ran.
+    const merged = await git(run.root, [...STRICT_IDENTITY, 'merge', '--no-ff', '--no-edit', '-m', `Merge branch '${run.branch}'`, attempt.headSha]);
     if (merged.code !== 0) {
       // Not gitOk: nothing may skip the abort below.
       const conflicts = (await git(run.root, ['diff', '--name-only', '--diff-filter=U', '-z'])).out.split('\0').filter(Boolean);
@@ -231,7 +264,7 @@ export function createReview({ store, getRun = () => null, runTest = runTestComm
     if (merging) fail('Outro merge em andamento; aguarde', 409);
     merging = true;
     try {
-      await gatedMerge(task, run, attempt, testCommand);
+      await gatedMerge(task, run, attempt, testCommand, input.expectedRevision);
     } catch (error) {
       if (!error.refused) throw error;
       attempt.refused = { reason: error.message };
@@ -240,8 +273,9 @@ export function createReview({ store, getRun = () => null, runTest = runTestComm
     } finally {
       merging = false;
     }
-    record(task, attempt);
-    return { task: store.setTaskStatus(task.id, 'done', input.expectedRevision), attempt };
+    // The merge has landed: the task follows it at its current revision, whether or not the evidence write fails.
+    try { return { task: store.setTaskStatus(task.id, 'done', store.task(task.id).revision), attempt }; }
+    finally { record(task, attempt); }
   }
 
   return async function handle({ method, url, input }) {

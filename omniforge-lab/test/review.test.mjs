@@ -34,9 +34,10 @@ async function fixture(t, { title = 'Adicionar saudação' } = {}) {
   const baseSha = git(root, 'rev-parse', 'HEAD');
   git(root, 'worktree', 'add', '-q', '-b', BRANCH, worktree, baseSha);
   const runs = new Map();
-  const timing = { testTimeoutMs: 60_000 };
+  // duringTest runs while the merge waits on its test command: the window in which others can act.
+  const timing = { testTimeoutMs: 60_000, duringTest: null };
   const app = createOmniForgeServer({ dataDir: path.join(dir, 'data'), token: TOKEN, getRun: id => runs.get(id) ?? null,
-    runTest: options => runTestCommand({ ...options, timeoutMs: timing.testTimeoutMs }) });
+    runTest: async options => { await timing.duringTest?.(); return runTestCommand({ ...options, timeoutMs: timing.testTimeoutMs }); } });
   const base = new URL(await app.listen()).origin;
   t.after(async () => {
     await app.close();
@@ -227,6 +228,89 @@ test('merge refusals leave the root untouched and are recorded as evidence', asy
   const stale = await f.post(`/api/tasks/${f.task.id}/merge`, { expectedRevision: 9 });
   assert.equal(stale.status, 409);
   assert.equal((await f.evidence()).attempts.length, 7, 'a stale window is not a merge attempt');
+});
+
+test('merge integrates the tested commit, not a branch tip that moved during the test', async t => {
+  const f = await fixture(t);
+  f.setRun();
+  write(f.worktree, 'hello.txt', 'hi\n');
+  // A tracked file the task turns into a folder is not an owner file in the way.
+  fs.rmSync(path.join(f.worktree, 'README.md'));
+  fs.mkdirSync(path.join(f.worktree, 'README.md'));
+  write(f.worktree, 'README.md/part.md', 'part\n');
+  f.timing.duringTest = () => {
+    write(f.worktree, 'untested.txt', 'late\n');
+    git(f.worktree, 'add', 'untested.txt');
+    git(f.worktree, 'commit', '-q', '-m', 'late commit');
+  };
+  const response = await f.merge({ testCommand: 'exit 0' });
+  const { attempt, error } = await response.json();
+  assert.equal(response.status, 200, error);
+  assert.equal(git(f.root, 'rev-parse', 'HEAD^2'), attempt.headSha);
+  assert.notEqual(git(f.root, 'rev-parse', BRANCH), attempt.headSha);
+  assert.equal(git(f.root, 'log', '-1', '--format=%s'), `Merge branch '${BRANCH}'`);
+  assert.equal(fs.existsSync(path.join(f.root, 'untested.txt')), false);
+  assert.equal(fs.readFileSync(path.join(f.root, 'README.md', 'part.md'), 'utf8'), 'part\n');
+});
+
+test('a task changed during the test is refused before the merge; once merged, the task is done whatever follows', async t => {
+  const f = await fixture(t);
+  f.setRun();
+  write(f.worktree, 'hello.txt', 'hi\n');
+  const before = git(f.root, 'rev-parse', 'HEAD');
+  f.timing.duringTest = () => f.app.store.assignTask(f.task.id, { expectedRevision: f.app.store.task(f.task.id).revision });
+  const stale = await f.merge({ testCommand: 'exit 0' });
+  assert.equal(stale.status, 409);
+  assert.match((await stale.json()).error, /alterada em outra janela/);
+  assert.equal(git(f.root, 'rev-parse', 'HEAD'), before);
+  const [refusal] = (await f.evidence()).attempts;
+  assert.equal(refusal.test.exitCode, 0);
+  assert.equal(refusal.mergeSha, null);
+
+  // An evidence write that fails after the merge must not strand the task open.
+  f.timing.duringTest = null;
+  fs.writeFileSync(path.join(f.app.store.dataDir, 'evidence', `${f.task.id}.json`), '{');
+  assert.equal((await f.merge({})).status, 500);
+  assert.notEqual(git(f.root, 'rev-parse', 'HEAD'), before);
+  assert.equal(f.app.store.task(f.task.id).status, 'done');
+});
+
+test('merge refuses to overwrite or remove untracked or ignored owner files in the root', async t => {
+  const f = await fixture(t);
+  f.setRun();
+  fs.appendFileSync(path.join(f.root, '.git', 'info', 'exclude'), 'cache\n');
+  write(f.root, 'ignored.txt', 'OWNER_SECRET=keep-me\n');
+  write(f.root, 'cache', 'owner cache\n');
+  write(f.worktree, 'ignored.txt', 'EXAMPLE=1\n');
+  fs.mkdirSync(path.join(f.worktree, 'cache'));
+  write(f.worktree, 'cache/data.txt', 'data\n');
+  git(f.worktree, 'add', '-f', 'ignored.txt', 'cache/data.txt');
+  // A conflict too: its abort must not take the ignored files with it either.
+  write(f.worktree, 'README.md', 'base\nfrom the agent\n');
+  write(f.root, 'README.md', 'base\nfrom the owner\n');
+  git(f.root, 'commit', '-q', '-am', 'owner change');
+  const ownerHead = git(f.root, 'rev-parse', 'HEAD');
+  const response = await f.merge({});
+  const { error } = await response.json();
+  assert.equal(response.status, 409, error);
+  assert.match(error, /: cache, ignored\.txt;/);
+  assert.equal(git(f.root, 'rev-parse', 'HEAD'), ownerHead);
+  assert.equal(mergeHead(f.root), false);
+  assert.equal(fs.readFileSync(path.join(f.root, 'ignored.txt'), 'utf8'), 'OWNER_SECRET=keep-me\n');
+  assert.equal(fs.readFileSync(path.join(f.root, 'cache'), 'utf8'), 'owner cache\n');
+  assert.equal(f.app.store.task(f.task.id).status, 'open');
+});
+
+test('a run on the base branch is refused before anything is committed in the root', async t => {
+  const f = await fixture(t);
+  f.setRun({ worktree: f.root, branch: 'master' });
+  write(f.root, 'owner-draft.txt', 'draft\n');
+  const before = git(f.root, 'rev-parse', 'HEAD');
+  const response = await f.merge({});
+  assert.equal(response.status, 409);
+  assert.match((await response.json()).error, /Registro de execução inválido/);
+  assert.equal(git(f.root, 'rev-parse', 'HEAD'), before);
+  assert.equal(git(f.root, 'status', '--porcelain'), '?? owner-draft.txt');
 });
 
 test('merge refuses without a configured git identity and never invents one', async t => {
