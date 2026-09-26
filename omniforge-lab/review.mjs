@@ -272,7 +272,7 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     await gitOk(run.worktree, ['add', '-A']);
     // The commit takes this index: it must hold the tree of the diff the owner reviewed, not what arrived since.
     if ((await gitOk(run.worktree, ['write-tree'])).trim() !== reviewedTree) refuse('O conteúdo da worktree mudou desde a revisão; abra o diff de novo');
-    if (token &&(await git(run.worktree, ['grep', '--cached', '-q', '-F', '-e', token])).code === 0) refuse('O conteúdo da tarefa contém o token local do Lab; remova-o antes do merge');
+    if (token && (await git(run.worktree, ['grep', '--cached', '-q', '-F', '-e', token])).code === 0) refuse('O conteúdo da tarefa contém o token local do Lab; remova-o antes do merge');
     if ((await git(run.worktree, ['diff', '--cached', '--quiet'])).code !== 0) {
       const commit = await git(run.worktree, [...STRICT_IDENTITY, 'commit', '-q', '-m', `omniforge: ${task.title}`]);
       if (commit.code !== 0) refuse(`O commit na branch da tarefa falhou: ${firstLine(commit.err)}`);
