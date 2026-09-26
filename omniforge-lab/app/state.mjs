@@ -99,7 +99,8 @@ export async function api(path, { method = 'GET', body } = {}) {
   if (!response.ok) {
     if (response.status === 403) invalidateToken();
     const error = Error(response.status === 403 ? 'Token local inválido. Abra o novo endereço do servidor.' : result.error || result.message || `Falha HTTP ${response.status}`);
-    error.status = response.status;
+    // The reply body too: a refusal can carry more than its message (a merge's evidenceError).
+    Object.assign(error, { status: response.status, body: result });
     throw error;
   }
   return result;

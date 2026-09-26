@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import './support/browser-globals.mjs';
 import { classifyPatch, describeAttempt, describeGauntlet, gauntletSignals, createReviewPanel } from '../app/review-panel.mjs';
+import { api } from '../app/state.mjs';
 
 // The review panel's pure parts, then the panel itself against a minimal DOM seam (the same kind of fake as
 // page-rerender.test.mjs): only what the panel touches. Diff and evidence content is untrusted agent output,
@@ -181,6 +182,29 @@ test('merge: one request at a time, the refusal shows and keeps the inputs, succ
   assert.match(env.outcome().textContent, new RegExp(`Merge concluído: ${'d'.repeat(40)}`));
   assert.equal(env.outcome().dataset.kind, 'merged');
   assert.equal(env.find('note').value, '', 'a successful merge drops the note');
+});
+
+test('a failed evidence write reaches the owner with the merge outcome, merged or refused', async () => {
+  // The page's api keeps a refusal's reply body on the error it throws.
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: false, status: 409, json: async () => ({ error: 'Recusado', evidenceError: 'perdida' }) });
+  try { await assert.rejects(api('/api/tasks/t/merge', { method: 'POST', body: {} }), { status: 409, message: 'Recusado', body: { error: 'Recusado', evidenceError: 'perdida' } }); }
+  finally { globalThis.fetch = realFetch; }
+
+  const env = environment();
+  const lost = 'A evidência desta tentativa não foi salva: disco cheio';
+  env.panel.open('t');
+  await env.answer('/api/tasks/t/diff', diff());
+  await env.answer('/api/tasks/t/evidence', { taskId: 't', attempts: [] });
+  void env.form().fire('submit');
+  await env.answer('/api/tasks/t/merge', Object.assign(refusal('O comando de teste falhou (código 3)'), { body: { evidenceError: lost } }));
+  assert.equal(env.outcome().textContent, `Merge recusado: O comando de teste falhou (código 3) (${lost})`);
+  assert.equal(env.toasts.at(-1), env.outcome().textContent);
+  await env.answer('/api/tasks/t/diff', diff());
+  await env.answer('/api/tasks/t/evidence', { taskId: 't', attempts: [] });
+  void env.form().fire('submit');
+  await env.answer('/api/tasks/t/merge', { task: {}, attempt: { mergeSha: 'd'.repeat(40) }, evidenceError: lost });
+  assert.equal(env.outcome().textContent, `Merge concluído: ${'d'.repeat(40)} (${lost})`);
 });
 
 test('merge approves the tree of the diff it shows; a content change refusal shows why and reloads the diff before another try', async () => {

@@ -143,8 +143,10 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
     catch (error) { failure = error; }
     finally { merging = null; }
     if (current(id, owner)) {
-      if (failure) outcome = { kind: 'refused', text: `${failure.status === 409 ? 'Merge recusado' : 'Merge não concluído'}: ${failure.message}` };
-      else { outcome = { kind: 'merged', text: `Merge concluído: ${result.attempt?.mergeSha}` }; draft.note = ''; }
+      // The outcome stands; an evidence bundle that was not saved is said with it.
+      const lost = (failure ? failure.body : result)?.evidenceError, unsaved = lost ? ` (${lost})` : '';
+      if (failure) outcome = { kind: 'refused', text: `${failure.status === 409 ? 'Merge recusado' : 'Merge não concluído'}: ${failure.message}${unsaved}` };
+      else { outcome = { kind: 'merged', text: `Merge concluído: ${result.attempt?.mergeSha}${unsaved}` }; draft.note = ''; }
       toast(outcome.text);
       diff = null; void load();
     }
