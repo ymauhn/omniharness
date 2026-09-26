@@ -40,7 +40,7 @@ Repita o `cp` sempre que editar o driver. Se o arquivo foi criado/alterado
 | `rapido` \| `padrao` \| `profundo` | preset do driver: rodadas máx / rodadas secas para parar / lentes / achados por rodada = **rapido** 2/1/2/8 (esforço medium) · **padrao** 5/2/3/20 · **profundo** 8/3/4/40 (refutador em high). Empate = refutado; em `rapido` (2 lentes) uma única lente basta para derrubar o achado |
 | `+300k` | teto de **tokens de saída deste run** → `args.tetoTokens = 300000`. O driver para de abrir rodada em 80% do teto (`margemTeto`) para sobrar verba para refutar o que já achou; o que sobrar sem refutação volta em `naoVerificados`, nunca some calado |
 | `areas=a,b` | só as áreas com essas `key` (da config do projeto ou das derivadas na Fase 0) |
-| `desde=<ref>` | escopo = `git diff --stat <ref>`; o contexto ganha a lista do que mudou |
+| `desde=<ref>` | escopo = `git diff --stat <ref>` mais os arquivos novos não rastreados (`git ls-files --others --exclude-standard`); o contexto ganha a lista do que mudou |
 | `so-relatorio` | para depois da Fase 3 (não corrige nada) |
 | `sem-perguntas` | pula a Fase 1: todas as áreas, preset padrao, corrige alta+média |
 | qualquer outro texto | vira "FOCO:" no contexto dos caçadores |
@@ -207,6 +207,14 @@ Resumo: rodadas, parouPor, brutos → fundidos → confirmados, tokens do run / 
 Dentro de cada nível, os que violam regra do dono vêm primeiro (o driver já
 ordena assim). Achado com `gravidadeOriginal` mostra "alta→média (refutador)".
 
+Salve o mesmo relatório, em Markdown e com esses cabeçalhos de nível, em
+`.gauntlet/relatorio-<AAAAMMDD-HHMMSS>.md` na raiz auditada, sem sobrescrever
+um anterior. A pasta se ignora sozinha: crie-a com um `.gitignore` contendo
+`*` se faltar, para o relatório nunca entrar no diff. O OmniForge Lab lê o
+`.md` mais novo dessa pasta como evidência da tarefa.
+
+Com `so-relatorio`, pare aqui, sem a pergunta abaixo.
+
 Então **um** `AskUserQuestion`:
 
 - "Quais corrigir?" — todos / só alta / alta+média / nenhum (respeite a
@@ -215,8 +223,6 @@ Então **um** `AskUserQuestion`:
   caçador listou em `correcao` + "deixar como está". Máximo 4 perguntas por
   chamada; se houver mais decisões, agrupe por tema e faça uma segunda
   chamada — mas nunca uma pergunta por vez.
-
-Com `so-relatorio`, pare aqui.
 
 ## Fase 4 — Correções
 
