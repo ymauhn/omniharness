@@ -42,7 +42,8 @@ export function findExecutable(name, fallbackDir, env = process.env) {
 }
 
 /** Codex: PATH, then the Codex app's newest complete build (%LOCALAPPDATA%/OpenAI/Codex/bin/<build>/), then its
- * .sandbox-bin copy, which has no code-mode host: an agent there cannot use any tool (fails closed), quota reads work. */
+ * .sandbox-bin copy, which has no code-mode host: an agent there cannot use any tool (fails closed), so runs refuse it;
+ * quota reads work. */
 export function findCodex(env = process.env) {
   const bin = env.LOCALAPPDATA && path.join(env.LOCALAPPDATA, 'OpenAI', 'Codex', 'bin');
   let builds = [];
@@ -191,6 +192,10 @@ export class AgentEngine extends EventEmitter {
     if (this.hosts) return this.hosts[host];
     const file = host === 'claude' ? findExecutable('claude', path.join(this.homeDir, '.local', 'bin'), this.env) : this.codexPath;
     if (!file || process.platform === 'win32' && !/\.exe$/i.test(file)) fail(`Executável nativo do ${LABEL[host]} não encontrado; o Lab não aceita atalhos .cmd/.bat nem shells`);
+    // findCodex's last fallback: fine for the quota read, but an agent there fails every tool closed (V-08).
+    if (path.basename(path.dirname(file)).toLowerCase() === '.sandbox-bin') {
+      fail('O Codex encontrado é a cópia .sandbox-bin, onde toda ferramenta do agente falha; instale o Codex CLI ou o app do Codex');
+    }
     return { file, args: [] };
   }
 

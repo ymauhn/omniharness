@@ -332,7 +332,13 @@ test('a run is refused before anything is created when the repository, task or e
   const restricted = await lab(t, { codexPath: null, engineOptions: { hosts: null, env: { PATH: shims } } });
   await refusal(restricted.root, { host: 'claude' }, 409, /Claude.*\.cmd/, restricted);
   await refusal(restricted.root, { host: 'codex' }, 409, /Codex.*\.cmd/, restricted);
-  for (const ctx of [lab_, restricted]) {
+  // The .sandbox-bin copy serves the quota read, but an agent there fails every tool closed.
+  const sandboxBin = path.join(temp, 'home', '.codex', '.sandbox-bin');
+  fs.mkdirSync(sandboxBin, { recursive: true });
+  fs.writeFileSync(path.join(sandboxBin, process.platform === 'win32' ? 'codex.exe' : 'codex'), '');
+  const sandboxed = await lab(t, { codexPath: path.join(sandboxBin, process.platform === 'win32' ? 'codex.exe' : 'codex'), engineOptions: { hosts: null } });
+  await refusal(sandboxed.root, { host: 'codex' }, 409, /\.sandbox-bin.*instale o Codex CLI ou o app do Codex/, sandboxed);
+  for (const ctx of [lab_, restricted, sandboxed]) {
     assert.equal(fs.existsSync(path.join(ctx.dataDir, 'worktrees')), false);
     assert.equal(git(ctx.root, 'branch', '--list', 'omniforge/*'), '');
     assert.equal(git(ctx.root, 'status', '--porcelain'), '');
