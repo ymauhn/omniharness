@@ -146,6 +146,11 @@ def locked(path):
             break
         except FileExistsError:
             time.sleep(0.05)
+        except PermissionError:
+            # Windows answers for a lock another writer is deleting with access denied, not "exists".
+            if os.name != "nt":
+                raise
+            time.sleep(0.05)
     else:
         # ponytail: a crash inside the few-millisecond write leaves a stale lock for the owner to remove by hand.
         raise Conflict(f"progress is locked by another writer: {lock} (if none is running, the lock is stale)")

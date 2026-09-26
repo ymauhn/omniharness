@@ -114,6 +114,26 @@ class Progress(unittest.TestCase):
         with open(self.file, encoding="utf-8") as f:
             return json.load(f)
 
+    def test_a_lock_being_deleted_on_windows_is_busy_not_an_error(self):
+        # Windows answers an exclusive create of a file another writer is deleting with access denied, not "exists".
+        real_open, denied = os.open, []
+
+        def open_(path, *args, **kwargs):
+            if str(path).endswith(".lock") and not denied:
+                denied.append(path)
+                raise PermissionError(13, "Access is denied", path)
+            return real_open(path, *args, **kwargs)
+
+        with mock.patch.object(challenges.os, "open", side_effect=open_):
+            if os.name == "nt":
+                with challenges.locked(self.file):
+                    pass
+                self.assertEqual(len(denied), 1, "the writer retried after the transient denial")
+            else:
+                with self.assertRaises(PermissionError):
+                    with challenges.locked(self.file):
+                        pass
+
     def test_default_location_is_localappdata(self):
         with mock.patch.dict(os.environ, {"LOCALAPPDATA": self.data}):
             del os.environ["OMNIFORGE_DATA_DIR"]

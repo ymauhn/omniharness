@@ -300,7 +300,10 @@ class Registry:
         lock = self.path.with_name(self.path.name + '.lock')
         try:
             handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-        except FileExistsError as exc:
+        except (FileExistsError, PermissionError) as exc:
+            # Windows reports a lock another writer is deleting as access denied: busy there, a real error elsewhere.
+            if isinstance(exc, PermissionError) and os.name != 'nt':
+                raise
             raise LockedError('Registry writer is busy; inspect a persistent lock before recovery') from exc
         try:
             os.close(handle)

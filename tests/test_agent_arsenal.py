@@ -3,6 +3,7 @@ import copy
 import hashlib
 import io
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -21,6 +22,19 @@ class ArsenalTests(unittest.TestCase):
 
     def tearDown(self):
         self.temp.cleanup()
+
+    def test_a_writer_lock_being_deleted_on_windows_reads_as_busy(self):
+        # Windows reports an exclusive create of a delete-pending lock as access denied; that is a busy writer there.
+        real_open = arsenal.os.open
+
+        def denied(path, *args, **kwargs):
+            if str(path).endswith('.lock'):
+                raise PermissionError(13, 'Access is denied', str(path))
+            return real_open(path, *args, **kwargs)
+
+        with patch.object(arsenal.os, 'open', side_effect=denied):
+            with self.assertRaises(arsenal.LockedError if os.name == 'nt' else PermissionError):
+                self.draft()
 
     def draft(self, profile=None):
         return self.registry.draft(profile or self.profile, expected_revision=self.registry.snapshot()['revision'], actor='fixture-owner')
