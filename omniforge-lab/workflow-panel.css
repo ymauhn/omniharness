@@ -9,7 +9,7 @@
 .wf-library-item { display:grid; gap:7px; width:100%; text-align:left; padding:14px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); color:var(--text); }
 .wf-library-item:hover,.wf-library-item[aria-pressed="true"] { border-color:var(--accent); background:var(--surface2); }
 .wf-library-item strong { font-size:12px; }
-.wf-meta { font:10px/1.5 Consolas,monospace; color:var(--muted); overflow-wrap:anywhere; }
+.wf-meta { font:11px/1.5 Consolas,monospace; color:var(--muted); overflow-wrap:anywhere; }
 .wf-detail { padding:20px; }
 .wf-detail-heading { margin-bottom:9px; }
 .wf-detail-body { display:grid; gap:16px; min-width:0; }

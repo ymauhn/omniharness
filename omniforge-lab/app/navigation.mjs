@@ -4,13 +4,13 @@
 import { $, asArray } from './dom.mjs';
 import { local, projectById } from './state.mjs';
 
-const VIEWS = ['workspace', 'tasks', 'workflows', 'fleet', 'graphs', 'skills', 'assets', 'usage'];
+const VIEWS = ['workspace', 'tasks', 'workflows', 'fleet', 'arsenal', 'graphs', 'skills', 'assets', 'usage'];
 
-export function createNavigation({ workspace, tasks, graphs, assets, catalog, copilot, workflows, fleet, extensionsPanel, usagePanel, memoryPanel, reviewPanel }) {
+export function createNavigation({ workspace, tasks, graphs, assets, catalog, copilot, workflows, fleet, arsenal, extensionsPanel, usagePanel, memoryPanel, reviewPanel }) {
   function renderSkills() { catalog.sync(); if (local.view === 'skills') catalog.load(); }
 
   function renderAll() {
-    copilot.sync(); workflows.sync(); fleet.sync(); reviewPanel.sync();
+    copilot.sync(); workflows.sync(); fleet.sync(); arsenal.sync(); reviewPanel.sync();
     if (local.view === 'assets') extensionsPanel.sync();
     workspace.renderSidebar(); workspace.renderWorkspace(); tasks.renderTasks(); graphs.renderMemory(); renderSkills(); assets.renderAssets(); graphs.renderGraph();
     const project = projectById(local.projectId);
@@ -33,6 +33,7 @@ export function createNavigation({ workspace, tasks, graphs, assets, catalog, co
     if (view === 'skills') catalog.load();
     if (view === 'workflows') workflows.load();
     if (view === 'fleet') void fleet.load();
+    if (view === 'arsenal') arsenal.load();
     if (view === 'workspace') workspace.fitTerminals(); else copilot.deactivate();
   }
 

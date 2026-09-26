@@ -17,7 +17,7 @@ Measured on this host, 2026-09-26 (Windows 11 Pro, Node v24.19.0, Python 3.12.14
 | Mascot (two skins, three themes, pose/expression controls) | `docs/omniforge/mascot/model.test.cjs` — **not** part of this repo's two CI commands; run it yourself with `node --test docs/omniforge/mascot/model.test.cjs`, or via `scripts/check.ps1` |
 | Terminal panes (1–8, layout, replay, cross-project scope) | `omniforge-lab/test/terminal-grid.test.mjs`, `terminal-grid-controller.test.mjs`, `pane-scope.test.mjs`, `pty.test.mjs`, `terminal-output.test.mjs`, `terminal-output-api.test.mjs` |
 | Generated mini-tool (review → enable → sandboxed run → rollback) | `omniforge-lab/test/extension-runner.test.mjs`, `extensions.test.mjs`, `extensions-usage-panel.test.mjs` |
-| Agent arsenal (profiles, draft/review/activate/rollback, session-note derivation) | `omniforge-lab/test/arsenal-service.test.mjs`, `arsenal-http.test.mjs`, `arsenal-panel.test.mjs` |
+| Agent arsenal, in the page next to Agentes (profiles, draft/review/activate/rollback, session-note derivation) | `omniforge-lab/test/arsenal-service.test.mjs`, `arsenal-http.test.mjs`, `arsenal-panel.test.mjs`; end to end: `tests/test_omniforge_e2e.py::LabE2E::test_agent_template_needs_rule_review_before_activation_and_its_pin_never_executes` |
 | Provider key vault (Windows Credential Manager, masked metadata) | `omniforge-lab/test/key-vault.test.mjs` |
 | Usage figures (four categories, explicit unknown, Codex quota read) | `omniforge-lab/test/usage.test.mjs` |
 | Loopback + token auth, DNS-rebinding refusal, route surface | `omniforge-lab/test/server.test.mjs`, `v1-routes.test.mjs` |

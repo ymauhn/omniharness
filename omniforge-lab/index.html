@@ -25,7 +25,7 @@
     .brand { display:flex; align-items:center; gap:12px; min-width:0; }
     .mark { display:grid; place-items:center; width:38px; height:38px; border-radius:11px; background:var(--accent); color:var(--accentText); font-weight:800; letter-spacing:-.1em; }
     .brand-name { font-size:18px; font-weight:750; letter-spacing:-.035em; line-height:1.1; }
-    .brand-sub { display:block; margin-top:3px; color:var(--muted); font-size:10px; font-weight:600; letter-spacing:.15em; text-transform:uppercase; }
+    .brand-sub { display:block; margin-top:3px; color:var(--muted); font-size:11px; font-weight:600; letter-spacing:.15em; text-transform:uppercase; }
     .top-context { min-width:0; color:var(--muted); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .top-context strong { color:var(--text); font-weight:600; }
     .top-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
@@ -34,11 +34,11 @@
     .status::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--warn); }
     .status[data-state="connected"]::before { background:var(--ok); }
     .status[data-state="error"]::before { background:var(--danger); }
-    .prototype { border:1px solid var(--accent); border-radius:999px; color:var(--accent); padding:5px 9px; font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; white-space:nowrap; }
+    .prototype { border:1px solid var(--accent); border-radius:999px; color:var(--accent); padding:5px 9px; font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; white-space:nowrap; }
     .shell { display:grid; grid-template-columns:242px minmax(0,1fr); min-height:calc(100vh - 68px); }
     .rail { display:flex; flex-direction:column; gap:16px; min-width:0; padding:18px 13px; border-right:1px solid var(--line); background:var(--surface); }
     .rail-section { min-width:0; }
-    .rail-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 4px 8px; color:var(--muted); font-size:10px; font-weight:750; letter-spacing:.14em; text-transform:uppercase; }
+    .rail-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 4px 8px; color:var(--muted); font-size:11px; font-weight:750; letter-spacing:.14em; text-transform:uppercase; }
     .rail-heading button { border:1px solid var(--line); border-radius:6px; background:transparent; color:var(--muted); padding:2px 7px; font-size:15px; line-height:1; }
     .rail-list { display:grid; gap:3px; max-height:200px; overflow:auto; }
     .rail-item { width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 10px; border:1px solid transparent; border-radius:var(--radius); background:transparent; text-align:left; overflow:hidden; }
@@ -65,7 +65,7 @@
     .view[hidden] { display:none; }
     .view { max-width:1720px; margin:auto; }
     .heading { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:end; gap:16px; margin:0 0 18px; }
-    .eyebrow { color:var(--accent); font-family:Consolas,monospace; font-size:10px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; }
+    .eyebrow { color:var(--accent); font-family:Consolas,monospace; font-size:11px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; }
     h1 { margin:4px 0 4px; font-size:clamp(21px,2.5vw,30px); line-height:1.12; letter-spacing:-.04em; }
     h2 { margin:0; font-size:15px; letter-spacing:-.015em; }
     h3 { margin:0; font-size:13px; }
@@ -90,7 +90,7 @@
     .terminal-pane { display:grid; grid-template-rows:auto minmax(350px,1fr) auto; min-width:0; min-height:500px; }
     .pane-title { display:flex; justify-content:space-between; align-items:center; gap:7px; }
     .pane-title h2 { font-size:13px; }
-    .pane-title .session-tag { color:var(--accent); font:10px Consolas,monospace; }
+    .pane-title .session-tag { color:var(--accent); font:11px Consolas,monospace; }
     .pane-head-meta { display:grid; gap:6px; min-width:0; }
     .pane-select { max-width:220px; font-size:11px; padding:5px 7px; }
     .terminal-output { margin:0; padding:14px; min-width:0; max-height:calc(100vh - 320px); min-height:350px; overflow:auto; background:#080c12; color:#dce8ea; font:11px/1.55 Consolas, 'Cascadia Code', monospace; white-space:pre-wrap; overflow-wrap:anywhere; tab-size:4; }
@@ -99,45 +99,45 @@
     body[data-theme="atelier"] .terminal-output { background:#1b282c; }
     body[data-theme="atelier"] .terminal-xterm { background:#1b282c; }
     body[data-theme="bridge"] .terminal-xterm { background:#0b1518; }
-    .terminal-controls { display:grid; gap:8px; padding:10px; border-top:1px solid var(--line); }
+    .terminal-controls { display:grid; grid-template-columns:minmax(0,1fr); gap:8px; padding:10px; border-top:1px solid var(--line); }
     .command-line { display:flex; gap:6px; }
     .command-line input { min-width:0; font-family:Consolas,monospace; font-size:11px; }
     .terminal-actions { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-    .terminal-actions small { color:var(--muted); font-size:10px; }
+    .terminal-actions small { color:var(--muted); font-size:11px; }
     .recovery-form { display:grid; gap:7px; padding:10px; border:1px solid var(--warn); border-radius:6px; background:var(--surface2); }
     .recovery-form label { color:var(--warn); font-size:11px; font-weight:700; }
-    .recovery-form p { margin:0; color:var(--muted); font-size:10px; line-height:1.4; }
+    .recovery-form p { margin:0; color:var(--muted); font-size:11px; line-height:1.4; }
     .recovery-form textarea { min-height:65px; font-size:11px; }
     .coord { display:flex; flex-direction:column; min-height:500px; max-height:calc(100vh - 166px); }
     .coord-log { flex:1; min-height:200px; overflow:auto; padding:6px 14px; }
     .log-entry { padding:10px 0; border-bottom:1px solid var(--line); font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
     .log-entry:last-child { border-bottom:0; }
-    .log-entry .who { display:flex; justify-content:space-between; gap:6px; margin-bottom:3px; font-size:10px; font-weight:700; color:var(--accent); }
+    .log-entry .who { display:flex; justify-content:space-between; gap:6px; margin-bottom:3px; font-size:11px; font-weight:700; color:var(--accent); }
     .log-entry time { color:var(--muted); font-weight:400; }
-    .log-entry .detail { display:block; color:var(--muted); font-size:10px; margin-top:4px; }
+    .log-entry .detail { display:block; color:var(--muted); font-size:11px; margin-top:4px; }
     .coord-form { display:grid; gap:8px; padding:13px; border-top:1px solid var(--line); }
-    .coord-form label { color:var(--muted); font-size:10px; font-weight:700; }
+    .coord-form label { color:var(--muted); font-size:11px; font-weight:700; }
     .coord-form textarea { min-height:69px; font-size:12px; }
     .coord-form .row { display:flex; gap:7px; }
     .coord-form .row select { flex:1; min-width:0; font-size:11px; }
-    .microcopy { margin:0; color:var(--muted); font-size:10px; line-height:1.4; }
+    .microcopy { margin:0; color:var(--muted); font-size:11px; line-height:1.4; }
     .two-col { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(260px,.7fr); gap:12px; align-items:start; }
     .stack { display:grid; gap:12px; }
     .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
     .form-grid .wide { grid-column:1/-1; }
     .field { display:grid; gap:5px; }
     .field label { display:block; }
-    .field small { color:var(--muted); font-size:10px; }
+    .field small { color:var(--muted); font-size:11px; }
     .list { display:grid; }
     .list-item { display:grid; gap:5px; padding:12px 15px; border-top:1px solid var(--line); }
     .list-item:first-child { border-top:0; }
     .list-item .topline { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; }
     .list-item .title { font-size:12px; font-weight:700; }
-    .list-item .meta { color:var(--muted); font:10px Consolas,monospace; overflow-wrap:anywhere; }
+    .list-item .meta { color:var(--muted); font:11px Consolas,monospace; overflow-wrap:anywhere; }
     .list-item p { margin:0; font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
     .list-item select { width:auto; min-width:105px; padding:5px 7px; font-size:11px; }
     .empty { padding:20px; color:var(--muted); font-size:12px; line-height:1.5; }
-    .scope-badge { border:1px solid var(--line); border-radius:999px; padding:3px 7px; color:var(--muted); font-size:10px; white-space:nowrap; }
+    .scope-badge { border:1px solid var(--line); border-radius:999px; padding:3px 7px; color:var(--muted); font-size:11px; white-space:nowrap; }
     .scope-badge[data-scope="project"] { border-color:var(--accent); color:var(--accent); }
     #workspace-scope { max-width:100%; white-space:normal; overflow-wrap:anywhere; }
     .tabs { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:12px; }
@@ -148,7 +148,7 @@
     .graph-field::before { content:""; position:absolute; inset:0; background-image:radial-gradient(var(--line) 1px, transparent 1px); background-size:22px 22px; opacity:.45; pointer-events:none; }
     .graph-canvas { position:relative; height:420px; }
     .graph-canvas svg { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
-    .graph-node { position:absolute; z-index:1; transform:translate(-50%,-50%); max-width:145px; min-width:76px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface2); color:var(--text); padding:8px; font:10px Consolas,monospace; overflow-wrap:anywhere; box-shadow:var(--shadow); }
+    .graph-node { position:absolute; z-index:1; transform:translate(-50%,-50%); max-width:145px; min-width:76px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface2); color:var(--text); padding:8px; font:11px Consolas,monospace; overflow-wrap:anywhere; box-shadow:var(--shadow); }
     .graph-node:hover, .graph-node:focus-visible { border-color:var(--accent); }
     .graph-node[data-selected="true"] { border-color:var(--accent); color:var(--accent); }
     .graph-node[data-kind="root"] { border-color:var(--accent); }
@@ -158,7 +158,7 @@
     .graph-help small { display:block; margin-top:7px; color:var(--muted); line-height:1.4; }
     .graph-detail { padding:15px; display:grid; align-content:start; gap:11px; }
     .graph-detail dl { margin:0; display:grid; gap:9px; }
-    .graph-detail dt { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
+    .graph-detail dt { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; }
     .graph-detail dd { margin:2px 0 0; font-size:12px; overflow-wrap:anywhere; }
     .graph-detail p { margin:0; color:var(--muted); font-size:11px; line-height:1.5; }
     .toolbar { display:flex; flex-wrap:wrap; gap:9px; align-items:center; margin-bottom:12px; }
@@ -167,11 +167,11 @@
     .skill-card { display:grid; gap:8px; padding:14px; }
     .skill-card h3 { color:var(--accent); overflow-wrap:anywhere; }
     .skill-card p { margin:0; color:var(--muted); font-size:11px; line-height:1.5; }
-    .skill-card code { color:var(--muted); font:10px Consolas,monospace; overflow-wrap:anywhere; }
+    .skill-card code { color:var(--muted); font:11px Consolas,monospace; overflow-wrap:anywhere; }
     .table-wrap { overflow:auto; }
     table { width:100%; border-collapse:collapse; font-size:11px; }
     th, td { padding:10px 12px; border-top:1px solid var(--line); text-align:left; overflow-wrap:anywhere; }
-    th { border-top:0; color:var(--muted); font-size:10px; letter-spacing:.06em; text-transform:uppercase; }
+    th { border-top:0; color:var(--muted); font-size:11px; letter-spacing:.06em; text-transform:uppercase; }
     td:first-child { font-family:Consolas,monospace; }
     .count-row { display:flex; flex-wrap:wrap; gap:7px; padding:0 15px 15px; }
     .count-row .scope-badge { font-family:Consolas,monospace; }
@@ -269,6 +269,7 @@
   <link rel="stylesheet" href="/copilot.css">
   <link rel="stylesheet" href="/memory-panel.css">
   <link rel="stylesheet" href="/workflow-panel.css">
+  <link rel="stylesheet" href="/arsenal-panel.css">
   <link rel="stylesheet" href="/terminal-grid.css">
 </head>
 <body data-theme="operations">
@@ -308,6 +309,7 @@
           <button type="button" data-view="tasks"><span class="icon">◇</span>Tarefas</button>
           <button type="button" data-view="workflows"><span class="icon">↗</span>Workflows</button>
           <button type="button" data-view="fleet"><span class="icon">✧</span>Agentes</button>
+          <button type="button" data-view="arsenal"><span class="icon">❖</span>Arsenal</button>
           <button type="button" data-view="graphs"><span class="icon">⌘</span>Memória e grafos</button>
           <button type="button" data-view="skills"><span class="icon">✦</span>Skills</button>
           <button type="button" data-view="assets"><span class="icon">▤</span>Assets</button>
@@ -352,6 +354,10 @@
           <div class="heading"><div><span class="eyebrow">Frota do projeto</span><h1 id="fleet-title">Agentes</h1><p class="lede">Execuções de Claude e Codex deste projeto, cada uma na própria worktree. O estado vem dos hooks dos próprios CLIs; esta tela não chama modelos.</p></div><div class="fleet-notify"><button id="fleet-notify" type="button" class="secondary">Ativar notificações</button><small id="fleet-notify-help"></small></div></div>
           <section class="card" aria-labelledby="fleet-runs-title"><div class="card-head"><h2 id="fleet-runs-title">Execuções</h2><small id="fleet-count">0 execuções</small></div><div id="fleet-runs" class="fleet-grid"></div></section>
           <section class="card fleet-board-card" aria-labelledby="fleet-board-title"><div class="card-head"><h2 id="fleet-board-title">Quadro de tarefas</h2><small>Colunas pelo estado da tarefa</small></div><div id="fleet-board" class="kanban"></div></section>
+        </section>
+        <section id="view-arsenal" class="view" aria-labelledby="arsenal-title" hidden>
+          <div class="heading"><div><span class="eyebrow">Perfis por projeto</span><h1 id="arsenal-title">Arsenal de agentes</h1><p class="lede">Importe modelos, derive de decisões escolhidas, revise regras e vincule uma versão a uma tarefa. O vínculo não inicia modelos.</p></div></div>
+          <div id="arsenal-panel"></div>
         </section>
         <section id="view-graphs" class="view" aria-labelledby="graphs-title" hidden>
           <div class="heading"><div><span class="eyebrow">03 / Relações com origem</span><h1 id="graphs-title">Memória e grafos</h1><p class="lede">Conhecimento, capacidades e tarefas são vistas distintas conectadas ao mesmo escopo.</p></div></div>
