@@ -23,6 +23,14 @@ $report = [ordered]@{ startedAt = (Get-Date).ToString('o'); computer = $env:COMP
 
 function Hide-Token([string]$Text) { return ($Text -replace 'token=[0-9a-f]+', 'token=<redacted>') }
 
+# Not Get-FileHash: it is a script function Windows PowerShell autoloads from PSModulePath, and a PowerShell 7
+# ancestor (a CI step shell, npm or node started from pwsh) leaves its own, unloadable Utility module first there.
+function Get-Sha256([string]$Path) {
+    $sha = [Security.Cryptography.SHA256]::Create()
+    $stream = [IO.File]::OpenRead($Path)
+    try { return ([BitConverter]::ToString($sha.ComputeHash($stream)) -replace '-', '').ToLower() } finally { $stream.Dispose(); $sha.Dispose() }
+}
+
 function New-CmdProcess([string]$CommandLine, [switch]$Stdin) {
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = Join-Path $env:SystemRoot 'System32\cmd.exe'
@@ -71,7 +79,7 @@ try {
     if (-not $zip) { throw "no omniforge-*-win-x64.zip in $Release" }
     $report.release = $zip.Name
     $expected = ((Get-Content -LiteralPath ($zip.FullName + '.sha256') -Raw).Trim() -split '\s+')[0].ToLower()
-    $report.zipSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip.FullName).Hash.ToLower()
+    $report.zipSha256 = Get-Sha256 $zip.FullName
     if ($report.zipSha256 -ne $expected) { throw "sha256 mismatch for $($zip.Name)" }
 
     # Node: the installed one, or the portable zip verified against the official SHASUMS256.txt.
@@ -79,7 +87,7 @@ try {
         $nodeZip = Get-ChildItem -LiteralPath $Release -Filter 'node-v*-win-x64.zip' | Select-Object -First 1
         if (-not $nodeZip) { throw 'Node.js is missing and the release folder has no node-v*-win-x64.zip (run prepare-release.ps1)' }
         $line = Select-String -LiteralPath (Join-Path $Release 'SHASUMS256.txt') -Pattern ('^([0-9a-f]{64})\s+' + [regex]::Escape($nodeZip.Name) + '$')
-        if (-not $line -or (Get-FileHash -Algorithm SHA256 -LiteralPath $nodeZip.FullName).Hash.ToLower() -ne $line.Matches[0].Groups[1].Value) {
+        if (-not $line -or (Get-Sha256 $nodeZip.FullName) -ne $line.Matches[0].Groups[1].Value) {
             throw "$($nodeZip.Name) does not match SHASUMS256.txt"
         }
         $nodeRoot = Join-Path $env:TEMP 'omniforge-portable-node'

@@ -472,6 +472,16 @@ function acceptance(t, args, { location, cwd } = {}) {
   const dir = tmp(t, 'acceptance');
   const env = { ...process.env, TEMP: path.join(dir, 'temp'), TMP: path.join(dir, 'temp'), LOCALAPPDATA: path.join(dir, 'local') };
   env.Path = `${path.dirname(process.execPath)};${process.env.Path ?? process.env.PATH ?? ''}`;
+  // As on CI, where the step shell is PowerShell 7: it puts its own Microsoft.PowerShell.Utility first on
+  // PSModulePath, Windows PowerShell inherits that through npm and node and cannot load it. Stand-in for that
+  // Core-only manifest, exporting the Utility cmdlets the script calls as the real one does.
+  const ps7 = path.join(dir, 'ps7-modules', 'Microsoft.PowerShell.Utility');
+  fs.mkdirSync(ps7, { recursive: true });
+  const cmdlets = ['Get-Date', 'New-Object', 'Sort-Object', 'Select-Object', 'Get-FileHash', 'Select-String', 'Write-Host',
+    'Invoke-WebRequest', 'ConvertFrom-Json', 'ConvertTo-Json'].map(name => `'${name}'`).join(', ');
+  fs.writeFileSync(path.join(ps7, 'Microsoft.PowerShell.Utility.psd1'), `@{ ModuleVersion = '7.0.0.0'; CompatiblePSEditions = @('Core'); ` +
+    `CmdletsToExport = @(${cmdlets}); NestedModules = @('Microsoft.PowerShell.Commands.Utility.dll') }\n`);
+  env.PSModulePath = `${path.dirname(ps7)};${process.env.PSModulePath ?? ''}`;
   fs.mkdirSync(env.TEMP);
   fs.mkdirSync(env.LOCALAPPDATA);
   const output = path.join(dir, 'out');
@@ -483,8 +493,13 @@ function acceptance(t, args, { location, cwd } = {}) {
     : ['-File', script, ...argv];
   const result = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', ...shell],
     { encoding: 'utf8', env, cwd: cwd?.(dir), timeout: 180_000 });
-  const report = JSON.parse(fs.readFileSync(path.join(output, 'report.json'), 'utf8').replace(/^﻿/, ''));
-  return { dir, env, result, report };
+  // Where the run stopped, for an assertion message: no env, the start token redacted as the script does.
+  const trail = report => JSON.stringify({ exit: result.status, spawn: result.error?.message, error: report?.error, steps: report?.steps,
+    stdout: String(result.stdout ?? '').slice(-3000) }, null, 1).replace(/token=[0-9a-f]+/g, 'token=<redacted>');
+  let report;
+  try { report = JSON.parse(fs.readFileSync(path.join(output, 'report.json'), 'utf8').replace(/^﻿/, '')); }
+  catch (error) { assert.fail(`no readable report.json (${error.code ?? error.message}): ${trail()}`); }
+  return { dir, env, result, report, trail: () => trail(report) };
 }
 
 test('the acceptance script defaults to a fresh TEMP prefix, never %LOCALAPPDATA%', t => {
@@ -523,7 +538,7 @@ test('the acceptance script resolves a relative -Prefix once, where PowerShell s
 });
 
 test('the acceptance script kills the whole start tree on timeout and reports the portable Node folder', t => {
-  const { env, report } = acceptance(t, dir => {
+  const { env, report, trail } = acceptance(t, dir => {
     // A Lab that never prints its URL; it leaves its pid so the test can see whether it outlived the run.
     const server = "import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';\n" +
       "export function createOmniForgeServer() { fs.writeFileSync(path.join(os.tmpdir(), 'hung-lab.pid'), String(process.pid)); setInterval(() => {}, 1000); return { listen: () => new Promise(() => {}), close: async () => {} }; }\n";
@@ -536,9 +551,11 @@ test('the acceptance script kills the whole start tree on timeout and reports th
     fs.writeFileSync(path.join(path.dirname(release.zip), 'SHASUMS256.txt'), `${createHash('sha256').update(fs.readFileSync(nodeZip)).digest('hex')}  ${name}.zip\n`);
     return ['-Release', path.dirname(release.zip), '-PortableNode', '-StartTimeoutSeconds', '10'];
   });
-  const pid = Number(fs.readFileSync(path.join(env.TEMP, 'hung-lab.pid'), 'utf8'));
+  const pidFile = path.join(env.TEMP, 'hung-lab.pid');
+  assert.ok(fs.existsSync(pidFile), `the run stopped before the Lab started: ${trail()}`);
+  const pid = Number(fs.readFileSync(pidFile, 'utf8'));
   t.after(() => { try { process.kill(pid); } catch { /* already gone */ } });
-  assert.match(report.error, /did not print its URL/);
+  assert.match(report.error, /did not print its URL/, trail());
   assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' }, `the hung Lab (pid ${pid}) outlived the run`);
   const residue = [].concat(report.residue ?? []);
   assert.ok(residue.some(line => line.startsWith(`${path.join(env.TEMP, 'omniforge-portable-node')}:`)), JSON.stringify(residue));
