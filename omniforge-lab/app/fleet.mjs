@@ -13,7 +13,11 @@ const COLUMNS = [['open', 'Aberta'], ['running', 'Em execução'], ['blocked', '
 const USAGE = [['inputTokens', 'entrada'], ['outputTokens', 'saída'], ['cacheReadTokens', 'cache lido'], ['cacheCreationTokens', 'cache criado']];
 
 const hostName = host => HOST[host] ?? host;
-const runLabel = run => `${LABEL[run.state] ?? run.state}${run.detail ? ` · ${run.detail}` : ''}`;
+// The engine's prompt codes (hooks and terminal prompts) in pt-BR; any other detail is already text.
+const DETAIL = { permission_prompt: 'pedido de permissão', elicitation_dialog: 'pergunta do agente', trust_prompt: 'confiança da pasta',
+  hooks_review: 'revisão de hooks', rate_limit_prompt: 'aviso de limite de uso', approval_prompt: 'aprovação de comando' };
+export const detailText = detail => DETAIL[detail] ?? detail;
+const runLabel = run => `${LABEL[run.state] ?? run.state}${run.detail ? ` · ${detailText(run.detail)}` : ''}`;
 // Array sort is stable: the API's latest-first order holds inside each group.
 export const orderRuns = runs => [...runs].sort((a, b) => (RANK[a.state] ?? 1) - (RANK[b.state] ?? 1));
 export const groupTasks = tasks => COLUMNS.map(([status, title]) => ({ status, title, tasks: tasks.filter(task => (task.status || 'open') === status) }));
@@ -78,7 +82,7 @@ export function createFleet({ openSession, onChange = () => {} }) {
   }
 
   function alert(run) {
-    const text = `${taskById(run.taskId)?.title ?? 'Tarefa'}${run.detail ? ` · ${run.detail}` : ''}`;
+    const text = `${taskById(run.taskId)?.title ?? 'Tarefa'}${run.detail ? ` · ${detailText(run.detail)}` : ''}`;
     $('#fleet-live').textContent = `${hostName(run.host)}: ${LABEL[run.state]} em ${text}`;
     // Only while the owner is elsewhere, and only after the owner turned notifications on here.
     if (!notify || !document.hidden) return;

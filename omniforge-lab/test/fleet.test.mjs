@@ -97,14 +97,14 @@ test('the grid shows the selected project runs, opens a run terminal and never s
   assert.deepEqual(env.requests.map(request => request.path), ['/api/agents?projectId=a']);
   assert.deepEqual(cards().map(card => card.dataset.state), ['blocked', 'done']);
   const [blocked, done] = cards().map(card => card.textContent);
-  assert.match(blocked, /Claude.*Aguardando você · permission_prompt.*Revisar testes.*Uso desconhecido: Execução em andamento/);
+  assert.match(blocked, /Claude.*Aguardando você · pedido de permissão.*Revisar testes.*Uso desconhecido: Execução em andamento/);
   assert.match(done, /Concluído.*Corrigir README.*Durou 3 min 05 s.*Tokens observados: 5 entrada · 2 saída · 0 cache lido · 0 cache criado/);
   await env.find(cards()[0], 'Abrir terminal').fire('click');
   assert.deepEqual(env.opened, ['s-wait']);
   // Kanban: one column per task status, the task's latest run as a text badge.
   const columns = $('#fleet-board').children.map(column => column.textContent);
   assert.deepEqual(columns.map(text => text.split(' · ')[0]), ['Aberta', 'Em execução', 'Bloqueada', 'Concluída']);
-  assert.match(columns[0], /Revisar testes.*Claude · Aguardando você · permission_prompt/);
+  assert.match(columns[0], /Revisar testes.*Claude · Aguardando você · pedido de permissão/);
   assert.match(columns[1], /Corrigir README.*Claude · Concluído/);
   assert.doesNotMatch(columns.join(''), /Outra/);
 
@@ -152,7 +152,7 @@ test('desktop notifications need the owner click and fire only on blocked/done/f
     assert.equal($('#fleet-live').textContent.includes('Trabalhando'), false, 'working is not announced');
     await emit('r', 'blocked', 'permission_prompt');
     await emit('r', 'blocked', 'permission_prompt');
-    assert.deepEqual(shown, ['OmniForge · Claude: Aguardando você | Corrigir README · permission_prompt'], 'one notice per transition');
+    assert.deepEqual(shown, ['OmniForge · Claude: Aguardando você | Corrigir README · pedido de permissão'], 'one notice per transition');
     doc.hidden = false;
     await emit('r', 'idle');
     await emit('r', 'done');
@@ -177,7 +177,7 @@ test('each task runs with Claude or Codex, both disabled while its latest run is
   const card = () => $('#task-list').children.find(item => item.textContent.includes('Corrigir README'));
   assert.equal(find(card(), 'Rodar com Claude').disabled, true);
   assert.equal(find(card(), 'Rodar com Codex').disabled, true);
-  assert.match(card().textContent, /Claude · Aguardando você · permission_prompt/);
+  assert.match(card().textContent, /Claude · Aguardando você · pedido de permissão/);
   await emit('r', 'done');
   assert.equal(find(card(), 'Rodar com Codex').disabled, false);
   const other = $('#task-list').children.find(item => item.textContent.includes('Revisar testes'));
@@ -192,4 +192,10 @@ test('each task runs with Claude or Codex, both disabled while its latest run is
   assert.deepEqual(env.requests.filter(request => request.path.endsWith('/run')), [{ path: '/api/tasks/t/run', body: { host: 'codex', expectedRevision: 3 } }]);
   assert.equal($('#toast').textContent, 'A tarefa já tem um agente em execução');
   assert.equal(doc.activeElement?.dataset.focusKey, 'task:t:run-codex', 'a refused run keeps focus on its button');
+});
+
+test('prompt codes from the engine read as pt-BR text; an unknown code stays as sent', async () => {
+  const { detailText } = await import('../app/fleet.mjs');
+  assert.deepEqual(['permission_prompt', 'trust_prompt', 'hooks_review', 'rate_limit_prompt', 'approval_prompt', 'saiu com código 3'].map(detailText),
+    ['pedido de permissão', 'confiança da pasta', 'revisão de hooks', 'aviso de limite de uso', 'aprovação de comando', 'saiu com código 3']);
 });
