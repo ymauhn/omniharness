@@ -15,9 +15,16 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LAUNCHER = r"""
+import fs from 'node:fs';
+import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 const { startDemo } = await import(pathToFileURL(process.argv[1] + '/omniforge-lab/demo.mjs'));
-const demo = await startDemo({ tempRoot: process.env.OMNIFORGE_E2E_TEMP });
+// Agent runs use the engine tests' fake Claude/Codex (hooks, one line of input, a session file); never a real model.
+const fake = path.join(process.argv[1], 'omniforge-lab', 'test', 'engine-fake-agent.mjs');
+const home = path.join(process.env.OMNIFORGE_E2E_TEMP, 'agent-home');
+fs.mkdirSync(home, { recursive: true });
+const host = { file: process.execPath, args: [fake, home] };
+const demo = await startDemo({ tempRoot: process.env.OMNIFORGE_E2E_TEMP, engineOptions: { homeDir: home, hosts: { claude: host, codex: host } } });
 const { main, isolated, tasks, sessions } = demo.fixture;
 console.log(JSON.stringify({ url: demo.url, token: demo.app.token, main: main.id, isolated: isolated.id, isolatedRoot: isolated.root,
   tasks: tasks.map(t => t.id), sessions: sessions.map(s => s.id) }));
@@ -99,6 +106,19 @@ class LabE2E(unittest.TestCase):
             if (body !== null) Object.assign(options, { method: 'POST', body: JSON.stringify(body) });
             return (await fetch(route, options)).json();
         }""", [route, body])
+
+    def scratch_repo(self, page, name):
+        """A throwaway git repository project under the demo's temp folder; agent runs never touch the real repo."""
+        root = tempfile.mkdtemp(prefix="repo-", dir=self.demo.temp)
+        git = lambda *args: subprocess.run(["git", "-C", root, *args], check=True, capture_output=True)
+        git("init", "-q", "-b", "main")
+        for key, value in (("user.name", "E2E"), ("user.email", "e2e@example.invalid"), ("commit.gpgsign", "false")):
+            git("config", key, value)
+        with open(os.path.join(root, "README.md"), "w", encoding="utf-8") as handle:
+            handle.write("base\n")
+        git("add", "-A")
+        git("commit", "-q", "-m", "base")
+        return self.api(page, "/api/projects", {"name": name, "root": root})
 
     def view(self, page, name):
         page.locator(f"[data-view={name}]").click()
