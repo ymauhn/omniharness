@@ -293,7 +293,8 @@ test('a Codex task gets notify as TOML and reads its own rollout; hook secrets a
   assert.equal((await post(`/api/sessions/${codex.sessionId}/write`, { data: 'continue\r' })).status, 200);
   const codexDone = await lab_.until(project.id, codex.id, 'done');
   assert.equal(codexDone.hostSessionId, 'fake-thread');
-  assert.deepEqual(codexDone.usage, { status: 'observed', inputTokens: 80, outputTokens: 9, cacheReadTokens: 40, cacheCreationTokens: 2,
+  // Codex's input_tokens (80) include its cached input (40); like Claude's, the stored input excludes cache reads.
+  assert.deepEqual(codexDone.usage, { status: 'observed', inputTokens: 40, outputTokens: 9, cacheReadTokens: 40, cacheCreationTokens: 2,
     source: path.join(lab_.home, '.codex', 'sessions', '2026', '09', '26', 'rollout-2026-09-26T10-00-00-fake-thread.jsonl'), reason: null });
   assert.equal((await post(`/api/sessions/${claude.sessionId}/write`, { data: '\r' })).status, 200);
   const failed = await lab_.until(project.id, claude.id, 'failed');

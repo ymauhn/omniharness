@@ -45,7 +45,7 @@ Everything below lives under `dataDir` (default `<repo>/.omniforge-lab/`, overri
 | `skill-catalog.json` | `catalog-service.mjs` | the skills-graph snapshot the page's catalog view reads |
 | `arsenal/<projectId>.json(.lock)` | `arsenal-service.mjs` | the project-bound agent arsenal registry |
 
-Outside `dataDir`: `.omniharness/runtime/laya-multilingual/<rev>/` is the opt-in local Laya checkpoint; usage reconciliation *reads* (never writes) `~/.claude/projects/**/<session>.jsonl` and `~/.codex/sessions/**/rollout-*.jsonl`, the CLIs' own transcript files.
+Outside `dataDir`: `.omniharness/runtime/laya-multilingual/<rev>/` is the opt-in local Laya checkpoint; usage reconciliation *reads* (never writes) `~/.claude/projects/**/<session>.jsonl` and `~/.codex/sessions/**/rollout-*.jsonl`, the CLIs' own transcript files. A run's `usage.inputTokens` excludes cache reads on every host: Claude reports it that way, and for Codex, whose `input_tokens` include cached input, the engine stores `input_tokens - cached_input_tokens` (never negative); cache reads are `cacheReadTokens`.
 
 ## Trust boundaries
 

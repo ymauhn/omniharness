@@ -91,7 +91,8 @@ export function claudeUsage(homeDir, sessionId, worktree) {
 }
 
 // Codex: the newest <home>/.codex/sessions/**/rollout-*.jsonl whose session_meta cwd is this worktree and that began
-// after the run; its last token_count total. Codex counts cached input inside inputTokens (Claude does not).
+// after the run; its last token_count total. Codex counts cached input inside input_tokens, Claude does not: the stored
+// inputTokens is input_tokens minus cached_input_tokens (never negative), so every host reports input excluding cache reads.
 function codexUsage(homeDir, run) {
   const root = path.join(homeDir, '.codex', 'sessions');
   const started = Date.parse(run.startedAt);
@@ -108,7 +109,8 @@ function codexUsage(homeDir, run) {
   // ponytail: the run's own rollout is read whole, so one over ~512 MiB reports unknown; read it from the end if that happens.
   const total = jsonLines(best.file).findLast(row => row?.payload?.type === 'token_count' && row.payload.info?.total_token_usage)?.payload.info.total_token_usage;
   if (!total) return { usage: unknownUsage('A sessão do Codex não registrou contagem de tokens'), hostSessionId: best.id };
-  return { usage: { status: 'observed', inputTokens: total.input_tokens ?? null, outputTokens: total.output_tokens ?? null, cacheReadTokens: total.cached_input_tokens ?? null,
+  const input = Number.isSafeInteger(total.input_tokens) ? Math.max(0, total.input_tokens - (total.cached_input_tokens ?? 0)) : null;
+  return { usage: { status: 'observed', inputTokens: input, outputTokens: total.output_tokens ?? null, cacheReadTokens: total.cached_input_tokens ?? null,
     cacheCreationTokens: total.cache_write_input_tokens ?? null, source: best.file, reason: null }, hostSessionId: best.id };
 }
 
