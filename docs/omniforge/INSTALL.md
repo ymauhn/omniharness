@@ -132,6 +132,44 @@ The run ends with `uninstall --apply --remove-data`. `-Prefix` therefore default
 
 ## Evidence
 
+### Reconciliation repairs at `5e28802`
+
+Host run on 2026-09-26, source **`5e28802e3fc94c4b5dc6d61f377c2b71c44fd936`** (branch `claude/installer`), same host and toolchain as below. Every prefix was a fresh scratch folder; `%LOCALAPPDATA%\OmniForge` and the owner's `.omniforge-lab` data were not touched. This is the development host, **not** the clean-user gate.
+
+Tests at that SHA: `node --test omniforge-lab/test/manage.test.mjs` 19/19, with 7 new regression tests (all 7 failed before the fix; the tree-kill test hit its 180 s limit because the orphaned Lab kept the pipe open). `npm --prefix omniforge-lab test` 174/174 and `python -m unittest discover tests` 303 OK, all with 0 skipped.
+
+```text
+> node omniforge-lab\manage.mjs pack --out ...\smoke\release
+Built ...\smoke\release\omniforge-0.1.0-5e28802-win-x64.zip (305 files)
+sha256 4238870e52205d6fdfa24183977dd5806bd097a253c3cedc3191b383ba87f233
+> run-in-sandbox.ps1 -Release ...\smoke\release -Output ...\smoke\out -Prefix ...\smoke\OmniForge     (installed Node)
+install / doctor / repair / uninstall / uninstall --apply --remove-data: exit 0 each
+report.json: passed True, doctorOk True, GET / 200, /api/state 200 with the token and 403 without, /api/skills 200,
+             stdin-EOF stop exit 0, lockLeft False, prefixLeft False (10 s)
+```
+
+A real `start --demo` against `uninstall --apply`, with the demo's TEMP redirected into the scratch folder:
+
+```text
+> install --from omniforge-0.1.0-5e28802-win-x64.zip --prefix ...\smoke\DemoPrefix                     (exit 0)
+start --demo --stop-on-eof from the installed app: run records 42680.json
+> uninstall --apply                                                                                  (exit 1)
+omniforge: a Lab or demo started from ...\DemoPrefix is running (pid 42680 holds run\42680.json); stop it first
+app tree intact: true; conpty.node present: true
+demo stop via stdin EOF: exit 0; run records left: 0
+> uninstall --apply --remove-data                                                                    (exit 0)
+prefix exists after uninstall: false
+```
+
+**Defects fixed in `5e28802`** (from review, each reproduced by a failing test first):
+
+1. A reinstall recorded any existing `<prefix>\data`, and `--remove-data` then deleted a folder the install never created. Install now records `data\` only when its `.omniforge-install` marker is inside.
+2. Doctor, `pack` and the launcher ran `git`, `py`, `where.exe`, host CLIs and `node` by bare name, which Windows looks up in the current folder first. They now resolve from the PATH folders.
+3. `uninstall --apply` saw only `data\state.lock`, so a running installed demo let it half-delete the app tree. `start` now writes `run\<pid>.json`, and `--apply` refuses while a recorded pid is alive.
+4. The data guard compared the exact `data` path, so a recorded prefix-as-tree or a path inside `data\` bypassed it. It now uses containment.
+5. `run-in-sandbox.ps1` checked a relative `-Prefix` against the PowerShell location but ran the steps against the process directory, killed only `cmd.exe` on a timeout and left the portable Node folder unreported.
+6. A same-build reinstall cleared the backup recorded in `current.json`, so `rollback` stopped naming it.
+
 ### Review repairs at `3129bfc`
 
 Host run on 2026-09-26, source **`3129bfcc01646defef796a240da05f3759c82e0c`** (branch `claude/installer`), same host and toolchain as below. Every prefix was a fresh `%TEMP%` folder; `%LOCALAPPDATA%\OmniForge` and the owner's `.omniforge-lab` data were not touched. This is the development host, **not** the clean-user gate.
