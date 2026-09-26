@@ -51,12 +51,32 @@ test('task dependencies are project-scoped and block premature completion', t =>
   const foreign = store.addProject({ name: 'Agency', root: secondRoot });
   const base = store.addTask({ projectId: project.id, title: 'Failing test' });
   const next = store.addTask({ projectId: project.id, title: 'Fix', dependsOn: [base.id] });
-  assert.throws(() => store.setTaskStatus(next.id, 'done'), /Dependências não concluídas/);
+  assert.throws(() => store.setTaskStatus(next.id, 'done', 1), /Dependências não concluídas/);
   assert.throws(() => store.addTask({ projectId: foreign.id, title: 'Leak', dependsOn: [base.id] }), /outro projeto/);
-  store.setTaskStatus(base.id, 'done');
-  store.setTaskStatus(next.id, 'done');
+  store.setTaskStatus(base.id, 'done', 1);
+  store.setTaskStatus(next.id, 'done', 1);
   assert.equal(store.task(next.id).status, 'done');
-  assert.throws(() => store.setTaskStatus(base.id, 'open'), /dependentes concluídos/);
+  assert.throws(() => store.setTaskStatus(base.id, 'open', 2), /dependentes concluídos/);
+});
+
+test('task status writes are revisioned so a stale view cannot overwrite a newer status', t => {
+  const { root, projectRoot, store } = fixture(t);
+  const project = store.addProject({ name: 'Game', root: projectRoot });
+  const task = store.addTask({ projectId: project.id, title: 'Race', details: 'Race\nFull composer draft' });
+  assert.equal(task.revision, 1);
+  assert.equal(task.details, 'Race\nFull composer draft');
+  assert.throws(() => store.addTask({ projectId: project.id, title: 'Too long', details: 'x'.repeat(4001) }), /Detalhes da tarefa inválido/);
+  assert.equal(store.setTaskStatus(task.id, 'done', 1).revision, 2);
+  assert.throws(() => store.setTaskStatus(task.id, 'blocked', 1), error => error.status === 409 && /Tarefa alterada/.test(error.message));
+  assert.throws(() => store.setTaskStatus(task.id, 'blocked'), error => error.status === 400);
+  assert.equal(store.task(task.id).status, 'done');
+  const saved = store.snapshot();
+  delete saved.tasks[0].revision;
+  store.close();
+  fs.writeFileSync(path.join(root, 'data', 'state.json'), JSON.stringify(saved));
+  const migrated = new WorkspaceStore(path.join(root, 'data'));
+  try { assert.equal(migrated.setTaskStatus(task.id, 'open', 1).revision, 2); }
+  finally { migrated.close(); }
 });
 
 test('memory revisions reject competing writes and preserve archived history across restart', t => {
@@ -269,8 +289,50 @@ test('failed persistence does not leak an uncommitted project into later state',
     fs.renameSync = rename;
   }
   assert.equal(store.snapshot().projects.length, 0);
+  assert.deepEqual(fs.readdirSync(store.dataDir).filter(name => name.endsWith('.tmp')), []);
   assert.equal(store.addProject({ name: 'Visible', root: projectRoot }).name, 'Visible');
   assert.equal(store.snapshot().projects.length, 1);
+});
+
+test('state is flushed before it replaces state.json and a torn state.json falls back to the last good backup', t => {
+  const { root, projectRoot, store } = fixture(t);
+  const dataDir = path.join(root, 'data');
+  const rename = fs.renameSync;
+  const opened = t.mock.method(fs, 'openSync');
+  const synced = t.mock.method(fs, 'fsyncSync');
+  t.mock.method(fs, 'renameSync', (source, target) => {
+    if (target === store.file) {
+      const fd = opened.mock.calls.findLast(call => call.arguments[0] === source)?.result;
+      assert.ok(fd !== undefined && synced.mock.calls.some(call => call.arguments[0] === fd), 'new state must be fsynced before it replaces state.json');
+    }
+    return rename(source, target);
+  });
+  const project = store.addProject({ name: 'Kept', root: projectRoot });
+  store.addTask({ projectId: project.id, title: 'Lost with the torn write' });
+  store.close();
+  fs.writeFileSync(store.file, Buffer.alloc(fs.statSync(store.file).size));
+  const warn = t.mock.method(console, 'warn', () => {});
+  const restored = new WorkspaceStore(dataDir);
+  try {
+    assert.deepEqual(restored.snapshot().projects.map(item => item.id), [project.id]);
+    assert.equal(restored.snapshot().tasks.length, 0);
+    assert.equal(warn.mock.callCount(), 1);
+    assert.match(warn.mock.calls[0].arguments[0], /state\.json\.bak/);
+    assert.ok(fs.readdirSync(dataDir).some(name => name.startsWith('state.json.corrupt-')));
+    assert.equal(JSON.parse(fs.readFileSync(store.file, 'utf8')).projects.length, 1);
+  } finally { restored.close(); }
+});
+
+test('an unverifiable lock owner fails closed and names the lock and the manual recovery', t => {
+  const { root, store } = fixture(t);
+  const dataDir = path.join(root, 'data');
+  store.close();
+  const lock = path.join(dataDir, 'state.lock');
+  fs.writeFileSync(lock, JSON.stringify({ pid: 4242, nonce: 'elevated-or-reused' }));
+  t.mock.method(process, 'kill', () => { throw Object.assign(new Error('kill EPERM'), { code: 'EPERM' }); });
+  assert.throws(() => new WorkspaceStore(dataDir), error => error.status === 409 && error.message.includes(lock) && /renomeie/.test(error.message));
+  assert.equal(JSON.parse(fs.readFileSync(lock, 'utf8')).nonce, 'elevated-or-reused');
+  assert.equal(fs.existsSync(path.join(dataDir, 'state.recovery.lock')), false);
 });
 
 test('second coordinator cannot overwrite an active local state writer', t => {
@@ -327,6 +389,20 @@ test('asset inventory stays in the chosen project and skips ignored directories'
   assert.deepEqual(result.files, ['hero.png']);
   assert.deepEqual(result.counts, { '.png': 1 });
   assert.equal(result.truncated, false);
+});
+
+test('asset inventory skips unreadable subdirectories and reports an unavailable project root', async t => {
+  const { projectRoot } = fixture(t);
+  fs.writeFileSync(path.join(projectRoot, 'hero.png'), 'x');
+  fs.mkdirSync(path.join(projectRoot, 'locked'));
+  fs.writeFileSync(path.join(projectRoot, 'locked', 'hidden.png'), 'x');
+  const opendir = fs.promises.opendir;
+  t.mock.method(fs.promises, 'opendir', (dir, ...rest) => path.basename(dir) === 'locked' ? Promise.reject(Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' })) : opendir(dir, ...rest));
+  const result = await inventoryAssets(projectRoot);
+  assert.deepEqual(result.files, ['hero.png']);
+  assert.equal(result.unreadableDirectories, 1);
+  assert.equal(result.truncated, true);
+  await assert.rejects(inventoryAssets(path.join(projectRoot, 'moved')), error => error.status === 409 && /Pasta do projeto indisponível/.test(error.message));
 });
 
 test('asset inventory bounds a media-sparse traversal', async t => {

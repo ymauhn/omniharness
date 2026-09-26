@@ -65,18 +65,21 @@ export function mountWorkflows({ root, api, getProjectId, draft, onTasksCreated 
   function usable() { if (state.projectId !== getProjectId()) { sync(); return false; } return !state.destroyed && getProjectId() && !state.busy; }
   function resetDetail() { body.replaceChildren(); heading.textContent = 'Seu próximo fluxo, com contexto.'; add(body, 'p', 'wf-hint', 'Abra uma sugestão para revisar, ou um fluxo salvo para ver os prompts e criar sua fila de tarefas.'); }
   function renderLibrary() {
+    // A reload from another window's save rebuilds the list; keep keyboard focus on the same item.
+    const focusKey = library.contains(document.activeElement) ? document.activeElement.dataset.focusKey : null;
     library.replaceChildren();
     const saved = add(library, 'section', 'wf-group'); add(saved, 'h2', '', `Salvos no projeto · ${state.rows.length}`);
     if (!state.rows.length) add(saved, 'p', 'wf-hint', 'Seus fluxos revisados ficam aqui.');
     for (const row of state.rows) {
-      const item = button(saved, '', () => selectSaved(row), 'wf-library-item'); item.setAttribute('aria-pressed', String(state.selected?.id === row.id));
+      const item = button(saved, '', () => selectSaved(row), 'wf-library-item'); item.setAttribute('aria-pressed', String(state.selected?.id === row.id)); item.dataset.focusKey = `saved:${row.id}`;
       add(item, 'strong', '', row.definition.title); add(item, 'span', 'wf-meta', `${PILLARS[row.definition.pillar]} · v${row.version}${row.archivedAt ? ' · arquivado' : ''}`);
     }
     const presets = add(library, 'section', 'wf-group'); add(presets, 'h2', '', 'Sugestões · revisar antes de salvar');
     for (const row of state.presets) {
-      const item = button(presets, '', () => openDraft(null, row.definition), 'wf-library-item');
+      const item = button(presets, '', () => openDraft(null, row.definition), 'wf-library-item'); item.dataset.focusKey = `preset:${row.id}`;
       add(item, 'strong', '', row.definition.title); add(item, 'span', 'wf-meta', `${PILLARS[row.definition.pillar]} · template original`);
     }
+    if (focusKey) [...library.querySelectorAll('button')].find(item => item.dataset.focusKey === focusKey)?.focus();
   }
   async function load() {
     if (state.projectId !== getProjectId()) { sync(); return; }

@@ -12,6 +12,7 @@ const MAX_CONTEXT_NOTES = 24;
 const MAX_COMMAND = 4096;
 const ASSET_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.wav', '.mp3', '.ogg', '.mp4', '.webm', '.glb', '.gltf']);
 const SKIP_DIRS = new Set(['.git', 'node_modules', '.venv', '__pycache__', '.omniforge-lab']);
+const UNREADABLE_DIR = new Set(['EACCES', 'EPERM', 'ENOENT', 'EBUSY', 'ENOTDIR']);
 
 function fail(message, status = 400) {
   const error = new Error(message);
@@ -28,6 +29,14 @@ function initialData() {
   return { schema: 1, projects: [], sessions: [], tasks: [], notes: [], memoryRevision: 0, layout: { split: 50 } };
 }
 
+const compatible = data => data?.schema === 1 && ['projects', 'sessions', 'tasks', 'notes'].every(key => Array.isArray(data[key]));
+
+function writeDurable(file, data) {
+  const fd = fs.openSync(file, 'w', 0o600);
+  try { fs.writeFileSync(fd, JSON.stringify(data, null, 2), 'utf8'); fs.fsyncSync(fd); }
+  finally { fs.closeSync(fd); }
+}
+
 function noteVersion(note, operation) {
   const { revision, mutationSequence, text, source, updatedAt, archivedAt } = note;
   return { revision, mutationSequence, text, source, updatedAt, archivedAt, operation };
@@ -42,17 +51,19 @@ export class WorkspaceStore {
   constructor(dataDir) {
     this.dataDir = path.resolve(dataDir);
     this.file = path.join(this.dataDir, 'state.json');
+    this.backupFile = path.join(this.dataDir, 'state.json.bak');
     this.lockFile = path.join(this.dataDir, 'state.lock');
     this.lockNonce = randomUUID();
     this.uncertainSessions = new Set();
     fs.mkdirSync(this.dataDir, { recursive: true });
     this.acquireLock();
     try {
-      this.data = fs.existsSync(this.file) ? JSON.parse(fs.readFileSync(this.file, 'utf8')) : initialData();
-      if (this.data.schema !== 1 || !Array.isArray(this.data.projects) || !Array.isArray(this.data.sessions) || !Array.isArray(this.data.tasks) || !Array.isArray(this.data.notes)) fail('Estado local incompatível', 500);
+      this.data = fs.existsSync(this.file) ? this.readState() : initialData();
+      if (!compatible(this.data)) fail('Estado local incompatível', 500);
       this.durableData = structuredClone(this.data);
       // A layout may be restored, but a shell/process attempt cannot be resumed by assumption.
-      let changed = false;
+      let changed = !!this.recovery;
+      for (const task of this.data.tasks) if (task.revision === undefined) { task.revision = 1; changed = true; }
       for (const note of this.data.notes) {
         if (note.mutationSequence === undefined) {
           // Historical cross-note ordering was not recorded; do not invent it.
@@ -80,6 +91,22 @@ export class WorkspaceStore {
     }
   }
 
+  readState() {
+    try { return JSON.parse(fs.readFileSync(this.file, 'utf8')); }
+    catch (error) {
+      // A torn or zero-filled write parses as garbage; only then is the last good copy trusted.
+      if (!(error instanceof SyntaxError)) throw error;
+      let backup;
+      try { backup = JSON.parse(fs.readFileSync(this.backupFile, 'utf8')); } catch {}
+      if (!compatible(backup)) fail(`Estado local ilegível e sem backup válido; inspecione ${this.file}`, 500);
+      const preserved = path.join(this.dataDir, `state.json.corrupt-${randomUUID()}`);
+      fs.copyFileSync(this.file, preserved);
+      this.recovery = { backup: this.backupFile, preserved };
+      console.warn(`OmniForge: state.json ilegível foi preservado em ${preserved}; estado restaurado de ${this.backupFile}. A última alteração pode ter sido perdida.`);
+      return backup;
+    }
+  }
+
   acquireLock() {
     try {
       this.lockFd = fs.openSync(this.lockFile, 'wx', 0o600);
@@ -99,8 +126,13 @@ export class WorkspaceStore {
         try { owner = JSON.parse(fs.readFileSync(this.lockFile, 'utf8')); }
         catch { fail('Estado local bloqueado por outra instância ou lock incerto', 409); }
         if (!Number.isSafeInteger(owner.pid) || owner.pid <= 0) fail('Lock local inválido; inspecione antes de recuperar', 409);
-        try { process.kill(owner.pid, 0); fail('Outra instância OmniForge usa estes dados', 409); }
-        catch (check) { if (check.code !== 'ESRCH') throw check; }
+        // EPERM (elevated or other-user owner) fails closed like a live owner: treating it as
+        // stale would let a second writer in beside an elevated Lab.
+        // ponytail: a reused PID also reads as alive; verify the owner's image/start time if false 409s recur.
+        let alive = true;
+        try { process.kill(owner.pid, 0); }
+        catch (check) { if (check.code === 'ESRCH') alive = false; else if (check.code !== 'EPERM') throw check; }
+        if (alive) fail(`Outra instância OmniForge usa estes dados (PID ${owner.pid}). Se nenhum Lab estiver aberto, renomeie ${this.lockFile} e inicie de novo.`, 409);
         // Preserve the exact dead owner's lock. A crash during recovery leaves
         // the recovery guard visible and fails closed on the next startup.
         fs.renameSync(this.lockFile, path.join(this.dataDir, `state.lock.stale-${randomUUID()}`));
@@ -129,10 +161,14 @@ export class WorkspaceStore {
     if (this.lockFd === undefined) fail('Estado local sem lock exclusivo', 409);
     const temp = path.join(this.dataDir, `state-${randomUUID()}.tmp`);
     try {
-      fs.writeFileSync(temp, JSON.stringify(this.data, null, 2), { encoding: 'utf8', mode: 0o600 });
+      // The new state is on disk before it replaces state.json; the backup is the last committed state.
+      // ponytail: full-state backup per save; move to a journal if state.json grows past a few MB.
+      writeDurable(temp, this.data);
+      if (fs.existsSync(this.file)) writeDurable(this.backupFile, this.durableData);
       fs.renameSync(temp, this.file);
       this.durableData = structuredClone(this.data);
     } catch (error) {
+      fs.rmSync(temp, { force: true });
       this.data = structuredClone(this.durableData);
       throw error;
     }
@@ -204,15 +240,16 @@ export class WorkspaceStore {
     return session;
   }
 
-  addTask({ projectId, title, dependsOn = [] }) {
+  addTask({ projectId, title, details = null, dependsOn = [] }) {
     this.project(projectId);
     title = requiredText(title, 'Título da tarefa', 240);
+    if (details !== null) details = requiredText(details, 'Detalhes da tarefa', MAX_NOTE);
     if (!Array.isArray(dependsOn) || dependsOn.length > 20 || new Set(dependsOn).size !== dependsOn.length) fail('Dependências inválidas');
     for (const id of dependsOn) {
       const prerequisite = this.task(id);
       if (prerequisite.projectId !== projectId) fail('Dependência pertence a outro projeto');
     }
-    const task = { id: randomUUID(), projectId, title, dependsOn, status: 'open', createdAt: new Date().toISOString() };
+    const task = { id: randomUUID(), projectId, title, details, dependsOn, status: 'open', revision: 1, createdAt: new Date().toISOString() };
     this.data.tasks.push(task);
     this.save();
     return task;
@@ -224,12 +261,15 @@ export class WorkspaceStore {
     return task;
   }
 
-  setTaskStatus(id, status) {
+  setTaskStatus(id, status, expectedRevision) {
     const task = this.task(id);
     if (!['open', 'running', 'done', 'blocked'].includes(status)) fail('Estado de tarefa inválido');
     if (status === 'done' && task.dependsOn.some(dependency => this.task(dependency).status !== 'done')) fail('Dependências não concluídas', 409);
     if (task.status === 'done' && status !== 'done' && this.data.tasks.some(dependent => dependent.status === 'done' && dependent.dependsOn.includes(id))) fail('Tarefa concluída tem dependentes concluídos', 409);
+    if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1) fail('Revisão esperada inválida');
+    if (expectedRevision !== task.revision) fail('Tarefa alterada em outra janela; confira o estado atual antes de mudar', 409);
     task.status = status;
+    task.revision++;
     this.save();
     return task;
   }
@@ -468,27 +508,35 @@ export async function inventoryAssets(projectRoot, { maxFiles = 1000, maxEntries
   const pending = [{ dir: projectRoot, depth: 0 }];
   const deadline = Date.now() + maxMs;
   let scannedEntries = 0;
+  let unreadableDirectories = 0;
   let truncated = false;
   while (pending.length && files.length < maxFiles && scannedEntries < maxEntries && Date.now() < deadline) {
     const { dir, depth } = pending.pop();
-    for await (const entry of await fs.promises.opendir(dir)) {
-      if (scannedEntries >= maxEntries || files.length >= maxFiles || Date.now() >= deadline) {
-        truncated = true;
-        break;
+    try {
+      for await (const entry of await fs.promises.opendir(dir)) {
+        if (scannedEntries >= maxEntries || files.length >= maxFiles || Date.now() >= deadline) {
+          truncated = true;
+          break;
+        }
+        scannedEntries++;
+        if (entry.isSymbolicLink()) continue;
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory() && !SKIP_DIRS.has(entry.name)) {
+          if (depth < maxDepth) pending.push({ dir: full, depth: depth + 1 });
+          else truncated = true;
+        }
+        if (entry.isFile() && ASSET_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) files.push(path.relative(projectRoot, full).replaceAll('\\', '/'));
+        if (files.length >= maxFiles) { truncated = true; break; }
       }
-      scannedEntries++;
-      if (entry.isSymbolicLink()) continue;
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory() && !SKIP_DIRS.has(entry.name)) {
-        if (depth < maxDepth) pending.push({ dir: full, depth: depth + 1 });
-        else truncated = true;
-      }
-      if (entry.isFile() && ASSET_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) files.push(path.relative(projectRoot, full).replaceAll('\\', '/'));
-      if (files.length >= maxFiles) { truncated = true; break; }
+    } catch (error) {
+      // One denied or vanished folder must not hide the rest of the project.
+      if (!UNREADABLE_DIR.has(error.code)) throw error;
+      if (depth === 0) fail('Pasta do projeto indisponível; confira se ela foi movida ou está sem permissão de leitura', 409);
+      unreadableDirectories++;
     }
   }
   files.sort();
-  return { files, truncated: truncated || pending.length > 0, scannedEntries,
+  return { files, truncated: truncated || pending.length > 0 || unreadableDirectories > 0, unreadableDirectories, scannedEntries,
     counts: files.reduce((out, file) => { const type = path.extname(file).toLowerCase(); out[type] = (out[type] || 0) + 1; return out; }, {}) };
 }
 

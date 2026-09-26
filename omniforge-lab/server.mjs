@@ -66,7 +66,8 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
   const state = () => {
     const { schema, projects, sessions, tasks, memoryRevision, layout, workflowRegistry } = store.data;
     // Do not clone private note/workflow history for every public state event.
-    const snapshot = structuredClone({ schema, projects, sessions, tasks, memoryRevision, layout });
+    // Task details (up to 4,000 characters each) load on demand, so state events stay small for every window.
+    const snapshot = structuredClone({ schema, projects, sessions, tasks: tasks.map(({ details, ...task }) => ({ ...task, hasDetails: Boolean(details) })), memoryRevision, layout });
     snapshot.workflowRevision = (workflowRegistry?.workflows ?? []).reduce((sum, row) => sum + row.revision, 0) + (workflowRegistry?.runs?.length ?? 0);
     return { ...snapshot, skills };
   };
@@ -123,6 +124,11 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
         return send(response, 403, { error: 'Origem local inválida' });
       }
       if (request.method === 'GET' && url.pathname === '/api/state') return send(response, 200, state());
+      const taskDetails = url.pathname.match(/^\/api\/tasks\/([^/]+)\/details$/);
+      if (request.method === 'GET' && taskDetails) {
+        const task = store.task(taskDetails[1]);
+        return send(response, 200, { id: task.id, details: task.details ?? null });
+      }
       if (request.method === 'GET') {
         const result = await arsenalApi({ method: request.method, url });
         if (result) return send(response, result.status, result.body);
@@ -224,7 +230,7 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
         else if (resize) { output = shells.resize(resize[1], input.cols, input.rows); changed = false; }
         else if (stop) { output = shells.stop(stop[1]); changed = false; }
         else if (recovery) output = store.acknowledgeInterruptedSession(recovery[1], input.verification);
-        else if (taskStatus) output = store.setTaskStatus(taskStatus[1], input.status);
+        else if (taskStatus) output = store.setTaskStatus(taskStatus[1], input.status, input.expectedRevision);
         else if (memoryUpdate) output = memoryUpdate[2] === 'update' ? store.updateNote(memoryUpdate[1], input) : store.archiveNote(memoryUpdate[1], input);
         else return send(response, 404, { error: 'Rota não encontrada' });
       }

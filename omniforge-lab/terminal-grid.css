@@ -16,7 +16,7 @@
 .terminal-pane[data-focused="true"] { outline:2px solid var(--accent); outline-offset:1px; }
 .pane-window-controls { display:flex; flex-wrap:wrap; gap:4px; }
 .pane-window-controls button { padding:3px 6px; min-height:28px; font-size:10px; }
-.terminal-replay-status { margin:0; padding:3px 10px; font-size:10px; color:var(--muted); }
+.terminal-replay-status, .terminal-tab-mode { margin:0; padding:3px 10px; font-size:10px; color:var(--muted); }
 @media (max-width:690px) {
   .terminal-grid { grid-template-columns:minmax(260px,1fr); grid-template-rows:none; grid-auto-rows:560px; }
 }

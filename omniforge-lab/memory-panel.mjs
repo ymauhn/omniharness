@@ -10,7 +10,7 @@ export class MemoryPanelController {
   }
   select(projectId, sessionId = null, includeArchived = this.includeArchived) {
     if (projectId === this.projectId && sessionId === this.sessionId && includeArchived === this.includeArchived) return false;
-    Object.assign(this, { projectId, sessionId, includeArchived, notes: [], editor: null, history: null, busy: false, message: '' });
+    Object.assign(this, { projectId, sessionId, includeArchived, notes: [], loading: true, editor: null, history: null, busy: false, message: '' });
     this.generation++; this.request++; this.notify();
     return true;
   }
@@ -25,7 +25,7 @@ export class MemoryPanelController {
         this.message = 'Esta nota mudou em outra sessão. Seu rascunho foi preservado; consulte a versão atual antes de salvar.';
       }
     } catch (error) { if (current()) this.message = error.message; }
-    if (current()) this.notify();
+    if (current()) { this.loading = false; this.notify(); }
   }
   edit(id, kind = 'update') {
     const note = this.notes.find(item => item.id === id);
@@ -55,7 +55,7 @@ export class MemoryPanelController {
   async inspect(id, offset = 0) {
     const note = this.notes.find(item => item.id === id) || (this.history?.id === id ? this.history.note : null), generation = this.generation;
     if (!note || this.busy) return;
-    const selection = { id, note, offset, total: 0, hasMore: false, status: 'Carregando histórico…', rows: [] };
+    const selection = { id, note, offset, total: 0, hasMore: false, loading: true, status: 'Carregando histórico…', rows: [] };
     this.history = selection; this.notify();
     try {
       const result = await this.api(`/api/memory/${encodeURIComponent(id)}/history?${query({ ...binding(note), offset, limit: 20 })}`);
@@ -63,6 +63,7 @@ export class MemoryPanelController {
       if (result.noteId !== id || result.offset !== offset || result.limit !== 20 || !Array.isArray(result.history) || result.history.length > 20 || !Number.isSafeInteger(result.total) || result.total < 0 || typeof result.hasMore !== 'boolean') throw Error('Página de histórico inválida');
       selection.rows = result.history; selection.total = result.total; selection.hasMore = result.hasMore; selection.status = '';
     } catch (error) { if (generation === this.generation && this.history === selection) selection.status = error.message; }
+    selection.loading = false;
     if (generation === this.generation && this.history === selection) this.notify();
   }
 }
@@ -84,7 +85,7 @@ export function mountMemoryPanel({ root, api, getProjectId, getSessions, onChang
     message.textContent = controller.message;
     const focused = list.contains(doc.activeElement) ? doc.activeElement?.dataset?.memoryAction : null;
     list.replaceChildren();
-    if (!controller.notes.length) make('p', 'Nenhuma nota visível nesta seleção.', list).className = 'empty';
+    if (!controller.notes.length) make('p', controller.loading ? 'Carregando notas…' : 'Nenhuma nota visível nesta seleção.', list).className = 'empty';
     for (const note of controller.notes.slice().reverse().slice(0, shown)) {
       const row = make('article', undefined, list); row.className = 'list-item';
       make('p', note.text, row);
@@ -100,7 +101,10 @@ export function mountMemoryPanel({ root, api, getProjectId, getSessions, onChang
     if (focused) [...list.querySelectorAll('button')].find(node => node.dataset.memoryAction === focused && !node.disabled)?.focus();
     const editor = controller.editor;
     if (editorRendered !== editor) {
+      // A closed editor (saved or cancelled) hands keyboard focus back to its note, not to a detached or disabled control.
+      const closed = editorRendered && !editor && (!doc.activeElement || doc.activeElement === doc.body || editorHost.contains(doc.activeElement)) ? editorRendered.note.id : null;
       editorRendered = editor; editorHost.replaceChildren();
+      if (closed) ([...list.querySelectorAll('button')].find(node => node.dataset.memoryAction?.startsWith(`${closed}:`) && !node.disabled) || refresh).focus();
       if (editor) {
         const form = make('form', undefined, editorHost); form.className = 'memory-editor';
         make('h3', `${editor.kind === 'archive' ? 'Arquivar' : 'Editar'} revisão ${editor.note.revision}`, form);
@@ -122,7 +126,7 @@ export function mountMemoryPanel({ root, api, getProjectId, getSessions, onChang
     historyStatus.textContent = history?.status || '';
     // Keep live controls while a page loads; ordinary note refreshes must not
     // rebuild an unchanged history and detach keyboard focus/open revisions.
-    if (history && history.id === renderedHistory?.id && history.status) return;
+    if (history?.loading && history.id === renderedHistory?.id) return;
     if (history === renderedHistory && history?.rows === renderedRows && history?.status === renderedStatus) return;
     const historyFocused = historyHost.contains(doc.activeElement), historyAction = historyFocused ? doc.activeElement?.dataset?.historyAction : null;
     renderedHistory = history; renderedRows = history?.rows; renderedStatus = history?.status;

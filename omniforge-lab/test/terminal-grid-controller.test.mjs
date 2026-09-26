@@ -155,6 +155,24 @@ test('actual fit resizes only the focused live pane and coalesces in-flight requ
   env.local.projectId='q';view.lastSize=null;env.ctx.fitPty(view);assert.equal(env.requests.length,1);
 });
 
+test('xterm keeps Tab for shell completion until Ctrl+M makes Tab move focus; Shift+Tab always leaves without writing to the PTY',async()=>{
+  const env=environment();env.local.state.sessions[0].host='local-pty';let term;
+  env.ctx.ptyModulesPromise=Promise.resolve({Terminal:class{constructor(options){term=this;this.options=options;}loadAddon(){}open(){this.textarea=env.ctx.make('textarea');}write(){}dispose(){}onData(fn){this.input=fn;return{dispose(){}};}attachCustomKeyEventHandler(fn){this.keys=fn;}},FitAddon:class{}});
+  env.ctx.ResizeObserver=class{observe(){}disconnect(){}};env.doc.body={dataset:{theme:'operations'}};
+  env.layout.switchProject('p',env.local.state.sessions,'a');env.render();await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(typeof term?.keys,'function','the PTY pane installs a key handler');
+  const press=(key,extra={})=>{let prevented=false;const handled=term.keys({type:'keydown',key,ctrlKey:false,shiftKey:false,altKey:false,metaKey:false,preventDefault(){prevented=true;},...extra});return{handled,prevented};};
+  const hint=env.grid.querySelector('.terminal-tab-mode');
+  assert.equal(press('Tab').handled,true,'by default Tab reaches the shell for completion');assert.match(hint.textContent,/Ctrl\+M/);
+  assert.equal(press('Tab',{shiftKey:true}).handled,false,'default Shift+Tab leaves without writing ESC[Z to the shell');
+  assert.ok(hint.id&&term.textarea.attributes['aria-describedby']===hint.id,'the focused xterm input points screen readers to the Ctrl+M hint');
+  assert.deepEqual(press('m',{ctrlKey:true}),{handled:false,prevented:true},'Ctrl+M toggles and never reaches the shell as CR');
+  assert.match(hint.textContent,/Tab move o foco/);assert.match(env.messages.at(-1),/Tab move o foco/);
+  assert.equal(press('Tab').handled,false);assert.equal(press('Tab',{shiftKey:true}).handled,false,'Shift+Tab leaves without ESC[Z');assert.equal(press('a').handled,true);
+  assert.ok(!env.requests.some(r=>String(r.path||r[0]).includes('/write')));
+  press('m',{ctrlKey:true});assert.equal(press('Tab').handled,true);assert.doesNotMatch(hint.textContent,/Tab move o foco \(/);
+});
+
 test('actual session creation selects the first new session but never follows a stale project response',async()=>{
   for(const switchAway of [false,true]){
     const env=environment();env.local.state.sessions=env.local.state.sessions.filter(s=>s.projectId!=='p');env.render();

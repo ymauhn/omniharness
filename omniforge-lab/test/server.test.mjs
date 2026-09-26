@@ -46,9 +46,9 @@ test('local API requires a token and preserves project/task/memory boundaries', 
   const project = await projectResponse.json();
   const task = await (await post('/api/tasks', { projectId: project.id, title: 'Test first' })).json();
   const dependent = await (await post('/api/tasks', { projectId: project.id, title: 'Then fix', dependsOn: [task.id] })).json();
-  assert.equal((await post(`/api/tasks/${dependent.id}/status`, { status: 'done' })).status, 409);
-  assert.equal((await post(`/api/tasks/${task.id}/status`, { status: 'done' })).status, 200);
-  assert.equal((await post(`/api/tasks/${dependent.id}/status`, { status: 'done' })).status, 200);
+  assert.equal((await post(`/api/tasks/${dependent.id}/status`, { status: 'done', expectedRevision: 1 })).status, 409);
+  assert.equal((await post(`/api/tasks/${task.id}/status`, { status: 'done', expectedRevision: 1 })).status, 200);
+  assert.equal((await post(`/api/tasks/${dependent.id}/status`, { status: 'done', expectedRevision: 1 })).status, 200);
   assert.equal((await post('/api/memory', { scope: 'project', projectId: project.id, source: 'CONTEXT.md', text: 'Test with fixtures' })).status, 200);
   const state = await (await fetch(`${base}/api/state`, { headers: auth })).json();
   assert.equal(state.projects.length, 1);
@@ -80,6 +80,85 @@ test('local API requires a token and preserves project/task/memory boundaries', 
   });
   assert.equal(splitResponse.status, 200);
   assert.equal(splitResponse.body.text, 'decisão de física: café');
+});
+
+test('task status rejects a stale window, long drafts keep details and inventory survives folder failures', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-lab-api-'));
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+  const projectRoot = path.join(root, 'game');
+  fs.mkdirSync(path.join(projectRoot, 'locked'), { recursive: true });
+  fs.writeFileSync(path.join(projectRoot, 'hero.png'), 'x');
+  const app = createOmniForgeServer({ dataDir: path.join(root, 'data'), repoRoot, token: 'test-token' });
+  const base = new URL(await app.listen()).origin;
+  t.after(async () => {
+    await app.close();
+    const relative = path.relative(os.tmpdir(), root);
+    if (relative.startsWith('omniforge-lab-api-') && !relative.includes(path.sep)) fs.rmSync(root, { recursive: true, force: true });
+  });
+  const headers = { 'content-type': 'application/json', 'x-omniforge-token': 'test-token' };
+  const post = (route, value) => fetch(`${base}${route}`, { method: 'POST', headers, body: JSON.stringify(value) });
+  const get = route => fetch(`${base}${route}`, { headers });
+  const project = await (await post('/api/projects', { name: 'Game', root: projectRoot })).json();
+  const draft = `Revisar referências\n${'Contexto citado pelo Copilot. '.repeat(40)}`;
+  const task = await (await post('/api/tasks', { projectId: project.id, title: 'Revisar referências', details: draft })).json();
+  assert.equal(task.revision, 1);
+  assert.equal(task.details, draft.trim());
+  assert.equal((await post(`/api/tasks/${task.id}/status`, { status: 'done', expectedRevision: 1 })).status, 200);
+  const stale = await post(`/api/tasks/${task.id}/status`, { status: 'blocked', expectedRevision: 1 });
+  assert.equal(stale.status, 409);
+  assert.match((await stale.json()).error, /Tarefa alterada/);
+  assert.equal((await post(`/api/tasks/${task.id}/status`, { status: 'blocked' })).status, 400);
+  const [saved] = (await (await get('/api/state')).json()).tasks;
+  assert.equal(saved.status, 'done');
+  assert.equal(saved.revision, 2);
+  assert.equal(saved.hasDetails, true);
+  assert.equal(Object.hasOwn(saved, 'details'), false);
+  assert.deepEqual(await (await get(`/api/tasks/${task.id}/details`)).json(), { id: task.id, details: draft.trim() });
+  assert.equal((await get('/api/tasks/unknown/details')).status, 404);
+  assert.equal((await fetch(`${base}/api/tasks/${task.id}/details`)).status, 403);
+  const opendir = fs.promises.opendir;
+  t.mock.method(fs.promises, 'opendir', (dir, ...rest) => path.basename(dir) === 'locked' ? Promise.reject(Object.assign(new Error('EPERM'), { code: 'EPERM' })) : opendir(dir, ...rest));
+  const partial = await get(`/api/inventory?projectId=${project.id}`);
+  assert.equal(partial.status, 200);
+  const inventory = await partial.json();
+  assert.deepEqual(inventory.files, ['hero.png']);
+  assert.equal(inventory.unreadableDirectories, 1);
+  fs.renameSync(projectRoot, path.join(root, 'moved'));
+  const missing = await get(`/api/inventory?projectId=${project.id}`);
+  assert.equal(missing.status, 409);
+  assert.match((await missing.json()).error, /Pasta do projeto indisponível/);
+});
+
+test('tasks with long details keep every event-stream window connected', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-lab-api-'));
+  const app = createOmniForgeServer({ dataDir: path.join(root, 'data'), token: 'test-token' });
+  const base = new URL(await app.listen()).origin;
+  const controller = new AbortController();
+  t.after(async () => {
+    controller.abort(); await app.close();
+    const relative = path.relative(os.tmpdir(), root);
+    if (relative.startsWith('omniforge-lab-api-') && !relative.includes(path.sep)) fs.rmSync(root, { recursive: true, force: true });
+  });
+  const headers = { 'content-type': 'application/json', 'x-omniforge-token': 'test-token' };
+  const project = app.store.addProject({ name: 'Detalhes', root });
+  const events = await fetch(`${base}/api/events`, { headers, signal: controller.signal });
+  const reader = events.body.getReader(), decoder = new TextDecoder();
+  let received = '';
+  while (!received.includes('event: state')) received += decoder.decode((await reader.read()).value, { stream: true });
+  // Each Copilot-structured task may carry a 4,000-character draft; six of them once pushed state events past 16 KiB.
+  for (let i = 1; i <= 6; i++) {
+    const response = await fetch(`${base}/api/tasks`, { method: 'POST', headers, body: JSON.stringify({ projectId: project.id, title: `Detalhada ${i}`, details: `Detalhada ${i}\n${'x'.repeat(3980)}` }) });
+    assert.equal(response.status, 200);
+  }
+  const deadline = Date.now() + 5000;
+  while (!received.includes('Detalhada 6') && Date.now() < deadline) {
+    const { value, done } = await Promise.race([reader.read(), new Promise(resolve => setTimeout(() => resolve({ done: true }), 1000))]);
+    if (done) break;
+    received += decoder.decode(value, { stream: true });
+  }
+  assert.ok(received.includes('Detalhada 6'), `stream ended after ${received.length} characters`);
+  assert.equal(received.includes('x'.repeat(100)), false);
+  await reader.cancel();
 });
 
 test('the credential is never an ambient cookie, and each instance accepts only its own token from its own Host', async t => {
