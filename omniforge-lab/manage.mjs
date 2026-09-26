@@ -53,6 +53,9 @@ function contains(parent, child) {
   return relative !== '' && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 }
 
+// Path equality as the file system sees it: win32 path.relative ignores case, so "c:\users\x" is "C:\Users\X".
+const same = (a, b) => path.relative(a, b) === '';
+
 function tar(args) {
   const result = spawnSync(TAR, args, { encoding: 'utf8', windowsHide: true });
   if (result.status !== 0) throw new Error(`tar failed: ${firstLine(result.stderr || result.error?.message)}`);
@@ -225,7 +228,7 @@ function loadRecord(prefix) {
 }
 
 function mark(record, file, kind) {
-  if (!record.created.some(item => item.path === file)) record.created.push({ path: file, kind });
+  if (!record.created.some(item => same(item.path, file))) record.created.push({ path: file, kind });
 }
 
 function ensureDir(record, dir, kind = 'dir') {
@@ -292,9 +295,10 @@ function unpack(zip, sha256, prefix, record) {
   return id;
 }
 
-function activate(prefix, record, id, previous) {
+function activate(prefix, record, id, previous, backup = null) {
   const launcher = path.join(prefix, 'omniforge.cmd');
-  writeJson(path.join(prefix, 'current.json'), { version: id, previous, switchedAt: new Date().toISOString() });
+  // backup: the state copy update took before switching to id; rollback names exactly this file.
+  writeJson(path.join(prefix, 'current.json'), { version: id, previous, backup, switchedAt: new Date().toISOString() });
   mark(record, path.join(prefix, 'current.json'), 'file');
   // Control passes to the version's own script, so rewriting this launcher mid-update is safe.
   fs.writeFileSync(launcher, `@"%~dp0app\\${id}\\scripts\\omniforge.cmd" %*\r\n`);
@@ -329,7 +333,9 @@ export function install({ from, prefix = defaultPrefix(), exec = run, env = proc
   if (current && current.version !== id) throw new Error(`OmniForge ${current.version} is installed in ${prefix}; use: omniforge update --from ${zip}`);
   const record = loadRecord(prefix);
   unpack(zip, sha256, prefix, record);
-  ensureDir(record, path.join(prefix, 'data'), 'tree');
+  // Recorded on every install, also when an uninstall that kept the data left it behind.
+  fs.mkdirSync(path.join(prefix, 'data'), { recursive: true });
+  mark(record, path.join(prefix, 'data'), 'tree');
   activate(prefix, record, id, current?.previous ?? null);
   saveRecord(prefix, record);
   out(`Installed OmniForge ${id} in ${prefix} (data: ${path.join(prefix, 'data')})`);
@@ -350,17 +356,18 @@ export function update({ from, prefix = defaultPrefix(), exec = run, env = proce
   const id = peek(zip);
   if (id === current.version) { out(`OmniForge ${id} is already current.`); return 0; }
   const state = path.join(prefix, 'data', 'state.json');
+  let backup = null;
   if (fs.existsSync(state)) {
     // Never overwrite a backup: after a rollback the next update keeps both the old and the newer state.
     const digest = hashFile(state);
-    let backup = `${state}.pre-${id}`;
+    backup = `${state}.pre-${id}`;
     for (let n = 1; fs.existsSync(backup) && hashFile(backup) !== digest; n++) backup = `${state}.pre-${id}.${n}`;
     if (!fs.existsSync(backup)) fs.copyFileSync(state, backup, fs.constants.COPYFILE_EXCL);
     out(`State backup: ${backup}`);
   }
   const record = loadRecord(prefix);
   unpack(zip, sha256, prefix, record);
-  activate(prefix, record, id, current.version);
+  activate(prefix, record, id, current.version, backup);
   saveRecord(prefix, record);
   out(`Updated ${current.version} -> ${id}; ${current.version} stays installed side by side.`);
   const report = doctor({ appDir: path.join(prefix, 'app', id), exec, env });
@@ -378,8 +385,7 @@ export function rollback({ prefix = defaultPrefix(), out = console.log } = {}) {
   activate(prefix, record, current.previous, current.version);
   saveRecord(prefix, record);
   out(`Switched back to ${current.previous}; ${current.version} stays installed.`);
-  const backup = path.join(prefix, 'data', `state.json.pre-${current.version}`);
-  if (fs.existsSync(backup)) out(`State from before ${current.version}: ${backup} (restore it by hand only if ${current.version} changed data you need back).`);
+  if (current.backup && fs.existsSync(current.backup)) out(`State from before ${current.version}: ${current.backup} (restore it by hand only if ${current.version} changed data you need back).`);
   return 0;
 }
 
@@ -439,7 +445,7 @@ export function repair({ prefix = defaultPrefix(), out = console.log } = {}) {
 function describe(item, prefix) {
   const data = path.join(prefix, 'data');
   if (!fs.existsSync(item.path)) return 'recorded by install; already absent';
-  if (item.path === data) return `user data, removed only with --remove-data; ${fs.readdirSync(data).length} entries, created by install`;
+  if (same(item.path, data)) return `user data, removed only with --remove-data; ${fs.readdirSync(data).length} entries, the Lab's OMNIFORGE_DATA_DIR`;
   if (item.kind === 'tree') return `installed app ${path.basename(item.path)}; recorded in install.json, ${listFiles(item.path).length} files`;
   if (item.kind === 'dir') return 'install folder, removed only when empty; recorded in install.json';
   return `install file (${path.basename(item.path)}); recorded in install.json, ${fs.statSync(item.path).size} bytes`;
@@ -450,7 +456,7 @@ export function uninstall({ prefix = defaultPrefix(), apply = false, removeData 
   const record = loadRecord(prefix);
   const data = path.join(prefix, 'data');
   // A recorded path outside the prefix is never removed, whatever install.json says.
-  const ours = record.created.filter(item => item.path === prefix || contains(prefix, item.path));
+  const ours = record.created.filter(item => same(item.path, prefix) || contains(prefix, item.path));
   const lines = ours.map(item => `${item.path}: ${describe(item, prefix)}`);
   for (const item of record.created.filter(entry => !ours.includes(entry))) lines.push(`${item.path}: outside ${prefix}; ignored, never removed`);
   out(lines.length ? `Recorded by install in ${prefix}:` : `No install record in ${prefix}.`);
@@ -461,8 +467,8 @@ export function uninstall({ prefix = defaultPrefix(), apply = false, removeData 
   }
   refuseLive(prefix);
   const installFile = path.join(prefix, 'install.json');
-  const removable = ours.filter(item => item.path !== data || removeData);
-  for (const item of removable.filter(entry => entry.kind !== 'dir' && entry.path !== installFile)) {
+  const removable = ours.filter(item => !same(item.path, data) || removeData);
+  for (const item of removable.filter(entry => entry.kind !== 'dir' && !same(entry.path, installFile))) {
     fs.rmSync(item.path, { recursive: item.kind === 'tree', force: true });
   }
   fs.rmSync(installFile, { force: true });
@@ -472,9 +478,10 @@ export function uninstall({ prefix = defaultPrefix(), apply = false, removeData 
   }
   const residue = [];
   if (fs.existsSync(prefix)) {
-    for (const name of fs.readdirSync(prefix)) {
-      residue.push(`${path.join(prefix, name)}: ${path.join(prefix, name) === data ? 'user data kept (no --remove-data)' : 'not removable as recorded'}; left in place`);
-    }
+    const names = fs.readdirSync(prefix);
+    const kept = removeData ? 'user data not recorded by install, so --remove-data left it' : 'user data kept (no --remove-data)';
+    for (const name of names) residue.push(`${path.join(prefix, name)}: ${same(path.join(prefix, name), data) ? kept : 'not removable as recorded'}; left in place`);
+    if (!names.length) residue.push(`${prefix}: empty folder not recorded as created by install, or in use; left in place`);
   }
   let temps = [];
   // demo.mjs creates folders with mkdtemp; a same-prefix file is someone else's.

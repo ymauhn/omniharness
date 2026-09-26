@@ -82,7 +82,7 @@ Open the exact printed URL. Opening `index.html` as a file does not work. `OMNIF
 
 The manager you run is the one that performs the update. The new release's copy therefore brings its own update fixes. `"%LOCALAPPDATA%\OmniForge\omniforge.cmd" update --from ...` also works, but it runs the installed, older manager (see Evidence: a fix made in `ab7195f` applies only when that version's manager runs the update).
 
-`update` refuses while a running Lab holds `data\state.lock`. It uses the Lab's own lock semantics read-only: a live pid, an unreadable lock or a `state.recovery.lock` all count as running. It copies `data\state.json` to `state.json.pre-<new version>` and never overwrites a backup: an update after a rollback that finds different content writes `state.json.pre-<new version>.1`, `.2` and so on. It then installs the new version next to the old one, switches `current.json` and the launcher, runs doctor and prints the rollback command. `rollback` switches back to the previous version and points to that backup. It never overwrites data by itself.
+`update` refuses while a running Lab holds `data\state.lock`. It uses the Lab's own lock semantics read-only: a live pid, an unreadable lock or a `state.recovery.lock` all count as running. It copies `data\state.json` to `state.json.pre-<new version>` and never overwrites a backup: an update after a rollback that finds different content writes `state.json.pre-<new version>.1`, `.2` and so on. It then installs the new version next to the old one, switches `current.json` and the launcher, runs doctor and prints the rollback command. `current.json` records the exact backup this update took. `rollback` switches back to the previous version and names that file, not an older `.pre-*` from an earlier cycle. It never overwrites data by itself.
 
 ## Repair
 
@@ -96,7 +96,7 @@ The manager you run is the one that performs the update. The new release's copy 
 & "$env:LOCALAPPDATA\OmniForge\omniforge.cmd" uninstall --apply --remove-data      # also remove data\
 ```
 
-Without `--apply`, uninstall prints the numbered list `N. <path>: <reason>; <evidence>` and removes nothing. `--apply` refuses while the Lab is running. It removes only paths that `install.json` records inside the prefix. Folders are removed only when empty, and `data\` only with `--remove-data`. It then rescans and prints a residue report. `%TEMP%\omniforge-demo-*` folders from past demos are listed for triage and never deleted. Node.js, Python, Git and the host CLIs are never touched.
+Without `--apply`, uninstall prints the numbered list `N. <path>: <reason>; <evidence>` and removes nothing. `--apply` refuses while the Lab is running. It removes only paths that `install.json` records inside the prefix. Folders are removed only when empty, and `data\` only with `--remove-data`. Every install records `data\`, including a folder that an earlier `uninstall --apply` kept. Paths are compared the way Windows does, ignoring case, so `--prefix c:\users\me\...\omniforge` still recognises `data\` and keeps it. It then rescans and prints a residue report. `%TEMP%\omniforge-demo-*` folders from past demos are listed for triage and never deleted. Node.js, Python, Git and the host CLIs are never touched.
 
 ## Troubleshooting
 
@@ -116,7 +116,7 @@ Without `--apply`, uninstall prints the numbered list `N. <path>: <reason>; <evi
 
 Expected in a stock sandbox: the doctor `python` row is `missing` (no Python ships with Windows), so `install` and `doctor` exit 1 with the winget line. `/api/skills` then answers 503, and `doctorOk` is false. `passed` covers the lifecycle only: install, verified files, launch, authenticated probe, token refusal, clean stop, uninstall and an empty prefix. A fully green doctor needs Python installed in the sandbox first, and that step is not automated.
 
-The same script ran on the development host against a disposable prefix for the evidence below. Pass `-Prefix` there, or it installs into your real `%LOCALAPPDATA%\OmniForge`.
+The run ends with `uninstall --apply --remove-data`. `-Prefix` therefore defaults to a fresh `%TEMP%\omniforge-acceptance-<guid>`, and the script refuses any prefix that already exists before it installs anything. It also stops when `install` does not print `Installed OmniForge`. A real install, such as `%LOCALAPPDATA%\OmniForge`, is therefore never reused. The same script ran on the development host for the evidence below.
 
 ## Known limits
 

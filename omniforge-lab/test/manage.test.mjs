@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { doctor, pack, archive, install, update, rollback, repair, uninstall } from '../manage.mjs';
 
 const PINNED = '1.2.0-beta.15';
@@ -51,6 +52,7 @@ function fakeExec({ python = () => ({ status: 0, stdout: 'C:\\Py312\\python.exe\
 }
 
 const row = (report, name) => report.rows.find(item => item.name === name);
+const contained = (parent, child) => !path.relative(parent, child).startsWith('..') && !path.isAbsolute(path.relative(parent, child));
 
 test('doctor rejects the Store python stub, accepts py -3 and classifies host logins without echoing them', t => {
   const appDir = tinyZip(tmp(t, 'doctor'), '0.1.0', 'a'.repeat(40)).root;
@@ -189,16 +191,24 @@ test('update refuses a live instance, backs up state, switches and rolls back', 
   assert.ok(fs.existsSync(path.join(prefix, 'app', first.id, 'omniforge-lab', 'server.mjs')), 'side by side');
   assert.ok(out.some(line => line.includes('rollback')), out.join('\n'));
 
-  assert.equal(rollback({ prefix, out: () => {} }), 0);
+  const hint = [];
+  assert.equal(rollback({ prefix, out: line => hint.push(line) }), 0);
   const back = JSON.parse(fs.readFileSync(path.join(prefix, 'current.json'), 'utf8'));
   assert.deepEqual([back.version, back.previous], [first.id, second.id]);
   assert.match(fs.readFileSync(path.join(prefix, 'omniforge.cmd'), 'utf8'), new RegExp(first.id.replaceAll('.', '\\.')));
+  assert.ok(hint.some(line => line.includes(`state.json.pre-${second.id} `)), hint.join('\n'));
 
   // Work done after the rollback gets its own backup on the next update; the first one is kept.
   fs.writeFileSync(path.join(data, 'state.json'), '{"schema":1,"after":"rollback"}');
   assert.equal(update({ from: second.zip, prefix, exec: fakeExec(), out: () => {} }), 0);
   const backups = fs.readdirSync(data).filter(name => name.startsWith(`state.json.pre-${second.id}`)).sort();
   assert.deepEqual(backups.map(name => fs.readFileSync(path.join(data, name), 'utf8')).sort(), ['{"schema":1,"after":"rollback"}', '{"schema":1}']);
+  // Rolling back this update points to the state taken just before it, not to the oldest backup.
+  const again = [];
+  assert.equal(rollback({ prefix, out: line => again.push(line) }), 0);
+  const named = again.map(line => line.match(/(\S+state\.json\.pre-\S+)/)?.[1]).filter(Boolean);
+  assert.equal(named.length, 1, again.join('\n'));
+  assert.equal(fs.readFileSync(named[0], 'utf8'), '{"schema":1,"after":"rollback"}');
 });
 
 test('repair restores changed files from the recorded zip and lists stale locks without deleting them', t => {
@@ -262,6 +272,78 @@ test('uninstall prints triage by default, removes only recorded paths and report
   fs.writeFileSync(path.join(prefix2, 'data', 'state.json'), '{}');
   assert.equal(uninstall({ prefix: prefix2, apply: true, removeData: true, tempDir, out: () => {} }), 0);
   assert.ok(!fs.existsSync(prefix2), 'a prefix created by install is removed once empty');
+});
+
+test('uninstall treats a differently cased prefix as the same install and keeps data without --remove-data', t => {
+  const dir = tmp(t, 'casing');
+  const prefix = path.join(dir, 'OmniForge');
+  const release = tinyZip(dir, '0.1.0', '5'.repeat(40));
+  install({ from: release.zip, prefix, exec: fakeExec(), out: () => {} });
+  fs.writeFileSync(path.join(prefix, 'data', 'state.json'), '{"schema":1}');
+  const lower = prefix.toLowerCase();
+  const dry = [];
+  uninstall({ prefix: lower, tempDir: dir, out: line => dry.push(line) });
+  assert.equal(uninstall({ prefix: lower, apply: true, tempDir: dir, out: () => {} }), 0);
+  assert.equal(fs.readFileSync(path.join(prefix, 'data', 'state.json'), 'utf8'), '{"schema":1}');
+  assert.ok(!fs.existsSync(path.join(prefix, 'app')));
+  assert.ok(dry.some(line => line.includes(`${path.join(prefix, 'data')}: user data`)), dry.join('\n'));
+  assert.ok(!dry.some(line => /ignored/.test(line)), dry.join('\n'));
+
+  install({ from: release.zip, prefix: prefix.toUpperCase(), exec: fakeExec(), out: () => {} });
+  const created = JSON.parse(fs.readFileSync(path.join(prefix, 'install.json'), 'utf8')).created;
+  install({ from: release.zip, prefix, exec: fakeExec(), out: () => {} });
+  assert.equal(JSON.parse(fs.readFileSync(path.join(prefix, 'install.json'), 'utf8')).created.length, created.length, 'no duplicate records');
+});
+
+test('a reinstall over kept data records it, so a later --remove-data removes it', t => {
+  const dir = tmp(t, 'reinstall');
+  const prefix = path.join(dir, 'OmniForge');
+  const release = tinyZip(dir, '0.1.0', '6'.repeat(40));
+  install({ from: release.zip, prefix, exec: fakeExec(), out: () => {} });
+  fs.writeFileSync(path.join(prefix, 'data', 'state.json'), '{"schema":1}');
+  uninstall({ prefix, apply: true, tempDir: dir, out: () => {} });
+  assert.ok(fs.existsSync(path.join(prefix, 'data', 'state.json')));
+  install({ from: release.zip, prefix, exec: fakeExec(), out: () => {} });
+  const lines = [];
+  assert.equal(uninstall({ prefix, apply: true, removeData: true, tempDir: dir, out: line => lines.push(line) }), 0);
+  assert.ok(!fs.existsSync(path.join(prefix, 'data')), lines.join('\n'));
+  assert.ok(!lines.some(line => /no --remove-data/.test(line)), lines.join('\n'));
+});
+
+// The acceptance script ends with uninstall --apply --remove-data, so it must never reach an existing install.
+function acceptance(t, args) {
+  const dir = tmp(t, 'acceptance');
+  const env = { ...process.env, TEMP: path.join(dir, 'temp'), TMP: path.join(dir, 'temp'), LOCALAPPDATA: path.join(dir, 'local') };
+  env.Path = `${path.dirname(process.execPath)};${process.env.Path ?? process.env.PATH ?? ''}`;
+  fs.mkdirSync(env.TEMP);
+  fs.mkdirSync(env.LOCALAPPDATA);
+  const output = path.join(dir, 'out');
+  const script = fileURLToPath(new URL('../../scripts/sandbox/run-in-sandbox.ps1', import.meta.url));
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-Output', output, ...args(dir)],
+    { encoding: 'utf8', env, timeout: 180_000 });
+  const report = JSON.parse(fs.readFileSync(path.join(output, 'report.json'), 'utf8').replace(/^﻿/, ''));
+  return { dir, env, result, report };
+}
+
+test('the acceptance script defaults to a fresh TEMP prefix, never %LOCALAPPDATA%', t => {
+  const { env, result, report } = acceptance(t, dir => { fs.mkdirSync(path.join(dir, 'empty')); return ['-Release', path.join(dir, 'empty')]; });
+  assert.equal(result.status, 1, result.stdout);
+  assert.ok(contained(env.TEMP, report.prefix) && /omniforge-acceptance-/.test(report.prefix), report.prefix);
+});
+
+test('the acceptance script refuses an existing prefix before installing anything', t => {
+  let prefix;
+  const { result, report } = acceptance(t, dir => {
+    const release = tinyZip(path.join(dir, 'release'), '0.1.0', '7'.repeat(40), { real: true });
+    prefix = path.join(dir, 'OmniForge');
+    install({ from: release.zip, prefix, exec: fakeExec(), out: () => {} });
+    fs.writeFileSync(path.join(prefix, 'data', 'state.json'), '{"schema":1}');
+    return ['-Release', path.dirname(release.zip), '-Prefix', prefix];
+  });
+  assert.equal(result.status, 1, result.stdout);
+  assert.match(report.error, /already exists/);
+  assert.deepEqual([].concat(report.steps ?? []), [], JSON.stringify(report.steps));
+  assert.equal(fs.readFileSync(path.join(prefix, 'data', 'state.json'), 'utf8'), '{"schema":1}');
 });
 
 test('the installed launcher survives uninstall deleting its own folder', t => {

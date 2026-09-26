@@ -1,11 +1,12 @@
 # Clean-machine acceptance run for an OmniForge release (Windows PowerShell 5.1 compatible, ASCII only).
 # Verifies and installs the release zip, runs doctor and repair, starts the installed Lab, probes it with its
 # printed token, stops it through stdin EOF, uninstalls with --apply --remove-data and writes report.json.
-# Windows Sandbox starts it from omniforge-install.wsb; on a normal host pass a disposable -Prefix.
+# Windows Sandbox starts it from omniforge-install.wsb. Because the run ends by deleting the prefix and its data,
+# -Prefix defaults to a fresh %TEMP% folder and the run refuses any prefix that already exists.
 param(
     [Parameter(Mandatory = $true)][string]$Release,
     [Parameter(Mandatory = $true)][string]$Output,
-    [string]$Prefix = (Join-Path $env:LOCALAPPDATA 'OmniForge'),
+    [string]$Prefix = (Join-Path $env:TEMP ('omniforge-acceptance-' + [guid]::NewGuid().ToString('N'))),
     [switch]$PortableNode
 )
 $ErrorActionPreference = 'Stop'
@@ -53,6 +54,7 @@ function Get-Status([string]$Uri, [hashtable]$Headers) {
 
 $exitCode = 1
 try {
+    if (Test-Path -LiteralPath $Prefix) { throw "$Prefix already exists; this run ends with uninstall --apply --remove-data, so pass a -Prefix that does not exist yet" }
     $zip = Get-ChildItem -LiteralPath $Release -Filter 'omniforge-*-win-x64.zip' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $zip) { throw "no omniforge-*-win-x64.zip in $Release" }
     $report.release = $zip.Name
@@ -87,7 +89,7 @@ try {
     $install = Invoke-Step 'install' ('"' + (Join-Path $boot 'scripts\omniforge.cmd') + '" install --from "' + $zip.FullName + '" --prefix "' + $Prefix + '"')
     Remove-Item -LiteralPath $boot -Recurse -Force
     $launcher = Join-Path $Prefix 'omniforge.cmd'
-    if (-not (Test-Path -LiteralPath $launcher)) { throw 'install did not create the launcher' }
+    if (-not ($install.output -match '^Installed OmniForge')) { throw 'install did not complete; see the install step output' }
     $doctor = Invoke-Step 'doctor' ('"' + $launcher + '" doctor')
     $repair = Invoke-Step 'repair (verify installed files)' ('"' + $launcher + '" repair')
 
