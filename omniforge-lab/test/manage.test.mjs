@@ -302,6 +302,19 @@ test('uninstall prints triage by default, removes only recorded paths and report
   assert.ok(!fs.existsSync(prefix2), 'a prefix created by install is removed once empty');
 });
 
+test('the data triage line names the agent worktrees --remove-data deletes and what stays in the owner\'s repositories', t => {
+  const dir = tmp(t, 'worktrees');
+  const prefix = path.join(dir, 'OmniForge');
+  install({ from: tinyZip(dir, '0.1.0', '7'.repeat(40)).zip, prefix, exec: fakeExec(), out: () => {} });
+  for (const id of ['a1b2c3d4', 'e5f6a7b8']) fs.mkdirSync(path.join(prefix, 'data', 'worktrees', id), { recursive: true });
+  const lines = [];
+  assert.equal(uninstall({ prefix, tempDir: dir, out: line => lines.push(line) }), 0);
+  const data = lines.find(line => line.includes(`${path.join(prefix, 'data')}: user data`)) ?? lines.join('\n');
+  assert.match(data, /2 agent worktree\(s\) in worktrees/);
+  assert.match(data, /unmerged agent work there is lost/);
+  assert.match(data, /omniforge\/\* branches and \.git\/worktrees entries stay in the owner's repositories/);
+});
+
 test('uninstall treats a differently cased prefix as the same install and keeps data without --remove-data', t => {
   const dir = tmp(t, 'casing');
   const prefix = path.join(dir, 'OmniForge');
