@@ -474,7 +474,9 @@ export function uninstall({ prefix = defaultPrefix(), apply = false, removeData 
     }
   }
   let temps = [];
-  try { temps = fs.readdirSync(tempDir).filter(name => name.startsWith('omniforge-demo-')); } catch { temps = []; }
+  // demo.mjs creates folders with mkdtemp; a same-prefix file is someone else's.
+  try { temps = fs.readdirSync(tempDir, { withFileTypes: true }).filter(entry => entry.isDirectory() && entry.name.startsWith('omniforge-demo-')).map(entry => entry.name); }
+  catch { temps = []; }
   for (const name of temps) residue.push(`${path.join(tempDir, name)}: data of a past start --demo; listed for triage, never deleted by uninstall`);
   out('Residue after uninstall:');
   if (!residue.length) out(`none (nothing left in ${prefix}; no omniforge-demo-* in ${tempDir})`);

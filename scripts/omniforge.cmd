@@ -7,5 +7,6 @@ where node >nul 2>nul || (
   echo or download the Windows installer from https://nodejs.org/en/download
   exit /b 9009
 )
-rem One line: uninstall may delete this file while node runs, and cmd must not read it again.
-node "%~dp0..\omniforge-lab\manage.mjs" %* & call exit /b %%errorlevel%%
+rem cmd re-reads a running batch after every external command, and uninstall deletes this file.
+rem (goto) ends the batch context first; the rest of the line is already expanded and keeps node's exit code.
+(goto) 2>nul & node "%~dp0..\omniforge-lab\manage.mjs" %*

@@ -16,7 +16,8 @@ function tmp(t, name) {
 }
 
 // A tiny release: the real layout with stand-in files, zipped and hashed by the production archive().
-function tinyZip(dir, version, sha) {
+// With real = true it carries the real manager and entry script, so the installed launcher works.
+function tinyZip(dir, version, sha, { real = false } = {}) {
   const root = path.join(dir, `root-${version}`);
   fs.mkdirSync(path.join(root, 'omniforge-lab'), { recursive: true });
   fs.mkdirSync(path.join(root, 'scripts'));
@@ -24,6 +25,10 @@ function tinyZip(dir, version, sha) {
   fs.writeFileSync(path.join(root, 'omniforge-lab', 'server.mjs'), `// server ${version}\n`);
   fs.writeFileSync(path.join(root, 'omniforge-lab', 'index.html'), `<p>${version}</p>\n`);
   fs.writeFileSync(path.join(root, 'scripts', 'omniforge.cmd'), '@echo off\r\n');
+  if (real) {
+    fs.copyFileSync(new URL('../manage.mjs', import.meta.url), path.join(root, 'omniforge-lab', 'manage.mjs'));
+    fs.copyFileSync(new URL('../../scripts/omniforge.cmd', import.meta.url), path.join(root, 'scripts', 'omniforge.cmd'));
+  }
   return archive(root, dir, { version, sha });
 }
 
@@ -217,6 +222,7 @@ test('uninstall prints triage by default, removes only recorded paths and report
   const dir = tmp(t, 'uninstall');
   const tempDir = path.join(dir, 'temp');
   fs.mkdirSync(path.join(tempDir, 'omniforge-demo-abc123'), { recursive: true });
+  fs.writeFileSync(path.join(tempDir, 'omniforge-demo-run.log'), 'a log someone else wrote, not demo data');
   const outside = path.join(dir, 'outside.txt');
   fs.writeFileSync(outside, 'not ours');
   const prefix = path.join(dir, 'OmniForge');
@@ -242,6 +248,7 @@ test('uninstall prints triage by default, removes only recorded paths and report
   const residue = applied.slice(applied.findIndex(line => /Residue/.test(line)));
   assert.ok(residue.some(line => line.includes(path.join(prefix, 'data'))), applied.join('\n'));
   assert.ok(residue.some(line => line.includes('omniforge-demo-abc123') && /never deleted/.test(line)), applied.join('\n'));
+  assert.ok(!residue.some(line => line.includes('omniforge-demo-run.log')), 'demo data folders only');
   assert.ok(fs.existsSync(path.join(tempDir, 'omniforge-demo-abc123')));
 
   const prefix2 = path.join(dir, 'Second');
@@ -249,4 +256,19 @@ test('uninstall prints triage by default, removes only recorded paths and report
   fs.writeFileSync(path.join(prefix2, 'data', 'state.json'), '{}');
   assert.equal(uninstall({ prefix: prefix2, apply: true, removeData: true, tempDir, out: () => {} }), 0);
   assert.ok(!fs.existsSync(prefix2), 'a prefix created by install is removed once empty');
+});
+
+test('the installed launcher survives uninstall deleting its own folder', t => {
+  const dir = tmp(t, 'launcher');
+  const prefix = path.join(dir, 'Omni Forge');
+  const release = tinyZip(dir, '0.1.0', '4'.repeat(40), { real: true });
+  install({ from: release.zip, prefix, exec: fakeExec(), out: () => {} });
+  // cmd re-reads a running batch after each external command; a deleted batch folder used to print
+  // "The system cannot find the path specified" and turn the exit code into 1.
+  const result = spawnSync(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `""${path.join(prefix, 'omniforge.cmd')}" uninstall --apply --remove-data 2>&1"`],
+    { encoding: 'utf8', windowsVerbatimArguments: true, cwd: dir });
+  assert.equal(result.status, 0, result.stdout);
+  assert.match(result.stdout, /Residue after uninstall:/);
+  assert.doesNotMatch(result.stdout.split('Node.js, Python, Git and the host CLIs were not touched.')[1], /\S/);
+  assert.ok(!fs.existsSync(prefix), result.stdout);
 });
