@@ -5,6 +5,8 @@ import { local, api, action, toast, refreshState, sessionById, taskById, statusL
 export function createTasks({ showView, runControls, reviewPanel, arsenal }) {
   // Unsent handoff forms (open state, host, note) by task id, so a state re-render never discards what is being typed.
   const handoffDrafts = new Map();
+  // "Detalhes" by task id ({ open, text, requested, node }), so a re-render keeps an open one open with its loaded text.
+  const details = new Map();
 
   // Owner session, worktree and handoffs come from recorded task fields and live session events, never from chat text.
   function renderTaskOwner(item, task) {
@@ -79,13 +81,18 @@ export function createTasks({ showView, runControls, reviewPanel, arsenal }) {
       one(item, 'div', 'meta', dependencies.length ? `Depende de: ${dependencies.join(' · ')}` : 'Sem dependências');
       if (task.blockedBy) one(item, 'div', 'meta task-replan', `Bloqueada automaticamente: o pré-requisito “${taskById(task.blockedBy)?.title || task.blockedBy}” está bloqueado.`);
       if (task.hasDetails) {
-        const more = one(item, 'details'); one(more, 'summary', '', 'Detalhes').dataset.focusKey = `task:${task.id}:details`;
-        const text = one(more, 'p', 'meta', 'Carregando…'); text.style.whiteSpace = 'pre-wrap';
+        // Details never change once written: loaded once, drawn into whichever node the latest render made.
+        const entry = details.get(task.id) ?? { open: false, text: null, requested: false };
+        details.set(task.id, entry);
+        const more = one(item, 'details'); more.open = entry.open;
+        one(more, 'summary', '', 'Detalhes').dataset.focusKey = `task:${task.id}:details`;
+        entry.node = one(more, 'p', 'meta', entry.text ?? 'Carregando…'); entry.node.style.whiteSpace = 'pre-wrap';
         more.addEventListener('toggle', async () => {
-          if (!more.open || more.requested) return;
-          more.requested = true;
-          try { text.textContent = (await api(`/api/tasks/${encodeURIComponent(task.id)}/details`)).details; }
-          catch (error) { more.requested = false; text.textContent = `Detalhes não carregados: ${error.message}`; }
+          entry.open = more.open;
+          if (!more.open || entry.requested) return;
+          entry.requested = true;
+          try { entry.text = (await api(`/api/tasks/${encodeURIComponent(task.id)}/details`)).details; entry.node.textContent = entry.text; }
+          catch (error) { entry.requested = false; entry.node.textContent = `Detalhes não carregados: ${error.message}`; }
         });
       }
       renderTaskOwner(item, task);

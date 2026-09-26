@@ -40,7 +40,7 @@ const openSession = id => {
   workspace.renderWorkspace(); showView('workspace');
   $('#terminal-grid').children[index]?.querySelector('.pane-select')?.focus();
 };
-const fleet = createFleet({ openSession, onChange: () => { tasks.renderTasks(); reviewPanel.onRuns(); } });
+const fleet = createFleet({ openSession, onChange: () => tasks.renderTasks(), onRuns: () => reviewPanel.onRuns() });
 const reviewPanel = createReviewPanel({ root: $('#review-panel'), api, getProjectId, getTask: taskById, toast, getGauntlet: fleet.gauntletRun });
 const arsenal = mountArsenalPanel({ root: $('#arsenal-panel'), api, getProjectId, getSessions: () => local.state.sessions, getTasks: () => local.state.tasks, onChanged: () => tasks.renderTasks() });
 const tasks = createTasks({ showView, runControls: fleet.taskControls, reviewPanel, arsenal });

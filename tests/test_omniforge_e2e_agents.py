@@ -33,8 +33,8 @@ class AgentsE2E(LabCase):
         return page.evaluate("""t => [...document.querySelectorAll('#fleet-board .kanban-column')]
             .find(c => [...c.querySelectorAll('.kanban-title')].some(n => n.textContent === t))?.dataset.status""", title)
 
-    def add_task(self, page, title):
-        self.tasks[title] = self.api(page, "/api/tasks", {"projectId": self.project["id"], "title": title})["id"]
+    def add_task(self, page, title, **fields):
+        self.tasks[title] = self.api(page, "/api/tasks", {"projectId": self.project["id"], "title": title, **fields})["id"]
 
     def start(self, page, title, host):
         """Clicks "Rodar com <host>" on the task card; returns the card and the run's Lab session id."""
@@ -66,8 +66,8 @@ class AgentsE2E(LabCase):
         context, page = self.open(context)
         self.project, self.tasks = self.scratch_repo(page, "Repo agentes"), {}
         claude, codex = "Ajustar o README", "Revisar o README"
-        for title in (claude, codex):
-            self.add_task(page, title)
+        self.add_task(page, claude, details="Contexto: manter o README curto")
+        self.add_task(page, codex)
         self.select_project(page, "Repo agentes")
         page.evaluate(RECORD_STATES)
         self.view(page, "fleet")
@@ -77,10 +77,21 @@ class AgentsE2E(LabCase):
         page.get_by_role("button", name="Ativar notificações").click()
         page.get_by_role("button", name="Desativar notificações").wait_for()
 
+        # The task's Detalhes, opened before the run, stay open (and are not fetched again) through its re-renders.
+        details_fetches = []
+        page.on("request", lambda request: details_fetches.append(request.url) if request.url.endswith("/details") else None)
+        self.view(page, "tasks")
+        more = page.locator(f"select[aria-label='Estado de {claude}']").locator("xpath=ancestor::article[1]").locator("details", has_text="Detalhes")
+        more.locator("summary").click()
+        more.get_by_text("Contexto: manter o README curto").wait_for()
+
         # Claude: working, then blocked on the permission prompt, as text on the task card and on the fleet card.
         item, session = self.start(page, claude, "Claude")
         self.wait_state(page, claude, "blocked")
         item.get_by_text("Claude · Aguardando você · pedido de permissão").wait_for()
+        self.assertTrue(more.evaluate("d => d.open"), "an agent's state change keeps the open Detalhes open")
+        self.assertIn("Contexto: manter o README curto", more.inner_text())
+        self.assertEqual(len(details_fetches), 1, details_fetches)
         states = self.states(page, claude)
         self.assertLess(states.index("working"), states.index("blocked"), states)
         self.view(page, "fleet")

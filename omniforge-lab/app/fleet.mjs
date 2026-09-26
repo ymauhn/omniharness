@@ -62,17 +62,24 @@ function runBadge(parent, run, withHost = false) {
   return badge;
 }
 
-export function createFleet({ openSession, onChange = () => {} }) {
-  let runs = [], projectId, request = 0, loadError = '', notify = false, elapsedNodes = new Map();
+// `onChange` re-renders the task list; `onRuns` follows every run update (the review panel checks its own Gauntlet run).
+export function createFleet({ openSession, onChange = () => {}, onRuns = () => {} }) {
+  let runs = [], projectId, request = 0, loadError = '', notify = false, elapsedNodes = new Map(), listed = null;
   const pending = new Set(), toggle = $('#fleet-notify');
   // Router suggestions by task id ({ pending, result, error, jev, jevAvailable }): they survive every re-render.
   const suggestions = new Map();
   const focusTask = key => [...$('#task-list').querySelectorAll('[data-focus-key]')].find(node => node.dataset.focusKey === key)?.focus();
   const latestRun = taskId => runs.find(run => run.taskId === taskId) ?? null;
-  const changed = () => { render(); onChange(); };
+  // The task list shows only each run's state (run buttons, badge): an agent's detail or timing update never rebuilds it,
+  // so an open <details> or <select> there stays open while the agent works.
+  const changed = () => {
+    render(); onRuns();
+    const states = runs.map(run => `${run.id}:${run.state}`).join();
+    if (states !== listed) { listed = states; onChange(); }
+  };
 
   function sync() {
-    if (projectId !== local.projectId) { projectId = local.projectId; runs = []; loadError = ''; void load(); }
+    if (projectId !== local.projectId) { projectId = local.projectId; runs = []; listed = null; loadError = ''; void load(); }
     render();
   }
 

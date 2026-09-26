@@ -215,6 +215,49 @@ test('a Gauntlet run from the agent SSE is named as such, exposed for the review
   assert.equal(find(card(), 'Rodar com Codex').disabled, true);
 });
 
+test('agent events rebuild the task list only on a run state change, and an open "Detalhes" stays open and loaded', async () => {
+  const env = environment(), { $, fleet, tasks, server, emit } = env;
+  local.state.tasks[0].hasDetails = true;
+  server.runs = [run('r', { detail: 'Bash' })];
+  const base = server.respond;
+  server.respond = async (path, options) => (path.endsWith('/details') ? { ok: true, status: 200, json: async () => ({ id: 't', details: 'Contexto completo' }) } : base(path, options));
+  fleet.sync(); await tick(); await tick();
+  const card = () => $('#task-list').children.find(item => item.textContent.includes('Corrigir README'));
+  const control = key => card().descendants().find(node => node.dataset.focusKey === `task:t:${key}`);
+  const details = () => control('details').parent;
+  const fetches = () => env.requests.filter(request => request.path.endsWith('/details')).length;
+  const opened = details(), status = control('status');
+  opened.open = true; await opened.fire('toggle');
+  assert.match(card().textContent, /Contexto completo/);
+
+  // Tool after tool, the run's detail and timing change while its state stays "working".
+  await emit('r', 'working', 'Read');
+  await emit('r', 'working', '');
+  assert.equal(details(), opened, 'the task list is not rebuilt: the open Detalhes is the same element');
+  assert.equal(control('status'), status, 'and an open status select is not replaced under the pointer');
+
+  await emit('r', 'blocked', 'permission_prompt');
+  assert.notEqual(details(), opened, 'a state change rebuilds the list');
+  assert.match(card().textContent, /Claude · Aguardando você · pedido de permissão/);
+  assert.equal(details().open, true, 'the Detalhes the owner opened stays open');
+  assert.match(details().textContent, /Contexto completo/, 'with its text');
+  assert.equal(fetches(), 1, 'fetched once');
+
+  details().open = false; await details().fire('toggle');
+  tasks.renderTasks();
+  assert.equal(details().open, false, 'a closed Detalhes stays closed');
+  local.state.tasks[1].hasDetails = true; tasks.renderTasks();
+  const other = $('#task-list').children.find(item => item.textContent.includes('Revisar testes'));
+  assert.equal(other.descendants().find(node => node.dataset.focusKey === 'task:u:details').parent.open, false, 'per task');
+
+  // Away and back before the other project's runs arrive: the page redraws the list without runs, and the reload redraws them.
+  const gate = deferred();
+  server.hold = gate.promise;
+  local.projectId = 'b'; fleet.sync(); local.projectId = 'a'; fleet.sync(); tasks.renderTasks();
+  server.hold = null; gate.resolve(); await tick(); await tick(); await tick();
+  assert.match(card().textContent, /Claude · Aguardando você/);
+});
+
 test('"Sugerir host e skill" shows source, probability and latency, marks the suggested run and never starts one', async () => {
   const env = environment(), { $, fleet, server, find } = env;
   fleet.sync(); await tick(); await tick();
