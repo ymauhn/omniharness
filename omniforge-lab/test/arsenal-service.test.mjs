@@ -134,6 +134,22 @@ test('missing pin is 404 while damaged project registry remains unavailable', as
   await assert.rejects(service.request({ op: 'get-pin', projectId, taskId }), denied(503));
 });
 
+test('a stranded writer lock is named for recovery; close lets an in-flight write finish instead of stranding one', async t => {
+  const { service, dataDir, projectId } = fixture(t);
+  const builtinId = (await service.request({ op: 'builtins' })).profiles[0].id;
+  const lock = path.join(dataDir, 'arsenal', `${projectId}.json.lock`);
+  fs.mkdirSync(path.dirname(lock), { recursive: true });
+  fs.writeFileSync(lock, 'interrupted writer', 'utf8');
+  await assert.rejects(service.request({ op: 'import-builtin', projectId, builtinId, expectedRevision: 0 }),
+    error => error.status === 423 && error.message.includes(lock));
+  fs.unlinkSync(lock); // This test owns the synthetic lock.
+  const slow = new ArsenalService({ dataDir, repoRoot: ROOT, spawnProcess: (_python, _args, options) => spawn(process.execPath,
+    ['-e', 'setTimeout(() => process.stdout.write(JSON.stringify({ ok: true, result: { saved: true } })), 300)'], options) });
+  const writing = slow.request({ op: 'list', projectId });
+  await slow.close();
+  assert.deepEqual(await writing, { saved: true });
+});
+
 test('oversized output and stalled children fail closed with bounded process lifetime', async t => {
   const projectId = randomUUID();
   for (const script of [

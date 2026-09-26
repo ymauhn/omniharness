@@ -35,6 +35,18 @@ class ConflictError(ValidationError):
     pass
 
 
+class LockedError(ConflictError):
+    """The writer lock exists: a live write or one left by an interrupted writer."""
+
+
+class DamagedError(ValidationError):
+    """The persisted registry itself is unreadable; the request was not at fault."""
+
+
+class CapacityError(ValidationError):
+    """The documented event or byte bound is reached; history was retained."""
+
+
 def _require(condition, message):
     if not condition:
         raise ValidationError(message)
@@ -272,10 +284,13 @@ class Registry:
 
     def _read(self):
         try:
-            document = _read_json(self.path)
-        except FileNotFoundError:
-            document = {'schema_version': 1, 'revision': 0, 'events': []}
-        profiles, pins = _replay(document)
+            try:
+                document = _read_json(self.path)
+            except FileNotFoundError:
+                document = {'schema_version': 1, 'revision': 0, 'events': []}
+            profiles, pins = _replay(document)
+        except ValidationError as exc:
+            raise DamagedError('Persisted registry is unreadable; it was retained for inspection') from exc
         return document, profiles, pins
 
     def _append(self, action, data, expected_revision, actor):
@@ -285,19 +300,22 @@ class Registry:
         try:
             handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         except FileExistsError as exc:
-            raise ConflictError('Registry writer is busy; inspect a persistent lock before recovery') from exc
+            raise LockedError('Registry writer is busy; inspect a persistent lock before recovery') from exc
         temporary = None
         try:
             os.close(handle)
             document, _, _ = self._read()
             if document['revision'] != expected_revision:
                 raise ConflictError('Stale registry revision')
+            if document['revision'] >= MAX_EVENTS:
+                raise CapacityError('Registry event limit reached; history was retained')
             document['revision'] += 1
             document['events'].append({'sequence': document['revision'], 'action': action, 'actor': actor,
                 'at': datetime.now(timezone.utc).isoformat(), 'data': copy.deepcopy(data)})
             _replay(document)
             raw = _encode(document)
-            _require(len(raw) <= MAX_STORE_BYTES, 'Registry byte limit reached; history was retained')
+            if len(raw) > MAX_STORE_BYTES:
+                raise CapacityError('Registry byte limit reached; history was retained')
             with tempfile.NamedTemporaryFile(dir=self.path.parent, prefix='.arsenal-', suffix='.tmp', delete=False) as stream:
                 temporary = Path(stream.name); stream.write(raw); stream.flush(); os.fsync(stream.fileno())
             os.replace(temporary, self.path); temporary = None

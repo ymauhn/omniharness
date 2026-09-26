@@ -12,8 +12,8 @@ import sys
 from pathlib import Path
 
 from harness.agent_arsenal import (
-    ConflictError, Registry, ValidationError, _id, _pairs, builtin_profiles,
-    synthesize, validate_profile,
+    CapacityError, ConflictError, DamagedError, LockedError, Registry, ValidationError, _id, _pairs,
+    builtin_profiles, synthesize, validate_profile,
 )
 
 MAX_REQUEST_BYTES = 65_536
@@ -110,10 +110,7 @@ def handle(request, data_dir):
     if op == 'get-pin':
         _fields(request, 'op projectId taskId')
         _id(request['taskId'])
-        try:
-            pin = registry.find_pin(request['taskId'], request['projectId'])
-        except ValidationError as exc:
-            raise OSError('Unreadable project arsenal') from exc
+        pin = registry.find_pin(request['taskId'], request['projectId'])  # A damaged registry raises DamagedError.
         if pin is None:
             raise NotFoundError('Task pin not found in this project')
         return pin
@@ -136,10 +133,16 @@ def main(argv=None):
         request = json.loads(raw.decode('utf-8'), object_pairs_hook=_pairs,
                              parse_constant=lambda _: (_ for _ in ()).throw(ValidationError('Invalid number')))
         response = {'ok': True, 'result': handle(request, args.data_dir)}
+    except LockedError:
+        response = {'ok': False, 'code': 'locked'}
     except ConflictError:
         response = {'ok': False, 'code': 'conflict'}
     except NotFoundError:
         response = {'ok': False, 'code': 'not_found'}
+    except DamagedError:
+        response = {'ok': False, 'code': 'damaged'}
+    except CapacityError:
+        response = {'ok': False, 'code': 'full'}
     except (ValidationError, TypeError, ValueError, KeyError, RecursionError, UnicodeError):
         response = {'ok': False, 'code': 'invalid'}
     except OSError:

@@ -8,7 +8,7 @@ const MAX_INPUT = 65_536;
 const MAX_OUTPUT = 262_144;
 const PROJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const BOOTSTRAP = 'import sys;sys.path.insert(0,sys.argv[1]);from harness.agent_arsenal_bridge import main;raise SystemExit(main(sys.argv[2:]))';
-const STATUS = { invalid: 400, not_found: 404, conflict: 409, unavailable: 503 };
+const STATUS = { invalid: 400, not_found: 404, conflict: 409, locked: 423, unavailable: 503, damaged: 503, full: 507 };
 const MESSAGES = {
   400: 'Pedido de arsenal inválido',
   404: 'Perfil ou vínculo não encontrado neste projeto',
@@ -16,7 +16,13 @@ const MESSAGES = {
   429: 'Arsenal ocupado; tente novamente',
   503: 'Arsenal local indisponível',
 };
-const problem = status => Object.assign(new Error(MESSAGES[status]), { status });
+// Registry states that reloading cannot fix; each names its own recovery.
+const DETAILS = {
+  locked: lock => `Gravação do arsenal travada por ${lock}. Outra gravação pode estar em curso: tente de novo em instantes. Se persistir sem nenhuma operação do arsenal em andamento, o arquivo sobrou de uma gravação interrompida; confira-o e remova-o para liberar o registro.`,
+  damaged: () => 'Registro do arsenal deste projeto ilegível; o arquivo foi preservado para inspeção e nada foi alterado.',
+  full: () => 'Limite do registro do arsenal atingido; o histórico foi preservado e nada foi alterado.',
+};
+const problem = (status, message = MESSAGES[status]) => Object.assign(new Error(message), { status });
 
 function environment() {
   const allowed = {};
@@ -27,14 +33,14 @@ function environment() {
   return { ...allowed, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8', PYTHONDONTWRITEBYTECODE: '1' };
 }
 
-function unpack(raw) {
+function unpack(raw, lock) {
   if (!isUtf8(raw)) throw problem(503);
   let message;
   try { message = JSON.parse(raw.toString('utf8')); }
   catch { throw problem(503); }
   if (!message || typeof message !== 'object' || Array.isArray(message)) throw problem(503);
   if (message.ok === false && Object.keys(message).length === 2 && Object.hasOwn(STATUS, message.code)) {
-    throw problem(STATUS[message.code]);
+    throw problem(STATUS[message.code], DETAILS[message.code]?.(lock));
   }
   if (message.ok !== true || Object.keys(message).length !== 2 || !Object.hasOwn(message, 'result')) throw problem(503);
   return message.result;
@@ -115,7 +121,7 @@ export class ArsenalService {
         this.children.delete(entry);
         entry.resolveClosed();
         if (failure || code !== 0) { settle(problem(503)); return; }
-        try { settle(null, unpack(Buffer.concat(chunks))); }
+        try { settle(null, unpack(Buffer.concat(chunks), path.join(this.dataDir, 'arsenal', `${input.projectId}.json.lock`))); }
         catch (error) { settle(error.status ? error : problem(503)); }
       });
       try { child.stdin.end(serialized, 'utf8'); }
@@ -126,14 +132,17 @@ export class ArsenalService {
   async close() {
     this.closed = true;
     const pending = [...this.children];
-    for (const entry of pending) entry.abort();
     if (!pending.length) return;
-    let timer;
-    const drained = await Promise.race([
-      Promise.all(pending.map(entry => entry.closed)).then(() => true),
-      new Promise(resolve => { timer = setTimeout(() => resolve(false), 2000); }),
-    ]);
-    clearTimeout(timer);
-    if (!drained) throw problem(503);
+    const all = Promise.all(pending.map(entry => entry.closed)).then(() => true);
+    const drained = async () => {
+      let timer;
+      const result = await Promise.race([all, new Promise(resolve => { timer = setTimeout(() => resolve(false), 2000); })]);
+      clearTimeout(timer); return result;
+    };
+    // A kill is TerminateProcess on Windows: Python's finally never removes the
+    // writer lock. Let in-flight requests finish before killing stragglers.
+    if (await drained()) return;
+    for (const entry of pending) entry.abort();
+    if (!await drained()) throw problem(503);
   }
 }

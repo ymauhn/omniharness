@@ -1,4 +1,5 @@
-import { spawnSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import path from 'node:path';
 
 const KINDS = new Set(['accepted_decision', 'experiment', 'rejected', 'quoted']);
 const HOSTS = new Set(['codex', 'claude', 'hermes']);
@@ -29,19 +30,23 @@ function uniqueStrings(value, maximum) {
 }
 
 // Metadata pinning observes an executable, not its login, allowance, tool safety or dispatch readiness.
+// One async child checks every host: a synchronous probe froze every PTY and SSE stream.
+function probeHosts() {
+  const names = [...HOSTS];
+  const [file, args] = process.platform === 'win32'
+    ? [path.join(process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+      ['-NoProfile', '-NonInteractive', '-Command', `foreach ($h in '${names.join("','")}') { if (Get-Command -Name $h -CommandType Application -ErrorAction SilentlyContinue) { [Console]::Write($h + ' ') } }`]]
+    : ['/bin/sh', ['-c', `for h in ${names.join(' ')}; do command -v "$h" >/dev/null 2>&1 && printf '%s ' "$h"; done`]];
+  // The exit status reflects only the last lookup; unknown or timed-out hosts stay unavailable.
+  return new Promise(resolve => execFile(file, args, { encoding: 'utf8', timeout: 5000, windowsHide: true },
+    (_error, stdout) => resolve(names.filter(host => String(stdout || '').split(' ').includes(host)))));
+}
+
+let observed;
+// ponytail: one 30 s process-wide observation; an install or removal shows after expiry, per-request probing if that matters.
 export function observeHostExecutables() {
-  const hosts = [];
-  for (const host of HOSTS) {
-    const command = process.platform === 'win32'
-      ? ['powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
-          `if (Get-Command -Name ${host} -CommandType Application -ErrorAction SilentlyContinue) { [Console]::Write('found') }`]]
-      : ['sh', ['-c', `command -v ${host} >/dev/null 2>&1 && printf found`]];
-    try {
-      const result = spawnSync(command[0], command[1], { encoding: 'utf8', timeout: 3000, windowsHide: true });
-      if (result.status === 0 && result.stdout === 'found') hosts.push(host);
-    } catch { /* Unknown stays unavailable. */ }
-  }
-  return hosts;
+  if (!observed || Date.now() - observed.at > 30_000) observed = { at: Date.now(), hosts: probeHosts() };
+  return observed.hosts;
 }
 
 export function createArsenalApi({ store, service, observeHosts = observeHostExecutables }) {
@@ -76,6 +81,7 @@ export function createArsenalApi({ store, service, observeHosts = observeHostExe
     if (!url.pathname.startsWith('/api/arsenal')) return null;
     if (method === 'GET' && url.pathname === '/api/arsenal') {
       const projectId = project(url.searchParams.get('projectId'));
+      const hosts = observeHosts(); // Never rejects; overlaps the bridge reads.
       const builtinResult = await service.request({ op: 'builtins' });
       // Registry and pin reads are distinct bridge calls. Only expose a pair
       // observed at one revision; concurrent writers require a bounded retry.
@@ -84,7 +90,7 @@ export function createArsenalApi({ store, service, observeHosts = observeHostExe
         const pinResult = await service.request({ op: 'list-pins', projectId });
         if (snapshot.revision === pinResult.revision) {
           return { status: 200, body: { projectId, snapshot, builtins: builtinResult.profiles, pins: pinResult.pins,
-            hosts: observeHosts(), runnable: false } };
+            hosts: await hosts, runnable: false } };
         }
       }
       fail('O arsenal mudou durante a consulta; atualize novamente', 409);
@@ -104,7 +110,7 @@ export function createArsenalApi({ store, service, observeHosts = observeHostExe
         }
       }
       notes.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id));
-      return { status: 200, body: { projectId, notes: notes.slice(0, 64) } };
+      return { status: 200, body: { projectId, notes: notes.slice(0, 64), total: notes.length } };
     }
     const pinRoute = url.pathname.match(/^\/api\/arsenal\/pins\/([^/]+)$/);
     if (method === 'GET' && pinRoute) {
@@ -166,7 +172,7 @@ export function createArsenalApi({ store, service, observeHosts = observeHostExe
       if (!HOSTS.has(input.host)) fail('Host de agente inválido');
       const task = store.task(input.taskId);
       if (task.projectId !== projectId) fail('Tarefa pertence a outro projeto', 404);
-      const availableHosts = observeHosts();
+      const availableHosts = await observeHosts();
       if (!Array.isArray(availableHosts) || !availableHosts.includes(input.host)) fail('Executável do host não observado neste ambiente', 409);
       request = { op, projectId, profileId: input.profileId, taskId: task.id, host: input.host,
         availableHosts, expectedRevision: input.expectedRevision };

@@ -7,18 +7,23 @@ import { mountArsenalPanel } from '../arsenal-panel.mjs';
 function dom() {
   const doc = {};
   class Element {
-    constructor(tag) { this.tag = tag; this.children = []; this.events = {}; this._text = ''; this.attributes = {}; this.classList = { add: value => this.className = value }; this.ownerDocument = doc; }
+    constructor(tag) { this.tag = tag; this.children = []; this.events = {}; this._text = ''; this.attributes = {}; this.dataset = {}; this.classList = { add: value => this.className = value }; this.ownerDocument = doc; }
     append(child) { child.parentElement = this; this.children.push(child); }
-    replaceChildren() { this.children = []; this._text = ''; }
+    contains(node) { return this === node || this.children.some(child => child.contains(node)); }
+    // A removed focused control leaves focus on body, as in a browser.
+    replaceChildren() { if (this.children.some(child => child.contains(doc.activeElement))) doc.activeElement = doc.body; this.children = []; this._text = ''; }
     set textContent(value) { this.replaceChildren(); this._text = String(value); }
     get textContent() { return this._text + this.children.map(node => node.textContent).join(''); }
     setAttribute(key, value) { this.attributes[key] = value; }
     addEventListener(type, fn) { (this.events[type] ||= []).push(fn); }
+    focus() { doc.activeElement = this; }
     async fire(type) { if (!this.disabled) for (const fn of this.events[type] || []) await fn({ target: this, preventDefault() {} }); }
-    querySelectorAll(tag) { return this.children.flatMap(child => [...(child.tag === tag ? [child] : []), ...child.querySelectorAll(tag)]); }
+    querySelectorAll(tags) { const names = tags.split(','); return this.children.flatMap(child => [...(names.includes(child.tag) ? [child] : []), ...child.querySelectorAll(tags)]); }
   }
   doc.createElement = tag => new Element(tag);
-  return { root: new Element('section'), doc };
+  doc.body = new Element('body'); doc.activeElement = doc.body;
+  const root = new Element('section'); doc.body.append(root);
+  return { root, doc };
 }
 const tick = () => setImmediate();
 const findButton = (root, text) => root.querySelectorAll('button').find(node => node.textContent.startsWith(text));
@@ -257,4 +262,92 @@ test('library distinguishes newest draft version from an earlier active version'
   assert.match(root.textContent, /última v2 · ativa v1/);
   await findButton(root, 'New draft · última').fire('click'); await tick();
   assert.match(root.textContent, /v2 · rascunho · não ativa/);
+});
+
+const locked = 'Gravação do arsenal travada por C:/data/arsenal/project-a.json.lock.';
+function ui(t, { post = async () => { throw Object.assign(Error(locked), { status: 423 }); }, total, profiles = [{ ...row(), latest_version: 2 }] } = {}) {
+  const { root, doc } = dom(), calls = [];
+  const notes = [{ id: 'note-1', sessionId: 'session-a', revision: 1, text: 'Keep tests', source: 'owner' },
+    { id: 'note-2', sessionId: 'session-a', revision: 3, text: 'Try a quick hack', source: 'owner' }];
+  const api = async (url, options) => {
+    calls.push(url);
+    if (options?.method === 'POST') return post(url, options);
+    if (url.startsWith('/api/arsenal/sources?')) return { projectId: 'project-a', notes, total: total ?? notes.length };
+    if (url.startsWith(`/api/arsenal/${profile.id}?`)) return preview({ ...profile, version: Number(new URL(url, 'http://local').searchParams.get('version')) });
+    return { projectId: 'project-a', snapshot: { revision: 1, profiles }, builtins: [profile], pins: [], hosts: ['codex'], runnable: false };
+  };
+  const panel = mountArsenalPanel({ root, api, getProjectId: () => 'project-a', getTasks: () => [],
+    getSessions: () => [{ id: 'session-a', projectId: 'project-a', name: 'Session A' }] });
+  t.after(() => panel.destroy());
+  const press = async node => { node.focus(); await node.fire('click'); await tick(); };
+  const set = async (node, value, type = 'change') => { node[typeof value === 'boolean' ? 'checked' : 'value'] = value; await node.fire(type); };
+  const cards = () => root.querySelectorAll('article').filter(node => node.className === 'ars-note');
+  const loadNotes = async () => {
+    await set(root.querySelectorAll('label').find(label => label.textContent.startsWith('Session A')).querySelectorAll('input')[0], true);
+    await press(findButton(root, 'Carregar notas'));
+  };
+  return { root, doc, panel, calls, press, set, cards, loadNotes };
+}
+
+test('a failed derive and an SSE refresh keep note choices, form fields and per-rule review checks', async t => {
+  const f = ui(t); await tick();
+  await f.press(findButton(f.root, 'Engineering builder · última'));
+  const firstRule = () => f.root.querySelectorAll('article').find(node => node.className === 'ars-rule').querySelectorAll('input')[0];
+  await f.set(firstRule(), true);
+  await f.loadNotes();
+  const [card] = f.cards();
+  await f.set(card.querySelectorAll('input')[0], true);
+  await f.set(card.querySelectorAll('select')[0], 'accepted_decision');
+  await f.set(card.querySelectorAll('input')[1], true);
+  await f.set(findSelect(f.root, 'Template original'), profile.id);
+  await f.set(findInput(f.root, 'ID do novo perfil'), 'new-reviewer', 'input');
+  await f.set(findInput(f.root, 'Nome da versão'), 'New reviewer', 'input');
+  const kept = () => { const [note, other] = f.cards();
+    return { selected: note.querySelectorAll('input')[0].checked, kind: note.querySelectorAll('select')[0].value,
+      sanitized: note.querySelectorAll('input')[1].checked, untouched: other.querySelectorAll('input')[0].checked,
+      template: findSelect(f.root, 'Template original').value, id: findInput(f.root, 'ID do novo perfil').value,
+      name: findInput(f.root, 'Nome da versão').value, rule: firstRule().checked }; };
+  const expected = { selected: true, kind: 'accepted_decision', sanitized: true, untouched: false,
+    template: profile.id, id: 'new-reviewer', name: 'New reviewer', rule: true };
+  await f.press(findButton(f.root, 'Gerar rascunho'));
+  assert.ok(f.calls.some(url => url.endsWith('/derive')));
+  assert.deepEqual(kept(), expected, 'a failed derive must not discard the curation');
+  assert.match(f.root.textContent, /travada por C:\/data\/arsenal\/project-a\.json\.lock/, 'a stale lock is shown with its file, not as a generic conflict');
+  await f.panel.load(); // Another window's change arrives as an SSE-driven reload.
+  assert.deepEqual(kept(), expected, 'an SSE refresh must not discard the curation');
+});
+
+test('keyboard focus returns to the equivalent control after every re-render; repeated controls name their rule or note', async t => {
+  const f = ui(t); await tick();
+  const focused = () => f.root.contains(f.doc.activeElement) ? f.doc.activeElement : null;
+  await f.press(findButton(f.root, 'Engineering builder · última'));
+  assert.match(focused()?.textContent || 'focus lost to body', /^Engineering builder · última/);
+  const version = findSelect(f.root, 'Versão'); version.focus(); await f.set(version, '1'); await tick();
+  assert.equal(focused()?.tag, 'select'); assert.equal(focused().value, '1');
+  const rules = f.root.querySelectorAll('article').filter(node => node.className === 'ars-rule').map(node => node.querySelectorAll('label')[0].textContent);
+  assert.ok(rules.every((text, index) => text.includes(`rule-${index + 1}`)), `rule checkboxes share one name: ${rules}`);
+  await f.loadNotes();
+  const names = f.cards().flatMap(card => card.querySelectorAll('label').map(label => label.textContent.trim()));
+  assert.equal(new Set(names).size, names.length, `note controls share names: ${names}`);
+  f.cards()[0].querySelectorAll('input')[0].focus(); await f.panel.load();
+  assert.equal(focused()?.tag, 'input', 'an SSE refresh must keep focus on the same note control');
+  const f2 = ui(t, { profiles: [], post: async () => ({ revision: 2, snapshot: { revision: 2, profiles: [row()] }, preview: preview() }) }); await tick();
+  await f2.press(findButton(f2.root, 'Importar rascunho'));
+  const after = f2.root.contains(f2.doc.activeElement) ? f2.doc.activeElement : null;
+  assert.equal(after?.tag, 'h3', 'the vanished import button hands focus to the opened profile heading');
+});
+
+test('the note window reports notes it left out; a template ID must be imported before a new version', async t => {
+  const f = ui(t, { total: 80, profiles: [] }); await tick();
+  await f.loadNotes();
+  assert.match(f.root.textContent, /2 notas mais recentes de 80/);
+  const [card] = f.cards();
+  await f.set(card.querySelectorAll('input')[0], true); await f.set(card.querySelectorAll('input')[1], true);
+  await f.set(card.querySelectorAll('select')[0], 'accepted_decision');
+  await f.set(findSelect(f.root, 'Template original'), profile.id);
+  await f.set(findInput(f.root, 'ID do novo perfil'), profile.id, 'input');
+  await f.set(findInput(f.root, 'Nome da versão'), 'Extended', 'input');
+  await f.press(findButton(f.root, 'Gerar rascunho'));
+  assert.equal(f.calls.some(url => url.endsWith('/derive')), false);
+  assert.match(f.root.textContent, /Importe/);
 });
