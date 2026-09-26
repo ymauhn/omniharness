@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { mountCopilot } from '../copilot.mjs';
 
 // DOM controller seam only; this does not render or navigate a browser.
@@ -91,6 +92,13 @@ test('a selected span is never split by a multi-line scaffold and the preview is
     assert.ok(draft.value.startsWith(`${text}\n\n`), draft.value);
     assert.match(draft.value, /Trecho em foco: grafo de tarefas/);
   });
+});
+
+test('guided acceptance A3 expects the appended block the Copilot actually writes', () => {
+  const guide = readFileSync(new URL('../../docs/omniforge/GUIDED-ACCEPTANCE.md', import.meta.url), 'utf8');
+  const a3 = guide.split('\n').find(line => line.startsWith('3. Select only `grafo de tarefas`'));
+  assert.match(a3, /Trecho em foco/);
+  assert.doesNotMatch(a3, /only the selected span changes|identifies the original span|duplicate phrase/);
 });
 
 test('a whitespace-only selection is ignored: scope stays on the whole draft and no blank query is sent', async () => {
