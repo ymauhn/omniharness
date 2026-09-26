@@ -376,3 +376,15 @@ Merge update: [PR #8](https://github.com/ymauhn/omniharness/pull/8) was attached
 - Branch / HEAD before work / starting dirty files: `claude/v1-audit-2026-09-26` from clean `master` / `ab857f72c60c0c7e434dad20125f187c10ece447`. The five documentation files the prior handoff listed as pending were already merged through PRs #11 and #12. Worktrees `_intake/mvp-*`, backups and stash `8105be6` preserved.
 - Host observations: Windows 11 Pro, Windows PowerShell 5.1 only (no PowerShell 7 on PATH or in Program Files); Node v24.19.0; Python Playwright 1.63.0 with Chromium 1243; Docker 29.6.2 answering; Windows Sandbox not enabled; Claude in Chrome extension connected (local Windows browser).
 - First defect: `scripts/check.ps1` failed at once under Windows PowerShell 5.1 (`SyntaxError: unterminated string literal`) because 5.1 strips embedded double quotes from native-command arguments; the Python bootstrap now uses single quotes only. Earlier runs used PowerShell 7.
+
+### 2026-09-26 — Claude Opus 5.5 — offline host callback/ledger facade (checkpoint 4, CHECKPOINT READY)
+
+- **Authority.** Checkpoint 4 of the plan approved above (pillar 1 real issue: the host callback/ledger facade with Docker-safe attempt mapping). Branch `claude/t13-host-facade` from `81d9a13`, in an isolated worktree. Not pushed or merged.
+- **New facade.** `harness/swarm_host.py` holds the closed `MANAGED_ADMISSION` gate, `docker_attempt_id`, the host-derived `worker_identity`, the `SwarmHost` callbacks and the JSON-lines `serve`.
+- **Ledger.** `harness/swarm_accounting.py` gains the `workers` table, `attempt`, `bind_worker`, a launched flag set by `start`, and `settle(..., issue=)`.
+- **Fixes.** D1 in `harness/claude_worker_bridge.py`; D2 in `swarm/swarm.workflow.js`; D4 contract in `README.md`. `Worktrees.git` now passes stdin as `DEVNULL`: Git for Windows deadlocked when it inherited the JSON-lines host's stdin.
+- **Tests.** `test_swarm_host.py` (T1–T13), `test_swarm_host.js` and the fixture `tests/fixtures/swarm_host_fixture.py`. `scripts/check.ps1` runs the new Node test.
+- **Docs.** Brief updates to `ACCOUNTING.md` and `NATIVE-ADAPTER-CHECKPOINT.md`.
+- **Not done.** The installed `~/.claude/workflows` driver copy was not synchronized.
+- **Evidence.** See the 2026-09-26 entry in [VALIDATION](VALIDATION.md). No test used a model, network service or credential; the MCP→Docker reprobe is model-free.
+- **Resume.** Managed admission stays closed until V-04-2..V-04-8 pass. Next: the read-only reviewer mount and host-side merge (D3), then pre-prompt tool exclusion and cross-process worker serialization. When this branch is integrated, synchronize the installed driver with a backup.

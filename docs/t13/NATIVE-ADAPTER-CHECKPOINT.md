@@ -2,6 +2,14 @@
 
 Updated September 25, 2026. **Full OmniForge MVP remains active; managed native-agent admission stays closed.** [PR #9](https://github.com/ymauhn/omniharness/pull/9) merged the earlier all-role Swarm gates as `c8e1bb231d25f499e3ca23704cbca1d39384854e`. Prepared-worker [PR #10](https://github.com/ymauhn/omniharness/pull/10) merged exact head `d251d559b882a08c2ae87c305e1293edb0533900` as **`3b2494b87f28a7e4fbb45db5895d488885fe04d4`**; its source commits were `ce3950d7fe09566b95d7596f88e8e0d0b327b7cd` and `6c33ff206151084159b9d613103a9077686684e5`. Current branch `codex/mvp-host-callback-ledger` started clean from that merge. Last read-only account query showed **4% weekly Codex allowance remaining**; no reset credit was consumed. Always inspect actual Git status, this checkpoint, [LATEST-CHECKPOINT](../omniforge/LATEST-CHECKPOINT.md) and the [T13 journal](TICKET-HANDOFF-CLAUDE.md) before resuming.
 
+**Update, September 26:** the offline trusted host callback/ledger facade now exists as `harness/swarm_host.py`; see [ACCOUNTING](ACCOUNTING.md). It maps each Swarm label to a Docker-safe attempt ID, which resolves the label/`ATTEMPT` contract below, and binds lease, Docker attempt and worker identity durably in the ledger. This slice also fixes three defects:
+
+- **D1:** a failed colliding prepare stopped another attempt's container.
+- **D2:** the driver kept launching a wave after an isolation or accounting failure, and reported the last reason instead of the first.
+- `Worktrees.git` inherited the coordinator's stdin. That deadlocked Git for Windows under the JSON-lines host.
+
+Managed admission stays closed (`MANAGED_ADMISSION = False`) until V-04-2..V-04-8 pass. Integrate and review admission stay closed until a read-only mount and a host-side merge exist. On this source the model-free MCP→Docker reprobe passed 26/26 ([report](../experiments/claude-broker-2026-09-26.json)). The installed `~/.claude/workflows` driver copy was **not** synchronized in this slice.
+
 ## Exact interface gap
 
 `swarm/swarm.workflow.js` requires each role/candidate/retry to receive a trusted `worker_identity` in preflight, dispatch, post-run verification and a complete whole-tree receipt. It now passes that role's exact `attempt_id`/`label` to reservation. `harness/swarm_accounting.py` has unique labeled SQLite reservations and captures Claude's final `modelUsage` plus the immutable stream hash, but returns its native receipt schema, not the JS callback fields. The Claude bridge can now prepare a verified Docker worker before model launch and run it once from an immutable handle; **no production adapter yet wires those callbacks to the ledger and Swarm driver**. The current Codex parser deliberately reports descendant usage incomplete and the dynamic tool broker does not prove exclusive native tools.

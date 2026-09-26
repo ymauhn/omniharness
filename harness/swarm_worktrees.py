@@ -34,7 +34,8 @@ class Worktrees:
 
     def git(self, path, *args):
         result = subprocess.run(["git", "-c", "core.hooksPath=" + str(self.hooks), "-c", "core.fsmonitor=false", *args],
-                                cwd=path, capture_output=True, text=True, encoding="utf-8", check=True)
+                                cwd=path, stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                                encoding="utf-8", check=True)
         return result.stdout
 
     def key(self, run, task):

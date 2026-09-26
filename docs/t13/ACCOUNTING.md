@@ -2,6 +2,26 @@
 
 Updated: 2026-09-25. Offline-tested native adapters are implemented locally; live native dispatch and all-role OS-isolation acceptance remain open. A single synthetic Claude subscription turn was attempted with all built-in tools disabled, but timed out before a final receipt; its token use is unknown. Python 3.12+, Git and SQLite from the standard library suffice for the adapters.
 
+## Offline host callback facade (2026-09-26)
+
+`harness/swarm_host.py` implements the Swarm callbacks described in [README](README.md) offline. One long-lived Python process owns one ledger run, because prepared Claude handles are process-local. It serves `reserve`, `cancel`, `preflight`, `agent`, `settle` and `verify` as JSON lines, one thread per request. Preflight checks `MANAGED_ADMISSION = False` first and returns no admission before any worktree or container exists. Only offline fixtures patch that constant.
+
+- **Mapping.** Swarm labels contain `:`, which Docker and process attempt IDs reject. `docker_attempt_id(run, label, lease)` is `'a' + sha256(run NUL label NUL lease)[:40]`, 41 characters. It satisfies both attempt regexes and `Worktrees.key`, and it differs by role, candidate, retry, lease and run. The new `workers` ledger table binds lease, Docker attempt and worker identity one-to-one under `BEGIN IMMEDIATE`. A binding is allowed only for this run's unstarted, labelled reservation, and `start` marks it launched. Every callback recomputes the ID and compares it; a label is never normalized.
+- **Identity.** `worker_identity` hashes the prepared CID and nonce, the exact worktree path, the Docker attempt ID and the lease. Model text never contributes.
+- **Admission.** Implement attempts get their own worktree and prepared worker. Integrate and review get no admission until a read-only reviewer mount and a host-side merge exist (D3).
+- **Report.** Host evidence replaces the model's task, worktree, branch, base, changed files (from the scope audit), net lines (from Git numstat) and identity. The host commits audited in-scope changes with hooks disabled. Only the test claim comes from the model.
+- **Settlement.** The stream, the process evidence and the native receipt must agree on hash and session, and the native receipt must be complete. Otherwise `Ledger.settle(..., issue=...)` records unknown usage and blocks the run. USD stays a client estimate, `billed_usd` is null, and over-cap usage is returned unclipped.
+- **Cancellation.** A lease is released only after its exact worker has been confirmed removed: the live handle, or the durable identity after a restart. An unconfirmed stop raises and the lease stays held. A started lease cannot be cancelled.
+
+`tests/test_swarm_host.py` (T1–T13) and `tests/test_swarm_host.js`, which runs the real driver over the RPC, use the real ledger, Git worktrees and `ContainerWorker`. Docker and the model turn are fakes. These tests certify no live isolation, provider cap or billing. Still closed:
+
+- pre-prompt exclusive tool inventory;
+- cross-process worker serialization;
+- the read-only reviewer mount;
+- complete Codex usage;
+- a production Node runner;
+- bounded live canaries (V-04-2..V-04-8).
+
 ## Native process and host-specific receipt checkpoint (2026-09-25)
 
 `harness/native_process.py` now provides a one-attempt local process boundary. It creates an exclusive coordinator evidence directory and writes state before launch; captures stdout/stderr separately with sizes and SHA-256; passes prompts over stdin; records exit, timeout or cancellation; and never restarts a recovered attempt. A launch failure, incomplete manifest or unconfirmed process tree remains **unknown**, not zero consumption. Environment variables are explicit at the process boundary, and Windows `.cmd`/`.bat` shims are rejected because `shell=False` does not prevent batch-file shell parsing. These files must live outside a worker's OS-visible filesystem; a sibling path alone is not protection.

@@ -95,6 +95,9 @@ class Ledger:
                     id TEXT PRIMARY KEY, run TEXT NOT NULL REFERENCES runs(id), label TEXT NOT NULL,
                     usd INTEGER NOT NULL, tokens INTEGER NOT NULL, state TEXT NOT NULL,
                     session TEXT UNIQUE, receipt TEXT, UNIQUE(run, label));
+                CREATE TABLE IF NOT EXISTS workers (
+                    lease TEXT PRIMARY KEY REFERENCES attempts(id), docker_id TEXT UNIQUE NOT NULL,
+                    worker_identity TEXT UNIQUE NOT NULL, launched INTEGER NOT NULL DEFAULT 0);
             """)
 
     @contextmanager
@@ -185,13 +188,39 @@ class Ledger:
             if self._status(db, row["run"])["blocked"]:
                 raise ValueError("run blocked")
             db.execute("UPDATE attempts SET state='running',session=? WHERE id=?", (session, lease))
+            db.execute("UPDATE workers SET launched=1 WHERE lease=?", (lease,))
+
+    def attempt(self, lease):
+        with self.db() as db:
+            row = db.execute("""SELECT a.run, a.label, a.state, a.session, a.receipt, w.docker_id,
+                                       w.worker_identity, COALESCE(w.launched, 0) AS launched
+                                FROM attempts a LEFT JOIN workers w ON w.lease = a.id WHERE a.id=?""",
+                             (lease,)).fetchone()
+        if row is None:
+            return None
+        return {**dict(row), "receipt": json.loads(row["receipt"]) if row["receipt"] else None}
+
+    def bind_worker(self, lease, *, run, label, docker_id, worker_identity):
+        """Durable one-to-one lease -> Docker attempt -> worker identity, before any launch."""
+        if not all(isinstance(value, str) and value for value in (docker_id, worker_identity)):
+            raise ValueError("Docker attempt and worker identity required")
+        with self.db() as db:
+            row = db.execute("SELECT * FROM attempts WHERE id=?", (lease,)).fetchone()
+            if not row or row["run"] != run or row["label"] != label or row["state"] != "reserved":
+                raise ValueError("worker binding requires this run's unstarted labelled reservation")
+            try:
+                db.execute("INSERT INTO workers(lease,docker_id,worker_identity) VALUES(?,?,?)",
+                           (lease, docker_id, worker_identity))
+            except sqlite3.IntegrityError:
+                raise ValueError("lease, Docker attempt or worker identity already bound") from None
 
     def cancel(self, lease):
         with self.db() as db:
             if db.execute("UPDATE attempts SET state='cancelled' WHERE id=? AND state='reserved'", (lease,)).rowcount != 1:
                 raise ValueError("only an unstarted reservation can be released")
 
-    def settle(self, lease, data, *, exit_code):
+    def settle(self, lease, data, *, exit_code, issue=None):
+        """`issue` records caller-rejected evidence as unknown usage, which blocks the run."""
         with self.db() as db:
             row = db.execute("SELECT * FROM attempts WHERE id=?", (lease,)).fetchone()
             if not row or row["state"] not in ("running", "settled", "unknown"):
@@ -202,6 +231,8 @@ class Ledger:
                     raise ValueError("settlement evidence is immutable")
                 return old
             try:
+                if issue:
+                    raise ValueError(issue)
                 receipt = usage_from_stream(data, session=row["session"], exit_code=exit_code)
             except (ValueError, UnicodeError) as error:
                 receipt = unknown_receipt(data, session=row["session"], exit_code=exit_code, issue=str(error))
