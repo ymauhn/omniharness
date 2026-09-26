@@ -335,14 +335,17 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     } catch (error) {
       if (!error.refused) throw error;
       attempt.refused = { reason: error.message };
-      record(task, attempt);
-      throw error;
     } finally {
       merging = null;
     }
-    // The merge has landed: the task follows it at its current revision, whether or not the evidence write fails.
-    try { return { task: store.setTaskStatus(task.id, 'done', store.task(task.id).revision), attempt }; }
-    finally { record(task, attempt); }
+    // The outcome stands whatever the evidence write does: a refusal stays a refusal, and a merge that landed marks
+    // the task done at its current revision. A failed write only adds evidenceError to the reply.
+    let evidenceError;
+    try { record(task, attempt); }
+    catch (error) { evidenceError = `A evidência desta tentativa não foi salva: ${error.message}`; }
+    const extra = evidenceError ? { evidenceError } : {};
+    if (attempt.refused) return { status: 409, body: { error: attempt.refused.reason, ...extra } };
+    return { status: 200, body: { task: store.setTaskStatus(task.id, 'done', store.task(task.id).revision), attempt, ...extra }, changed: true };
   }
 
   // The owner's confirmed request: a Gauntlet of the task's finished run, in its worktree, on a non-empty diff.
@@ -376,7 +379,7 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     if (!match || !['GET diff', 'GET evidence', 'POST merge', 'POST gauntlet'].includes(`${method} ${match[2]}`)) return null;
     const task = store.task(match[1]);
     if (match[2] === 'evidence') return { status: 200, body: readEvidence(task.id) };
-    if (match[2] === 'merge') return { status: 200, body: await merge(task, input), changed: true };
+    if (match[2] === 'merge') return merge(task, input);
     if (match[2] === 'gauntlet') return { status: 200, body: await gauntlet(task, input), changed: true };
     const run = getRun(task.id);
     if (!run) fail('Nenhuma execução registrada para esta tarefa', 404);

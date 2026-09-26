@@ -297,10 +297,20 @@ test('a task changed during the test is refused before the merge; once merged, t
   assert.equal(refusal.test.exitCode, 0);
   assert.equal(refusal.mergeSha, null);
 
-  // An evidence write that fails after the merge must not strand the task open.
+  // A failed evidence write hides neither a refusal nor a merge that landed, and never strands the task open.
   f.timing.duringTest = null;
   fs.writeFileSync(path.join(f.app.store.dataDir, 'evidence', `${f.task.id}.json`), '{');
-  assert.equal((await f.merge({})).status, 500);
+  const gated = await f.merge({ testCommand: 'exit 3' });
+  const outcome = await gated.json();
+  assert.equal(gated.status, 409);
+  assert.equal(outcome.error, 'O comando de teste falhou (código 3)');
+  assert.match(outcome.evidenceError, /evidência/);
+  const merged = await f.merge({});
+  const result = await merged.json();
+  assert.equal(merged.status, 200, result.error);
+  assert.equal(result.attempt.mergeSha, git(f.root, 'rev-parse', 'HEAD'));
+  assert.equal(result.task.status, 'done');
+  assert.match(result.evidenceError, /evidência/);
   assert.notEqual(git(f.root, 'rev-parse', 'HEAD'), before);
   assert.equal(f.app.store.task(f.task.id).status, 'done');
 });
