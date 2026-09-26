@@ -193,6 +193,18 @@ test('a Claude task runs in its own worktree and branch, reports hook states and
   assert.equal((await lab_.agentEvent(launched.env.OMNIFORGE_RUN_TOKEN, { runId: run.id, event: 'Stop' })).status, 403);
   assert.equal(lab_.app.engine.runForTask(task.id).state, 'done');
   assert.equal(lab_.app.engine.runForTask('nenhuma'), null);
+  // The review routes read the engine's run by default: the fake agent's file is the task's diff.
+  const diff = await (await get(`/api/tasks/${task.id}/diff`)).json();
+  assert.deepEqual([diff.branch, diff.files.map(file => file.path)], [run.branch, ['agent-call.json']]);
+  // The agent exited on its own, so its session stays uncertain, but only for its own worktree: the next run starts.
+  assert.equal((await (await get('/api/state')).json()).sessions.find(item => item.id === run.sessionId).status, 'interrupted');
+  const next = await post(`/api/tasks/${task.id}/run`, { host: 'claude', expectedRevision: 2 });
+  assert.equal(next.status, 200, await next.clone().text());
+  const second = await next.json();
+  assert.equal(second.branch, `omniforge/${task.id.slice(0, 8)}-2`);
+  await lab_.until(project.id, second.id, 'blocked');
+  assert.equal((await post(`/api/sessions/${second.sessionId}/write`, { data: '\r' })).status, 200);
+  await lab_.until(project.id, second.id, 'done');
 });
 
 test('a Codex task gets notify as TOML and reads its own rollout; hook secrets are per run', async t => {
@@ -207,8 +219,9 @@ test('a Codex task gets notify as TOML and reads its own rollout; hook secrets a
   assert.equal(codex.hostSessionId, null);
   await lab_.until(project.id, claude.id, 'blocked');
   const codexCall = call(codex);
-  const [flagC, worktree, flagConfig, notify, prompt] = codexCall.args;
-  assert.deepEqual([flagC, worktree, flagConfig, prompt, codexCall.args.length], ['-C', codex.worktree, '-c', 'Tarefa: Codex tarefa', 5]);
+  const [noDaemon, flagC, worktree, flagConfig, notify, prompt] = codexCall.args;
+  // --no-daemon keeps the turn, and so notify, inside the PTY that carries the run's hook environment.
+  assert.deepEqual([noDaemon, flagC, worktree, flagConfig, prompt, codexCall.args.length], ['--no-daemon', '-C', codex.worktree, '-c', 'Tarefa: Codex tarefa', 6]);
   // A JSON string array is valid TOML: backslashes and quotes of a Windows path stay escaped.
   assert.deepEqual(JSON.parse(notify.replace(/^notify=/, '')), [process.execPath, HOOK]);
   const codexToken = codexCall.env.OMNIFORGE_RUN_TOKEN;

@@ -177,13 +177,13 @@ export class AgentEngine extends EventEmitter {
     if (!baseBranch) fail('O repositório do projeto está em HEAD destacado; faça checkout de uma branch');
     const { file, args: hostArgs } = this.executable(host);
 
-    const session = this.store.addSession({ projectId: task.projectId, name: `${LABEL[host]} · ${task.title}`.slice(0, 120) });
     const id = randomUUID();
+    const worktreeDir = path.join(this.store.dataDir, 'worktrees', id);
+    const session = this.store.addSession({ projectId: task.projectId, name: `${LABEL[host]} · ${task.title}`.slice(0, 120), cwd: worktreeDir });
     const branchFor = n => `omniforge/${task.id.slice(0, 8)}-${n}`;
     let n = this.runs.filter(run => run.taskId === taskId).length + 1;
     while (tryGit(root, 'show-ref', '--verify', '--quiet', `refs/heads/${branchFor(n)}`) !== null) n++;
     const branch = branchFor(n);
-    const worktreeDir = path.join(this.store.dataDir, 'worktrees', id);
     // Only .git/worktrees and the new folder change: the root's working tree and index are never touched.
     try { git(root, 'worktree', 'add', '-q', '-b', branch, worktreeDir, baseSha); }
     catch (error) {
@@ -210,7 +210,8 @@ export class AgentEngine extends EventEmitter {
       } else {
         // A JSON string array is valid TOML (basic strings escape `\` and `"` the same way). This replaces the owner's
         // own `notify` for this session only. Codex has no signal for a pending approval, so it never reports blocked.
-        args = ['-C', worktree, '-c', `notify=${JSON.stringify([process.execPath, HOOK])}`, prompt];
+        // --no-daemon: a shared app-server would run the turn, and notify, outside this PTY's hook environment.
+        args = ['--no-daemon', '-C', worktree, '-c', `notify=${JSON.stringify([process.execPath, HOOK])}`, prompt];
       }
       const secret = randomBytes(24).toString('hex');
       this.secrets.set(id, Buffer.from(secret));

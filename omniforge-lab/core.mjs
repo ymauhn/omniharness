@@ -186,11 +186,13 @@ export class WorkspaceStore {
     return project;
   }
 
-  addSession({ projectId, name }) {
+  // `cwd` is set for an agent run's own worktree; without it the session works in the project root.
+  addSession({ projectId, name, cwd }) {
     const project = this.project(projectId);
     name = requiredText(name, 'Nome da sessão');
-    if (this.data.sessions.some(item => item.projectId === project.id && (['stopping', 'interrupted'].includes(item.status) || this.uncertainSessions.has(item.id)))) fail('Há uma sessão incerta neste projeto; verifique o processo antes de continuar', 409);
-    const session = { id: randomUUID(), projectId: project.id, name, host: 'local-pty', status: 'starting', createdAt: new Date().toISOString() };
+    // An uncertain process tree can only interfere with sessions in its own folder.
+    if (this.data.sessions.some(item => item.projectId === project.id && item.cwd === cwd && (['stopping', 'interrupted'].includes(item.status) || this.uncertainSessions.has(item.id)))) fail('Há uma sessão incerta nesta pasta do projeto; verifique o processo antes de continuar', 409);
+    const session = { id: randomUUID(), projectId: project.id, name, host: 'local-pty', ...(cwd && { cwd }), status: 'starting', createdAt: new Date().toISOString() };
     this.data.sessions.push(session);
     this.save();
     return session;

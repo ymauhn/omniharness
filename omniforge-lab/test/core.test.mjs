@@ -507,3 +507,19 @@ test('a task owner is a session of the same project, and handoffs are recorded o
   assert.deepEqual(handed.handoffs.map(item => [item.to, item.fromSession, item.worktree]), [['codex', session.id, projectRoot]]);
   assert.match(handed.handoffs[0].at, /^\d{4}-/);
 });
+
+test('an uncertain session blocks new sessions in its own folder only', t => {
+  const { root, projectRoot, store } = fixture(t);
+  const project = store.addProject({ name: 'Repo', root: projectRoot });
+  const worktree = name => path.join(root, 'worktrees', name);
+  // An agent that exited on its own may have left processes, but only in its own worktree.
+  const agent = store.addSession({ projectId: project.id, name: 'Agent A', cwd: worktree('a') });
+  store.setSessionStatus(agent.id, 'interrupted');
+  assert.equal(store.addSession({ projectId: project.id, name: 'Agent B', cwd: worktree('b') }).cwd, worktree('b'));
+  assert.throws(() => store.addSession({ projectId: project.id, name: 'Agent A again', cwd: worktree('a') }), /sessão incerta/);
+  const shell = store.addSession({ projectId: project.id, name: 'Shell' });
+  assert.equal(shell.cwd, undefined, 'a root shell keeps the old session shape');
+  store.setSessionStatus(shell.id, 'interrupted');
+  assert.throws(() => store.addSession({ projectId: project.id, name: 'Shell 2' }), /sessão incerta/);
+  assert.equal(store.addSession({ projectId: project.id, name: 'Agent C', cwd: worktree('c') }).status, 'starting');
+});

@@ -235,6 +235,8 @@ export function createReview({ store, getRun = () => null, runTest = runTestComm
     }
     await rootReady(run); // the owner may have used the root while the test ran
     const before = (await gitOk(run.root, ['rev-parse', 'HEAD'])).trim();
+    const status = async () => new Set((await gitOk(run.root, ['status', '--porcelain', '-z'])).split(' ').filter(Boolean));
+    const statusBefore = await status();
     const changes = await gitOk(run.root, ['diff', '--name-status', '-z', '--no-renames', before, attempt.headSha, '--']);
     // Nothing awaits from here to the merge's spawn, so the task cannot change in between.
     const inTheWay = untrackedInTheWay(run.root, changes);
@@ -246,10 +248,12 @@ export function createReview({ store, getRun = () => null, runTest = runTestComm
       // Not gitOk: nothing may skip the abort below.
       const conflicts = (await git(run.root, ['diff', '--name-only', '--diff-filter=U', '-z'])).out.split('\0').filter(Boolean);
       if (await hasMergeHead(run.root)) await git(run.root, ['merge', '--abort']);
-      const restored = (await gitOk(run.root, ['rev-parse', 'HEAD'])).trim() === before && !(await hasMergeHead(run.root));
+      // A merge git stopped partway (a file in use on Windows) leaves no MERGE_HEAD but may have written files.
+      const leftovers = [...await status()].filter(entry => !statusBefore.has(entry)).map(entry => entry.slice(3));
+      const restored = (await gitOk(run.root, ['rev-parse', 'HEAD'])).trim() === before && !(await hasMergeHead(run.root)) && !leftovers.length;
       const cause = conflicts.length ? `Conflito de merge em ${conflicts.length} arquivo(s): ${conflicts.slice(0, 20).join(', ')}` : `O git recusou o merge: ${firstLine(merged.err || merged.out)}`;
       refuse(`${cause}. ` +
-        (restored ? `A raiz voltou a ${before.slice(0, 7)} sem merge pendente.` : 'A raiz NÃO voltou ao estado anterior; confira-a manualmente.'));
+        (restored ? `A raiz voltou a ${before.slice(0, 7)} sem merge pendente.` : `A raiz NÃO voltou ao estado anterior${leftovers.length ? ` (${leftovers.slice(0, 20).join(', ')})` : ''}; confira-a manualmente.`));
     }
     attempt.mergeSha = (await gitOk(run.root, ['rev-parse', 'HEAD'])).trim();
   }

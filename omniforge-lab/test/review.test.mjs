@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createOmniForgeServer } from '../server.mjs';
 import { gitEnv, runTestCommand } from '../review.mjs';
@@ -374,4 +374,32 @@ test('review routes require the master token', async t => {
   assert.equal(fs.existsSync(path.join(f.app.store.dataDir, 'evidence')), false);
   assert.equal((await f.get('/api/tasks/unknown/evidence')).status, 404);
   assert.deepEqual(await f.evidence(), { taskId: f.task.id, attempts: [] });
+});
+
+test('a merge git stops partway is not reported as restored while it left files in the root', { skip: process.platform !== 'win32' && 'needs a Windows file lock' }, async t => {
+  const f = await fixture(t);
+  // The owner runs a program from the root; the task changes it, so git cannot replace it and stops after writing new files.
+  fs.copyFileSync(path.join(process.env.SystemRoot, 'System32', 'PING.EXE'), path.join(f.root, 'aaa-tool.exe'));
+  git(f.root, 'add', '-A');
+  git(f.root, 'commit', '-q', '-m', 'tool');
+  const base = git(f.root, 'rev-parse', 'HEAD');
+  git(f.worktree, 'merge', '-q', '--ff-only', base);
+  f.setRun({ baseSha: base });
+  fs.appendFileSync(path.join(f.worktree, 'aaa-tool.exe'), Buffer.from([0]));
+  write(f.worktree, 'bbb-new.txt', 'new\n');
+  const running = spawn(path.join(f.root, 'aaa-tool.exe'), ['-n', '60', '127.0.0.1'], { stdio: 'ignore', windowsHide: true });
+  let response;
+  try {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    response = await f.merge({});
+  } finally {
+    running.kill();
+    await new Promise(resolve => running.once('exit', resolve));
+  }
+  assert.equal(response.status, 409);
+  const { error } = await response.json();
+  assert.equal(git(f.root, 'rev-parse', 'HEAD'), base);
+  assert.equal(mergeHead(f.root), false);
+  assert.match(error, /NÃO voltou/);
+  assert.match(error, /bbb-new\.txt/);
 });
