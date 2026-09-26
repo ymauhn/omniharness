@@ -11,7 +11,7 @@ const MAX_NOTE = 4000;
 const MAX_CONTEXT_NOTES = 24;
 const MAX_COMMAND = 4096;
 const ASSET_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.wav', '.mp3', '.ogg', '.mp4', '.webm', '.glb', '.gltf']);
-const SKIP_DIRS = new Set(['.git', 'node_modules', '.venv', '__pycache__', '.omniforge-lab']);
+export const SKIP_DIRS = new Set(['.git', 'node_modules', '.venv', '__pycache__', '.omniforge-lab']);
 const UNREADABLE_DIR = new Set(['EACCES', 'EPERM', 'ENOENT', 'EBUSY', 'ENOTDIR']);
 
 function fail(message, status = 400) {
@@ -249,7 +249,8 @@ export class WorkspaceStore {
       const prerequisite = this.task(id);
       if (prerequisite.projectId !== projectId) fail('Dependência pertence a outro projeto');
     }
-    const task = { id: randomUUID(), projectId, title, details, dependsOn, status: 'open', revision: 1, createdAt: new Date().toISOString() };
+    const blocker = this.blockingRoot(dependsOn);
+    const task = { id: randomUUID(), projectId, title, details, dependsOn, status: blocker ? 'blocked' : 'open', ...(blocker && { blockedBy: blocker }), revision: 1, createdAt: new Date().toISOString() };
     this.data.tasks.push(task);
     this.save();
     return task;
@@ -259,6 +260,12 @@ export class WorkspaceStore {
     const task = this.data.tasks.find(item => item.id === id);
     if (!task) fail('Tarefa não encontrada', 404);
     return task;
+  }
+
+  /** Root task (blocked by hand) behind the first blocked prerequisite, or undefined when none is blocked. */
+  blockingRoot(dependsOn) {
+    const blocked = dependsOn.map(dependency => this.task(dependency)).find(item => item.status === 'blocked');
+    return blocked && (blocked.blockedBy ?? blocked.id);
   }
 
   setTaskStatus(id, status, expectedRevision) {
@@ -272,20 +279,29 @@ export class WorkspaceStore {
     task.status = status;
     task.revision++;
     delete task.blockedBy;
-    // Deterministic replan: a blocked prerequisite blocks every open/running dependent, and unblocking it
-    // restores only the dependents it blocked. Tasks blocked by hand keep their state.
+    delete task.blockedFrom;
+    // Deterministic replan: a blocked prerequisite blocks every open/running dependent, which remembers its
+    // previous status. Unblocking re-checks every auto-blocked task: it stays blocked (by the remaining root)
+    // while any prerequisite is blocked, else it gets its previous status back. Tasks blocked by hand keep theirs.
     const dependents = root => this.data.tasks.filter(item => item.dependsOn.includes(root));
     if (status === 'blocked') {
       for (const pending = dependents(id); pending.length;) {
         const next = pending.shift();
         if (!['open', 'running'].includes(next.status)) continue;
-        Object.assign(next, { status: 'blocked', blockedBy: id, revision: next.revision + 1 });
+        Object.assign(next, { status: 'blocked', blockedBy: id, blockedFrom: next.status, revision: next.revision + 1 });
         pending.push(...dependents(next.id));
       }
     } else if (leavingBlocked) {
-      for (const next of this.data.tasks.filter(item => item.blockedBy === id)) {
-        Object.assign(next, { status: 'open', revision: next.revision + 1 });
-        delete next.blockedBy;
+      // A task can only depend on tasks created before it, so array order is dependency order.
+      for (const next of this.data.tasks.filter(item => item.blockedBy)) {
+        const blocker = this.blockingRoot(next.dependsOn);
+        if (blocker === next.blockedBy) continue;
+        if (blocker) Object.assign(next, { blockedBy: blocker, revision: next.revision + 1 });
+        else {
+          Object.assign(next, { status: next.blockedFrom ?? 'open', revision: next.revision + 1 });
+          delete next.blockedBy;
+          delete next.blockedFrom;
+        }
       }
     }
     this.save();

@@ -134,6 +134,8 @@ test('a PID reported after ConPTY connects commits the session; a launch without
   late.child.exit({ exitCode: 0 });
   await closing;
 
+  // Off Windows disposePty never calls kill(), so the fake PTY would never exit and `closed` never fire.
+  if (process.platform !== 'win32') return;
   const silent = fakePty();
   silent.child.pid = undefined;
   const second = store.addSession({ projectId: project.id, name: 'Sem PID' });

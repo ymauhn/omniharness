@@ -39,6 +39,14 @@ test('a missing, failing, malformed or silent App Server yields an explicit unkn
   }
 });
 
+test('an App Server that exits before replying is reported as such, not as a timeout', async () => {
+  const started = Date.now();
+  const figure = await readCodexRateLimits({ codexPath: 'codex.exe', spawnProcess: (command, args, options) => spawn(process.execPath, ['-e', 'process.exit(3)'], options), timeoutMs: 5000 });
+  assert.equal(figure.status, 'desconhecido');
+  assert.match(figure.reason, /encerrou sem responder \(código 3\)/);
+  assert.ok(Date.now() - started < 4000, `${Date.now() - started} ms`);
+});
+
 test('the four usage figures stay separate and unknown values are null with a reason', () => {
   const figures = usageFigures({ codexQuota: null });
   assert.deepEqual(figures.map(figure => figure.kind), ['subscription-quota', 'measured-tokens', 'estimated-cost', 'confirmed-billing']);

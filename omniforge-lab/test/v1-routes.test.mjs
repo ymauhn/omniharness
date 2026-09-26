@@ -41,6 +41,7 @@ test('the generated mini-tool is reviewed, enabled and run through the API, scop
   assert.equal((await call('/api/extensions/preview', { projectId: project.id, version: 1, expectedRevision: registry.revision })).body.ok, true);
   registry = (await call(`/api/extensions?projectId=${project.id}`)).body;
   assert.equal((await call('/api/extensions/enable', { projectId: project.id, version: 1, reviewed: true, expectedRevision: registry.revision })).status, 200);
+  assert.equal((await call('/api/extensions/disable', { projectId: project.id })).status, 400);
   const report = await call('/api/extensions/run', { projectId: project.id });
   assert.deepEqual(report.body.result.missing, [{ file: 'index.html', line: 1, ref: 'img/missing.png' }]);
   assert.deepEqual((await call(`/api/extensions?projectId=${other.id}`)).body.versions, []);

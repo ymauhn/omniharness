@@ -33,6 +33,28 @@ test('the vault records only provider, masked suffix and an opaque reference; th
   await assert.rejects(vault.secretFor(row.ref), /não encontrada/);
 });
 
+test('concurrent vault changes never lose a stored key or leave a secret without its row', async t => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-keys-'));
+  t.after(() => fs.rmSync(dataDir, { recursive: true, force: true }));
+  const backend = memoryBackend();
+  const slow = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const vault = new KeyVault({ dataDir, backend: { ...backend, async write(...args) { await slow(10); return backend.write(...args); }, async remove(...args) { await slow(60); return backend.remove(...args); } } });
+  const secret = `sk-test-${randomUUID()}`;
+  const a = await vault.store({ provider: 'jev', secret });
+  const [, b] = await Promise.all([vault.remove(a.ref), vault.store({ provider: 'openai', secret })]);
+  assert.deepEqual(vault.list().map(row => row.ref), [b.ref]);
+  const c = await vault.store({ provider: 'jev', secret });
+  await Promise.all([vault.remove(b.ref), vault.remove(c.ref)]);
+  assert.deepEqual([vault.list(), backend.items.size], [[], 0]);
+  // Metadata that cannot be read or saved leaves no secret behind in the OS vault.
+  fs.writeFileSync(path.join(dataDir, 'keys.json'), '{ torn');
+  await assert.rejects(vault.store({ provider: 'jev', secret }), SyntaxError);
+  fs.rmSync(path.join(dataDir, 'keys.json'));
+  vault.save = () => { throw new Error('disco cheio'); };
+  await assert.rejects(vault.store({ provider: 'jev', secret }), /disco cheio/);
+  assert.equal(backend.items.size, 0);
+});
+
 test('the Windows Credential Manager backend round-trips a dummy secret through stdin and deletes it', async () => {
   if (process.platform !== 'win32') return;
   const backend = windowsCredentialBackend();
