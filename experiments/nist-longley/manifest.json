@@ -1,0 +1,57 @@
+{
+  "experiment": "NIST StRD Longley linear least squares (7 parameters, 16 observations, higher difficulty)",
+  "inputs": [
+    {
+      "path": "data/Longley.dat",
+      "url": "https://www.itl.nist.gov/div898/strd/lls/data/LINKS/DATA/Longley.dat",
+      "retrieved": "2026-09-26T04:45:21Z",
+      "sha256": "fc4b0c824f8f0b834eb8e7d1c4c7e0b3cebdd7987bcb085e8f5e1007582480ea",
+      "note": "Data lines 61-76 are the regression input; certified values repeat in lines 31-51. CRLF bytes kept as served."
+    },
+    {
+      "path": "data/v-Longley.shtml",
+      "url": "https://www.itl.nist.gov/div898/strd/lls/data/LINKS/v-Longley.shtml",
+      "retrieved": "2026-09-26T04:45:21Z",
+      "sha256": "95b1c087922a4693ec22a32647d9fb0501fd274da60bc2707f8ed49f21e1a405",
+      "note": "Certified values page, source of certified.json. It embeds a per-request Cloudflare token, so a fresh fetch differs in bytes; compare the values, not the hash."
+    },
+    {
+      "path": "data/Longley.shtml",
+      "url": "https://www.itl.nist.gov/div898/strd/lls/data/Longley.shtml",
+      "retrieved": "2026-09-26T04:45:03Z",
+      "sha256": "5c0dbee100372828b08493a065aee428d4ae4cca1ffe3bcb38fbcbdcf7a797e4",
+      "note": "Dataset landing page (reference and links); same per-request token caveat."
+    }
+  ],
+  "certified": "certified.json",
+  "environment": {
+    "requires": "Python >= 3.10, numpy >= 1.26; no network",
+    "recorded_per_run": "results/run.json (Python, numpy, BLAS/LAPACK build, platform, input and output sha256, cond2(X))"
+  },
+  "commands": {
+    "cwd": "experiments/nist-longley",
+    "run": "python run.py",
+    "check": "python check.py --method lstsq",
+    "failed_check": "python check.py --method normal-equations",
+    "facts_gate": "python ../../.agents/skills/thesis-review/scripts/thesis_checks.py facts --csv results/results.csv --tex draft/section.tex --decimal point"
+  },
+  "outputs": [
+    "results/results.csv",
+    "results/run.json",
+    "results/check-lstsq.json",
+    "results/check-normal-equations.json",
+    "draft/section.tex (cites draft/references.bib; every decimal gated against results/results.csv)"
+  ],
+  "threshold_lre": 5,
+  "threshold_rationale": "Declared before any comparison was run: a backward-stable float64 least-squares solve is guaranteed only about -log10(cond2(X) * eps) = 5.97 digits for this design matrix (cond2(X) = 4.859e9), floored to 5. Kept after the normal-equations control unexpectedly passed: no verified literature threshold above 5 was found, and a value chosen between the observed minima (7.41 and 10.93) would tune the verdict.",
+  "expected_verdicts": {
+    "lstsq": "PASS",
+    "normal-equations": "PASS"
+  },
+  "control_note": "The naive normal equations were expected to fail (cond2(X'X) = 2.384e19 > 1/eps) but reached min LRE 7.41 in the reference run. The column-scaled cond2(X) = 4.328e4 predicts about 6.4 digits for them and 11.0 for the SVD solve (observed 10.93): the unscaled worst-case bound was pessimistic. Their per-value LREs stay in results/check-normal-equations.json.",
+  "retained_failed_check": {
+    "case": "draft/section-mutated.tex: the residual standard deviation 304.8541 altered to 304.8542",
+    "command": "the facts_gate command with --tex draft/section-mutated.tex",
+    "expected": "exit 1 with exactly one unmatched numeral"
+  }
+}

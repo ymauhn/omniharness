@@ -1,0 +1,27 @@
+{
+  "source": {
+    "url": "https://www.itl.nist.gov/div898/strd/lls/data/LINKS/v-Longley.shtml",
+    "path": "data/v-Longley.shtml",
+    "retrieved": "2026-09-26T04:45:21Z",
+    "sha256": "95b1c087922a4693ec22a32647d9fb0501fd274da60bc2707f8ed49f21e1a405"
+  },
+  "transcription": "Strings copied verbatim from the page (fifteen significant digits, NIST notation); the same strings appear in data/Longley.dat lines 31-51. Parse with float().",
+  "values": {
+    "B0": "-3482258.63459582",
+    "B0_sd": "890420.383607373",
+    "B1": "15.0618722713733",
+    "B1_sd": "84.9149257747669",
+    "B2": "-0.358191792925910E-01",
+    "B2_sd": "0.334910077722432E-01",
+    "B3": "-2.02022980381683",
+    "B3_sd": "0.488399681651699",
+    "B4": "-1.03322686717359",
+    "B4_sd": "0.214274163161675",
+    "B5": "-0.511041056535807E-01",
+    "B5_sd": "0.226073200069370",
+    "B6": "1829.15146461355",
+    "B6_sd": "455.478499142212",
+    "residual_sd": "304.854073561965",
+    "r_squared": "0.995479004577296"
+  }
+}

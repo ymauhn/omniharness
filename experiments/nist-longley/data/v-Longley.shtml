@@ -1,0 +1,324 @@
+<html>
+<head>
+<script async type="text/javascript"
+        id="_fed_an_ua_tag"
+        src="https://dap.digitalgov.gov/Universal-Federated-Analytics-Min.js?agency=DOC&subagency=NIST&pua=UA-37115410-50&yt=true&exts=ppsx,pps,f90,sch,rtf,wrl,txz,m1v,xlsm,msi,xsd,f,tif,eps,mpg,xml,pl,xlt,c">
+</script>
+<title> StRD Certified Values for Dataset Longley </title>
+</head>
+
+
+<BODY BGCOLOR=ebebeb text=000000 vlink=1403b2 alink=ee0000 link=1403b2>
+
+
+
+<table cellspacing=0>
+
+   <TR align=center valign=center>
+    <TD align=left valign=center> 
+    <A href="http://www.itl.nist.gov/div898/strd/">
+    <img border=0 src="http://www.itl.nist.gov/div898/strd/general/gifs/strd70.gif"></A>
+    </TD>
+<TD align=left valign=center>
+    <A href="http://www.itl.nist.gov/div898/strd/general/dataarchive.html">
+    <img border=0 src="http://www.itl.nist.gov/div898/strd/general/gifs/archive50.gif"></A>
+    </TD>
+
+    <TD></td>
+    <TD align=right valign=center>
+        <TABLE noborder CELLSPACING=15>
+               <th align=center valign=center>
+    <A HREF="http://www.itl.nist.gov/div898/strd/lls
+/lls.shtml">
+       Main<br><nobr>LLS Page</nobr></A>
+    </th>
+
+               <th align=center valign=center>
+                   <A HREF="http://www.itl.nist.gov/div898/strd/lls
+/data/Longley.shtml">
+                   Longley<br>Dataset
+                   </tr>
+               </table>
+        </td>
+    </tr>
+
+
+   <TR VALIGN=top><th align=left colspan=4> Certified Values<hr></th></tr>
+ 
+   <TR VALIGN=top><td><br></td></tr>
+
+   
+<TR VALIGN=top>
+    <Th align=left>Dataset<BR>Name:</TD>
+        <TD colspan=2><BR>
+         Longley</TD>
+    </tr>
+
+<TR VALIGN=top><td><br></td></tr>
+
+<tr valign=top>
+    <th align=left>Procedure:       </th>
+        <td align=left colspan=2>
+            <nobr>Linear Least Squares Regression</nobr><br>
+            <A HREF="http://www.itl.nist.gov/div898/strd/lls
+/data/
+LINKS/c-Longley.shtml">
+            <nobr>Certification Method & Definitions</nobr></a>
+            </td> 
+    </tr>
+
+<tr valign=top><td><br></td></tr>
+
+<TR VALIGN=top>
+    <Th align=left> Data:</th> 
+    <TD colspan=2>
+        <nobr>1 Response Variable (<b><var>y</var></b>)</nobr><br>
+        <nobr>6 Predictor Variable (<b><var>x<sub>1</sub></var></b>, ..., <b><var>x<sub>6</sub></var></b>)</nobr><br>
+        <nobr>16 Observations</nobr><br>
+        <nobr>Higher Level of Difficulty</nobr><br>
+        <nobr>Observed Data</nobr><br>
+
+           </tr>
+
+   
+<TR> <TD><br></TD> </tr>
+
+
+
+   <tr valign=top>
+           <th align=left>Model:       </th>
+           <TD colspan=2>
+               <img src="PARTS/MODELS/Longley.Gif" alt="y = beta(0) + beta(1)x + beta(2)x(2) + beta(3)x(3) + beta(4)x(4) + beta(5)x(5) + e">
+               </td>
+           </tr>
+
+   
+<TR> <TD><br></TD> </tr>
+
+
+
+<TR VALIGN=top>
+<TD><HR></TD>
+<TD COLSPAN=3>
+</TD>
+</TR>
+
+   
+<TR> <TD><br></TD> </tr>
+
+
+
+</table>
+
+<table cellspacing=0>
+<tr valign=top>
+<th colspan=5>
+Certified Regression Statistics</th>
+</tr>
+<TR valign=top>
+<td></td>
+<td colspan=4>
+
+<table cellspacing=0>
+<tr valign=top align=left>
+<TH><br>Parameter</TH>
+<TH colspan=2><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+Estimate</TH>
+<TH colspan=2>&nbsp;&nbsp;&nbsp;
+
+Standard Deviation
+<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+of Estimate</TH>
+</TR>
+
+<TR align=left>
+<th>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+  <IMG SRC="PARTS/MODELS/beta0.Gif" alt="beta(0)">
+</th>
+<td colspan=2>&nbsp;
+
+-3482258.63459582
+</td>
+<td colspan=2>&nbsp;&nbsp;&nbsp;&nbsp;
+
+890420.383607373
+</td>
+</tr>
+ 
+<TR ALIGN=left>
+<th>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+  <IMG SRC="PARTS/MODELS/beta1.Gif" alt="beta(1)">
+</th>
+<td colspan=2>&nbsp;&nbsp;&nbsp;&nbsp;
+
+15.0618722713733
+</td>
+<td colspan=2>&nbsp;&nbsp;&nbsp;&nbsp;
+
+84.9149257747669
+</td>
+</tr>
+ 
+<TR ALIGN=left>
+<th>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+  <IMG SRC="PARTS/MODELS/beta2.Gif" alt="beta(2)">
+</th>
+<td colspan=2>&nbsp;
+
+-0.358191792925910E-01
+</td>
+<td colspan=2>&nbsp;&nbsp;&nbsp;&nbsp;
+
+0.334910077722432E-01
+</td>
+</tr>
+ 
+<TR ALIGN=left>
+<th>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+  <IMG SRC="PARTS/MODELS/beta3.Gif" alt="beta(3)">
+</th>
+<td colspan=2>&nbsp;
+
+-2.02022980381683
+</td>
+<td colspan=2>&nbsp;&nbsp;&nbsp;&nbsp;
+
+0.488399681651699
+</td>
+</tr>
+ 
+<TR ALIGN=left>
+<th>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+  <IMG SRC="PARTS/MODELS/beta4.Gif" alt="beta(4)">
+</th>
+<td colspan=2>&nbsp;
+
+-1.03322686717359
+</td>
+<td colspan=2>&nbsp;&nbsp;&nbsp;&nbsp;
+
+0.214274163161675
+</td>
+</tr>
+ 
+<TR ALIGN=left>
+<th>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+  <IMG SRC="PARTS/MODELS/beta5.Gif" alt="beta(5)">
+</th>
+<td colspan=2>&nbsp;
+
+-0.511041056535807E-01
+</td>
+<td colspan=2>&nbsp;&nbsp;&nbsp;&nbsp;
+
+0.226073200069370
+</td>
+</tr>
+ 
+<TR ALIGN=left>
+<th>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+  <IMG SRC="PARTS/MODELS/beta6.Gif" alt="beta(6)">
+</th>
+<td colspan=2>&nbsp;&nbsp;&nbsp;&nbsp;
+
+1829.15146461355
+</td>
+<td colspan=2>&nbsp;&nbsp;&nbsp;&nbsp;
+
+455.478499142212
+</td>
+</tr>
+  
+ 
+<TR> <TD><br></TD> </tr>
+
+
+ 
+<TR ALIGN=left valign=bottom>
+<TH>Residual<br>Standard Deviation</TH>
+<TD>&nbsp;&nbsp;&nbsp;&nbsp;
+
+304.854073561965
+</TD>
+<TD></TD>
+<TD></TD>
+</TR>
+ 
+<TR ALIGN=left>
+<TH>R-Squared</TH>
+<TD>&nbsp;&nbsp;&nbsp;&nbsp;
+
+0.995479004577296
+</TD>
+<TD></TD>
+<TD></TD>
+</TR>
+</table>
+</td>
+</tr> 
+   
+<TR> <TD><br></TD> </tr>
+
+
+
+<tr>
+
+<th colspan=5>Certified Analysis of Variance Table</th>
+   
+<TR> <TD><br></TD> </tr>
+
+
+<TR ALIGN=center valign=bottom>
+<TH ALIGN=left>Source of<BR>Variation</TH>
+<TH>Degrees of<BR>Freedom</TH>
+<TH>Sums of<BR>Squares</TH>
+<TH>Mean<BR>Squares</TH>
+<TH>F Statistic</TH>
+</TR>
+ 
+<TR><TD></TD></TR>
+ 
+<TR ALIGN=center>
+<TD ALIGN=left>Regression</TD>
+<TD>
+6
+</TD>
+<TD>
+184172401.944494
+</TD>
+<TD>
+30695400.3240823
+</TD>
+<TD>
+330.285339234588
+</TD>
+</TR>
+ 
+<TR ALIGN=center>
+<TD ALIGN=left>Residual</TD>
+<TD>
+9
+</TD>
+<TD>
+836424.055505915
+</TD>
+<TD>
+92936.0061673238
+</TD>
+<TD></TD>
+</TR>
+
+ 
+</TABLE>
+
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a40f9e63be02d06d',t:'MTc5MDM5NzkyMQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
