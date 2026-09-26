@@ -68,6 +68,19 @@ checkPage(src, 'source')
 for (const v of Object.values(pt)) assert(!/\bPASS\b/.test(v) && !/\/discussions\b/.test(v), 'pt-BR: PASS or a Discussions link: ' + v.slice(0, 80))
 for (const n of aggregate) assert(!Object.values(pt).some((v) => labelled(n, 'out|output|saída|tokens de saída').test(v)), 'pt-BR labels ' + n + ' as output tokens')
 
+// A benchmarks.md section the page cites as its source cannot claim what E1 denies: with no certified record, a line
+// there that says valid or PASS must name E1 (an anchor jump skips the page header's E1 caveat).
+const bench = fs.readFileSync(path.join(root, 'docs', 'benchmarks.md'), 'utf8')
+const slug = (h) => h.trim().toLowerCase().replace(/[^\w\- ]/g, '').replace(/ /g, '-')
+const sections = Object.fromEntries(bench.split(/^## /m).slice(1).map((s) => [slug(s.split(/\r?\n/)[0]), s]))
+const anchors = [...new Set([...src.matchAll(/docs\/benchmarks\.md#([\w-]+)/g)].map((m) => m[1]))]
+assert(anchors.length >= 2, 'the case studies link their benchmarks.md sections, found ' + anchors.length)
+for (const a of anchors) {
+  assert(a in sections, 'the page links a benchmarks.md anchor with no heading: ' + a)
+  const claims = sections[a].split(/\r?\n/).filter((l) => /\bvalid\b|\bPASS\b/.test(l) && !/\bE1\b/.test(l))
+  if (!audit.summary.certified_valid) assert.deepStrictEqual(claims, [], 'benchmarks.md#' + a + ' claims validity the E1 audit does not grant')
+}
+
 // The offer, stated plainly and translated: local Windows-first workspace in development, library in the repo, interest via the form, nothing for sale.
 assert(offerKey, 'the hero states the offer (<p class="offer" id="offer">)')
 for (const re of [/Windows-first/, /active development/, /V1 is not complete/, /skills, templates and tutorials/, /[Nn]othing is for sale/, /V1-RELEASE-CONTRACT\.md/])
