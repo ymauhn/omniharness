@@ -165,20 +165,21 @@ const validRun = run => /^[0-9a-f]{40,64}$/.test(run.baseSha) && run.branch !== 
   [run.branch, run.baseBranch].every(name => typeof name === 'string' && name && !name.startsWith('-')) &&
   [run.root, run.worktree].every(dir => typeof dir === 'string' && path.isAbsolute(dir));
 
-// Paths the merge would add (rows of `git diff --name-status -z --no-renames`) that something untracked in
-// the root already occupies, or whose parent folder is an untracked file there. Git treats ignored files as
-// expendable, so the merge would overwrite them, or `merge --abort` delete them.
-function untrackedInTheWay(root, nameStatus) {
-  const rows = nameStatus.split('\0'), removed = new Set(), found = [];
-  for (let i = 0; i + 1 < rows.length; i += 2) if (rows[i] === 'D') removed.add(rows[i + 1]);
+// Paths the task adds since the merge base (rows of `git diff --name-status -z --no-renames`) that something untracked
+// in the root already occupies, or whose parent folder is an untracked file there. Git treats ignored files as
+// expendable, so the merge would overwrite them, or `merge --abort` delete them. `rootAdded` (-z names) is what the
+// root added since the merge base.
+function untrackedInTheWay(root, nameStatus, rootAdded) {
+  // Tracked files git handles itself: one the root added, or one the task removes (a folder may go where it stood).
+  const rows = nameStatus.split('\0'), tracked = new Set(rootAdded.split('\0')), found = [];
+  for (let i = 0; i + 1 < rows.length; i += 2) if (rows[i] === 'D') tracked.add(rows[i + 1]);
   for (let i = 0; i + 1 < rows.length; i += 2) {
     if (rows[i] !== 'A') continue;
     const parts = rows[i + 1].split('/');
     for (let n = 1; n <= parts.length; n++) {
       const name = parts.slice(0, n).join('/');
       const stat = fs.lstatSync(path.join(root, name), { throwIfNoEntry: false });
-      // A tracked file the merge removes may stand where a folder goes; git replaces it itself.
-      if (stat && (n === parts.length || !stat.isDirectory()) && !removed.has(name)) { found.push(name); break; }
+      if (stat && (n === parts.length || !stat.isDirectory()) && !tracked.has(name)) { found.push(name); break; }
     }
   }
   return [...new Set(found)];
@@ -294,9 +295,14 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     const before = (await gitOk(run.root, ['rev-parse', 'HEAD'])).trim();
     const status = async () => new Set((await gitOk(run.root, ['status', '--porcelain', '-z'])).split('\0').filter(Boolean));
     const statusBefore = await status();
-    const changes = await gitOk(run.root, ['diff', '--name-status', '-z', '--no-renames', before, attempt.headSha, '--']);
+    // Each side's changes since the merge base (A...B): against the root's HEAD, the root's own deletions would read
+    // as task additions and refuse the merge over files it never writes.
+    const [changes, rootAdded] = await Promise.all([
+      gitOk(run.root, ['diff', '--name-status', '-z', '--no-renames', `${before}...${attempt.headSha}`, '--']),
+      gitOk(run.root, ['diff', '--name-only', '-z', '--no-renames', '--diff-filter=A', `${attempt.headSha}...${before}`, '--']),
+    ]);
     // Nothing awaits from here to the merge's spawn, so the task cannot change in between.
-    const inTheWay = untrackedInTheWay(run.root, changes);
+    const inTheWay = untrackedInTheWay(run.root, changes, rootAdded);
     if (inTheWay.length) refuse(`A raiz tem arquivos não rastreados ou ignorados onde o merge escreveria: ${inTheWay.slice(0, 20).join(', ')}; mova-os antes do merge`);
     taskCurrent(task.id, expectedRevision);
     // The tested commit, not the branch name: the branch may have moved while the test ran.

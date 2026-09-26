@@ -331,6 +331,33 @@ test('merge refuses to overwrite or remove untracked or ignored owner files in t
   assert.equal(f.app.store.task(f.task.id).status, 'open');
 });
 
+test('a file the root stopped tracking since the base is not in the way of a task that never touched it', async t => {
+  const f = await fixture(t);
+  f.setRun();
+  // The owner untracks README.md and ignores it; it stays on disk. The task's branch still has it, unchanged.
+  git(f.root, 'rm', '-q', '--cached', 'README.md');
+  write(f.root, '.gitignore', 'ignored.txt\nREADME.md\n');
+  git(f.root, 'commit', '-q', '-am', 'untrack README');
+  write(f.worktree, 'hello.txt', 'hi\n');
+  const response = await f.merge({});
+  assert.equal(response.status, 200, (await response.clone().json()).error);
+  assert.equal(fs.readFileSync(path.join(f.root, 'README.md'), 'utf8'), 'base\n');
+  assert.equal(fs.readFileSync(path.join(f.root, 'hello.txt'), 'utf8'), 'hi\n');
+});
+
+test('a file the root and the task both added is tracked in the root, so git merges it itself', async t => {
+  const f = await fixture(t);
+  f.setRun();
+  write(f.root, 'hello.txt', 'hi\n');
+  git(f.root, 'add', 'hello.txt');
+  git(f.root, 'commit', '-q', '-m', 'owner adds the same file');
+  write(f.worktree, 'hello.txt', 'hi\n');
+  write(f.worktree, 'other.txt', 'task\n');
+  const response = await f.merge({});
+  assert.equal(response.status, 200, (await response.clone().json()).error);
+  assert.equal(fs.readFileSync(path.join(f.root, 'other.txt'), 'utf8'), 'task\n');
+});
+
 test('a run on the base branch is refused before anything is committed in the root', async t => {
   const f = await fixture(t);
   f.setRun({ worktree: f.root, branch: 'master' });
