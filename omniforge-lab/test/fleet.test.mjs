@@ -194,6 +194,25 @@ test('each task runs with Claude or Codex, both disabled while its latest run is
   assert.equal(doc.activeElement?.dataset.focusKey, 'task:t:run-codex', 'a refused run keeps focus on its button');
 });
 
+test('a Gauntlet run from the agent SSE is named as such, exposed for the review panel, and keeps the task run buttons disabled', async () => {
+  const env = environment(), { $, fleet, server, find, cards } = env;
+  server.runs = [run('agente', { state: 'done' })];
+  fleet.sync(); await tick(); await tick();
+  assert.equal(fleet.gauntletRun('t'), null);
+  server.runs.unshift(run('g', { kind: 'gauntlet', state: 'blocked', detail: 'permission_prompt' }));
+  fleet.accept({ taskId: 't', projectId: 'a', runId: 'g', sessionId: 's-g', host: 'claude', state: 'blocked', detail: 'permission_prompt', at: 'x', kind: 'gauntlet' });
+  assert.deepEqual([fleet.gauntletRun('t').id, fleet.gauntletRun('t').state], ['g', 'blocked'], 'known at once, before the runs are read again');
+  await tick(); await tick();
+  assert.match(cards()[0].textContent, /^Gauntlet.*Aguardando você/);
+  const card = () => $('#task-list').children.find(item => item.textContent.includes('Corrigir README'));
+  assert.match(card().textContent, /Gauntlet · Aguardando você/);
+  assert.equal(find(card(), 'Rodar com Claude').disabled, true);
+  // A finished review over a still idle agent session: the engine refuses a new run, so the buttons stay disabled.
+  server.runs = [run('g', { kind: 'gauntlet', state: 'done' }), run('agente', { state: 'idle' })];
+  await fleet.load();
+  assert.equal(find(card(), 'Rodar com Codex').disabled, true);
+});
+
 test('prompt codes from the engine read as pt-BR text; an unknown code stays as sent', async () => {
   const { detailText } = await import('../app/fleet.mjs');
   assert.deepEqual(['permission_prompt', 'trust_prompt', 'hooks_review', 'rate_limit_prompt', 'approval_prompt', 'saiu com código 3'].map(detailText),

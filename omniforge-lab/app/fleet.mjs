@@ -13,11 +13,13 @@ const COLUMNS = [['open', 'Aberta'], ['running', 'Em execução'], ['blocked', '
 const USAGE = [['inputTokens', 'entrada'], ['outputTokens', 'saída'], ['cacheReadTokens', 'cache lido'], ['cacheCreationTokens', 'cache criado']];
 
 const hostName = host => HOST[host] ?? host;
+// A Gauntlet review runs in a Claude session too; its card says what it is.
+const runner = run => (run.kind === 'gauntlet' ? 'Gauntlet' : hostName(run.host));
 // The engine's prompt codes (hooks and terminal prompts) in pt-BR; any other detail is already text.
 const DETAIL = { permission_prompt: 'pedido de permissão', elicitation_dialog: 'pergunta do agente', trust_prompt: 'confiança da pasta',
   hooks_review: 'revisão de hooks', rate_limit_prompt: 'aviso de limite de uso', approval_prompt: 'aprovação de comando' };
 export const detailText = detail => DETAIL[detail] ?? detail;
-const runLabel = run => `${LABEL[run.state] ?? run.state}${run.detail ? ` · ${detailText(run.detail)}` : ''}`;
+export const runLabel = run => `${LABEL[run.state] ?? run.state}${run.detail ? ` · ${detailText(run.detail)}` : ''}`;
 // Array sort is stable: the API's latest-first order holds inside each group.
 export const orderRuns = runs => [...runs].sort((a, b) => (RANK[a.state] ?? 1) - (RANK[b.state] ?? 1));
 export const groupTasks = tasks => COLUMNS.map(([status, title]) => ({ status, title, tasks: tasks.filter(task => (task.status || 'open') === status) }));
@@ -40,7 +42,7 @@ function elapsedText(run, now = Date.now()) {
 
 // State as text first; the colour (data-state) only repeats it.
 function runBadge(parent, run, withHost = false) {
-  const badge = one(parent, 'span', 'run-badge', `${withHost ? `${hostName(run.host)} · ` : ''}${runLabel(run)}`);
+  const badge = one(parent, 'span', 'run-badge', `${withHost ? `${runner(run)} · ` : ''}${runLabel(run)}`);
   badge.dataset.state = run.state;
   return badge;
 }
@@ -75,7 +77,8 @@ export function createFleet({ openSession, onChange = () => {} }) {
     let run = runs.find(item => item.id === event.runId);
     const previous = run?.state;
     if (run) Object.assign(run, { state: event.state, detail: event.detail });
-    else runs.unshift(run = { id: event.runId, taskId: event.taskId, projectId: event.projectId, sessionId: event.sessionId, host: event.host, state: event.state, detail: event.detail });
+    else runs.unshift(run = { id: event.runId, taskId: event.taskId, projectId: event.projectId, sessionId: event.sessionId, host: event.host, state: event.state, detail: event.detail,
+      kind: event.kind });
     if (ALERT.has(run.state) && previous !== run.state) alert(run);
     changed();
     void load();
@@ -83,10 +86,10 @@ export function createFleet({ openSession, onChange = () => {} }) {
 
   function alert(run) {
     const text = `${taskById(run.taskId)?.title ?? 'Tarefa'}${run.detail ? ` · ${detailText(run.detail)}` : ''}`;
-    $('#fleet-live').textContent = `${hostName(run.host)}: ${LABEL[run.state]} em ${text}`;
+    $('#fleet-live').textContent = `${runner(run)}: ${LABEL[run.state]} em ${text}`;
     // Only while the owner is elsewhere, and only after the owner turned notifications on here.
     if (!notify || !document.hidden) return;
-    try { new Notification(`OmniForge · ${hostName(run.host)}: ${LABEL[run.state]}`, { body: text, tag: run.id }); }
+    try { new Notification(`OmniForge · ${runner(run)}: ${LABEL[run.state]}`, { body: text, tag: run.id }); }
     catch { /* a browser without the Notification constructor (service-worker only) */ }
   }
 
@@ -115,14 +118,14 @@ export function createFleet({ openSession, onChange = () => {} }) {
     for (const run of mine) {
       const card = one(grid, 'article', 'fleet-run'), head = one(card, 'div', 'fleet-run-head'), title = taskById(run.taskId)?.title ?? 'Tarefa removida';
       card.dataset.state = run.state;
-      one(head, 'strong', 'fleet-host', hostName(run.host));
+      one(head, 'strong', 'fleet-host', runner(run));
       runBadge(head, run);
       one(card, 'p', 'fleet-task', title);
       elapsedNodes.set(run, one(card, 'p', 'meta', elapsedText(run)));
       one(card, 'p', 'meta', usageText(run.usage));
       const open = one(card, 'button', 'secondary', 'Abrir terminal');
       open.type = 'button'; open.dataset.focusKey = `fleet:${run.id}:open`;
-      open.setAttribute('aria-label', `Abrir terminal de ${hostName(run.host)} em ${title}`);
+      open.setAttribute('aria-label', `Abrir terminal de ${runner(run)} em ${title}`);
       open.addEventListener('click', () => openSession(run.sessionId));
     }
     restore();
@@ -149,12 +152,13 @@ export function createFleet({ openSession, onChange = () => {} }) {
   }, 1000);
   ticker.unref?.();
 
-  // Tarefas view: "Rodar com …" per host, disabled while the task's latest run is active, and that run's state.
+  // Tarefas view: "Rodar com …" per host, disabled while any run of the task (agent or Gauntlet) is active, as the engine
+  // refuses, and the latest run's state.
   function taskControls(item, task) {
-    const row = one(item, 'div', 'task-run'), run = latestRun(task.id);
+    const row = one(item, 'div', 'task-run'), run = latestRun(task.id), busy = runs.some(other => other.taskId === task.id && ACTIVE.has(other.state));
     for (const host of Object.keys(HOST)) {
       const button = one(row, 'button', 'secondary', `Rodar com ${hostName(host)}`);
-      button.type = 'button'; button.dataset.focusKey = `task:${task.id}:run-${host}`; button.disabled = ACTIVE.has(run?.state);
+      button.type = 'button'; button.dataset.focusKey = `task:${task.id}:run-${host}`; button.disabled = busy;
       button.addEventListener('click', () => start(task, host));
     }
     if (run) Object.assign(runBadge(row, run, true), { tabIndex: -1 }).dataset.focusKey = `task:${task.id}:run-state`;
@@ -173,5 +177,6 @@ export function createFleet({ openSession, onChange = () => {} }) {
     } finally { pending.delete(task.id); }
   }
 
-  return { sync, load, accept, render, taskControls };
+  const gauntletRun = taskId => runs.find(run => run.taskId === taskId && run.kind === 'gauntlet') ?? null;
+  return { sync, load, accept, render, taskControls, gauntletRun };
 }
