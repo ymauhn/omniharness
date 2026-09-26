@@ -12,7 +12,7 @@ function block(from, to) {
   return html.slice(start, end);
 }
 class Element {
-  constructor(tag = 'div', className = '', text = '') { Object.assign(this, { tag, className, children: [], events: {}, attributes: {}, style: {}, value: '', disabled: false, _text: String(text) }); }
+  constructor(tag = 'div', className = '', text = '') { Object.assign(this, { tag, className, children: [], events: {}, attributes: {}, dataset: {}, style: {}, value: '', disabled: false, _text: String(text) }); }
   append(child) { this.children.push(child); }
   replaceChildren() { this.children = []; this._text = ''; }
   get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
@@ -41,7 +41,7 @@ function environment() {
   const env = { $, local, requests, apiCalls, messages, calls, respond: async () => ({ id: 'created' }), apiQueue: [] };
   const make = (tag, className, text) => new Element(tag, className, text);
   env.ctx = vm.createContext({
-    local, $, make, one: (parent, ...args) => { const node = make(...args); parent.append(node); return node; },
+    local, $, make, one: (parent, ...args) => { const node = make(...args); parent.append(node); return node; }, keepFocus: () => () => {},
     asArray: value => Array.isArray(value) ? value : [], encodeURIComponent,
     projectById: id => local.state.projects.find(project => project.id === id), taskById: id => local.state.tasks.find(task => task.id === id),
     action: (path, body) => { requests.push({ path, body }); return env.respond(path, body); },

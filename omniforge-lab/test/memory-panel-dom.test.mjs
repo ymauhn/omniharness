@@ -83,3 +83,34 @@ test('history navigation replaces bounded pages instead of accumulating revision
   await panel.load();
   assert.ok(root.contains(doc.activeElement), 'ordinary refresh retains history summary focus');
 });
+
+test('notes show a loading state instead of a false empty state, and a failed history page replaces its loading text', async () => {
+  const { root } = dom();
+  let release;
+  const panel = mountMemoryPanel({ root, getProjectId: () => 'p', getSessions: () => [], api: route => route.includes('/history')
+    ? Promise.reject(Error('Histórico indisponível agora')) : new Promise(resolve => { release = resolve; }) });
+  const button = label => root.querySelectorAll('button').find(node => node.textContent === label);
+  panel.sync(1);
+  assert.match(root.textContent, /Carregando notas…/);
+  assert.doesNotMatch(root.textContent, /Nenhuma nota visível/, 'a pending request is not an empty selection');
+  release({ notes: [{ id: 'n', scope: 'project', projectId: 'p', revision: 1, text: 'nota atual', source: 'fonte' }] }); await setImmediate();
+  assert.doesNotMatch(root.textContent, /Carregando notas/);
+  await button('Histórico').fire('click'); await setImmediate();
+  assert.match(root.textContent, /Histórico indisponível agora/);
+  assert.doesNotMatch(root.textContent, /Carregando histórico/, 'the history area must not keep claiming it is loading');
+});
+
+test('saving or cancelling the memory editor returns keyboard focus to that note', async () => {
+  const { root, doc } = dom();
+  const panel = mountMemoryPanel({ root, getProjectId: () => 'p', getSessions: () => [], api: async (_route, options) => options ? {}
+    : { notes: [{ id: 'n', scope: 'project', projectId: 'p', revision: 1, text: 'nota', source: 'fonte' }] } });
+  const button = label => root.querySelectorAll('button').find(node => node.textContent === label);
+  panel.sync(1); await setImmediate();
+  await button('Editar').fire('click');
+  button('Cancelar rascunho').focus(); await button('Cancelar rascunho').fire('click');
+  assert.equal(doc.activeElement, button('Editar'), 'cancel moves focus to the note instead of a detached button');
+  await button('Editar').fire('click');
+  button('Salvar revisão').focus(); await root.querySelector('form').fire('submit'); await setImmediate();
+  assert.equal(root.querySelector('form'), undefined, 'the editor closed after the save');
+  assert.equal(doc.activeElement, button('Editar'), 'save moves focus to the note instead of a detached button');
+});
