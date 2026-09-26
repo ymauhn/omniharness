@@ -21,8 +21,7 @@ test('workflow HTTP routes retain auth, atomic task pins and private project-bou
   const definition = workflowPresets()[0].definition; definition.nodes[0].prompt = 'PRIVATE_WORKFLOW_PROMPT';
   const input = { projectId: a.id, definition, reviewed: true };
   assert.equal((await post('/api/workflows', input, { origin: 'https://foreign.example' })).status, 403);
-  const cookie = (await fetch(url)).headers.get('set-cookie');
-  assert.equal((await fetch(`${base}/api/workflows`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify(input) })).status, 403);
+  assert.equal((await fetch(`${base}/api/workflows`, { method: 'POST', headers: { cookie: 'OmniForgeAuth_0123456789abcdef=workflow-test', 'content-type': 'application/json' }, body: JSON.stringify(input) })).status, 403);
   const saved = await (await post('/api/workflows', input)).json();
   assert.equal(saved.version, 1);
   const stateBefore = await (await get('/api/state')).json();
@@ -43,12 +42,13 @@ test('workflow HTTP routes retain auth, atomic task pins and private project-bou
   assert.equal((await post(`/api/workflows/${saved.id}/archive`, { projectId: a.id, expectedRevision: 1 })).status, 200);
   assert.equal((await (await get('/api/state')).json()).workflowRevision, 3);
   for (const file of ['/workflow-panel.mjs', '/workflow-panel.css', '/memory-panel.mjs', '/memory-panel.css', '/terminal-grid.mjs', '/terminal-grid.css']) {
-    assert.equal((await fetch(`${base}${file}`)).status, 403);
-    const response = await get(file);
+    // Browser modules load without custom headers and hold no secret; only allowlisted client files are served.
+    const response = await fetch(`${base}${file}`);
     assert.equal(response.status, 200);
     assert.match(response.headers.get('content-type'), file.endsWith('.css') ? /text\/css/ : /text\/javascript/);
   }
   assert.equal((await get('/workflows.mjs')).status, 404);
+  for (const serverFile of ['/workflows.mjs', '/server.mjs', '/core.mjs', '/package.json']) assert.equal((await fetch(`${base}${serverFile}`)).status, 403);
 });
 
 test('invalid workflow storage fails startup without leaking the workspace lock', async t => {

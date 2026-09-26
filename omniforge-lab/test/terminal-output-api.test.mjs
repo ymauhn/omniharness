@@ -45,3 +45,32 @@ test('replay API requires owner auth, explicit project and shares cursor with li
   assert.equal(fs.readFileSync(app.store.file, 'utf8').includes('replay canary'), false);
   await reader.cancel();
 });
+
+test('a burst of terminal output in one tick keeps a healthy event-stream client connected', async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-burst-'));
+  const app = createOmniForgeServer({ dataDir: path.join(dir, 'data'), token: 'burst-test' });
+  const base = new URL(await app.listen()).origin;
+  const controller = new AbortController();
+  t.after(async () => {
+    controller.abort(); await app.close();
+    const relative = path.relative(os.tmpdir(), dir);
+    if (relative.startsWith('omniforge-burst-') && !relative.includes(path.sep)) fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const project = app.store.addProject({ name: 'burst', root: dir });
+  const session = app.store.addSession({ projectId: project.id, name: 'burst fixture' });
+  const events = await fetch(`${base}/api/events`, { headers: { 'x-omniforge-token': 'burst-test' }, signal: controller.signal });
+  const reader = events.body.getReader(), decoder = new TextDecoder();
+  let received = '';
+  while (!received.includes('event: state')) received += decoder.decode((await reader.read()).value, { stream: true });
+  // node-pty output is split into 8 KiB frames that are broadcast in the same tick.
+  for (let i = 1; i <= 3; i++) app.shells.emit('terminal', { sessionId: session.id, stream: 'stdout', text: `${i}`.repeat(8000), at: '2026-09-26T00:00:00Z' });
+  app.shells.emit('terminal', { sessionId: session.id, stream: 'stdout', text: 'AFTER_BURST', at: '2026-09-26T00:00:01Z' });
+  const deadline = Date.now() + 5000;
+  while (!received.includes('AFTER_BURST') && Date.now() < deadline) {
+    const { value, done } = await Promise.race([reader.read(), new Promise(resolve => setTimeout(() => resolve({ done: true }), 1000))]);
+    if (done) break;
+    received += decoder.decode(value, { stream: true });
+  }
+  assert.ok(received.includes('3'.repeat(8000)) && received.includes('AFTER_BURST'), `stream ended after ${received.length} characters`);
+  await reader.cancel();
+});

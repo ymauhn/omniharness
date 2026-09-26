@@ -2,7 +2,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { WorkspaceStore, inventoryAssets, listSkills } from './core.mjs';
 import { PtyCoordinator } from './pty.mjs';
 import { CatalogService } from './catalog-service.mjs';
@@ -16,6 +16,7 @@ import { createArsenalApi } from './arsenal-http.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
 const MAX_BODY = 32 * 1024;
+const MAX_SSE_BACKLOG = 1024 * 1024;
 
 function send(response, status, data, type = 'application/json; charset=utf-8') {
   response.writeHead(status, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'x-frame-options': 'DENY' });
@@ -46,7 +47,12 @@ async function body(request) {
 }
 
 export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omniforge-lab'), repoRoot = REPO_ROOT, token = randomBytes(24).toString('hex'), catalog = new CatalogService({ repoRoot, dataDir }), classifier = new ClassifierService({ repoRoot }), arsenalService = null, observeArsenalHosts } = {}) {
-  const cookieName = `OmniForgeAuth_${randomBytes(8).toString('hex')}`;
+  const expectedToken = Buffer.from(token);
+  const sameToken = value => {
+    if (typeof value !== 'string') return false;
+    const presented = Buffer.from(value);
+    return presented.length === expectedToken.length && timingSafeEqual(presented, expectedToken);
+  };
   const store = new WorkspaceStore(dataDir);
   let workflows;
   try { workflows = createWorkflowService({ store }); }
@@ -67,7 +73,10 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
   const broadcast = (name, data) => {
     const message = `event: ${name}\ndata: ${JSON.stringify(data)}\n\n`;
     for (const client of clients) {
-      if (!client.write(message)) {
+      client.write(message);
+      // write() returns false for any same-tick burst over 16 KiB; drop only a client that is really stuck.
+      // It reconnects and recovers missed terminal output by replay cursor.
+      if (client.writableLength > MAX_SSE_BACKLOG) {
         clients.delete(client);
         client.end();
       }
@@ -83,21 +92,12 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
 
   const server = http.createServer(async (request, response) => {
     const url = new URL(request.url || '/', 'http://127.0.0.1');
-    const headerToken = request.headers['x-omniforge-token'];
-    const cookieToken = request.headers.cookie?.split(';').map(part => part.trim()).find(part => part.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1);
-    const queryToken = request.method === 'GET' && url.pathname === '/' ? url.searchParams.get('token') : null;
-    const directAuth = headerToken === token || queryToken === token;
-    const cookieAuth = cookieToken === token;
-    if (!directAuth && !cookieAuth) return send(response, 403, { error: 'Token local inválido' });
-    if (request.method === 'POST' && request.headers.origin && request.headers.origin !== `http://${request.headers.host}`) {
-      return send(response, 403, { error: 'Origem local inválida' });
-    }
-    if (request.method === 'POST' && !directAuth && request.headers['x-omniforge-client'] !== '1') {
-      return send(response, 403, { error: 'Cabeçalho local obrigatório' });
-    }
+    // DNS rebinding: only the exact loopback address this server printed is accepted.
+    if (request.headers.host !== `127.0.0.1:${server.address()?.port}`) return send(response, 403, { error: 'Endereço local inválido' });
     try {
+      // The page and its modules hold no secret. No cookie: browsers send cookies to every port on
+      // 127.0.0.1, so the page keeps the launch token in port-scoped storage and sends it as a header.
       if (request.method === 'GET' && url.pathname === '/') {
-        response.setHeader('set-cookie', `${cookieName}=${token}; HttpOnly; SameSite=Strict; Path=/`);
         const html = fs.readFileSync(path.join(HERE, 'index.html'), 'utf8');
         return send(response, 200, html, 'text/html; charset=utf-8');
       }
@@ -115,6 +115,12 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
       if (request.method === 'GET' && Object.hasOwn(vendorFiles, url.pathname)) {
         const [file, type] = vendorFiles[url.pathname];
         return send(response, 200, fs.readFileSync(path.join(HERE, 'node_modules', file), 'utf8'), type);
+      }
+      // EventSource cannot send headers, so only the event stream accepts the token in its URL.
+      const presented = request.headers['x-omniforge-token'] ?? (request.method === 'GET' && url.pathname === '/api/events' ? url.searchParams.get('token') : null);
+      if (!sameToken(presented)) return send(response, 403, { error: 'Token local inválido' });
+      if (request.method === 'POST' && request.headers.origin && request.headers.origin !== `http://${request.headers.host}`) {
+        return send(response, 403, { error: 'Origem local inválida' });
       }
       if (request.method === 'GET' && url.pathname === '/api/state') return send(response, 200, state());
       if (request.method === 'GET') {
@@ -255,8 +261,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const app = createOmniForgeServer({ dataDir: process.env.OMNIFORGE_DATA_DIR || path.join(REPO_ROOT, '.omniforge-lab') });
   const url = await app.listen(Number(process.env.OMNIFORGE_PORT || 0));
   console.log(`OmniForge Lab: ${url}`);
-  console.log('Candidato local: PTYs e Copilot; Laya exige ativação. Ctrl+C encerra as sessões.');
-  const shutdown = async () => { await app.close(); process.exit(0); };
+  console.log('Candidato local: PTYs e Copilot; Laya exige ativação. Ctrl+C solicita o encerramento das sessões.');
+  const shutdown = async () => {
+    try { await app.close(); process.exit(0); }
+    catch (error) { console.error(`Encerramento não confirmado: ${error.message}`); process.exit(1); }
+  };
   process.once('SIGINT', shutdown);
   process.once('SIGTERM', shutdown);
 }

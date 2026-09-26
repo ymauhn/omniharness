@@ -29,16 +29,15 @@ test('local API requires a token and preserves project/task/memory boundaries', 
   assert.ok(browserScript?.includes("from '/pane-scope.mjs'"));
   const parsed = spawnSync(process.execPath, ['--check', '--input-type=module'], { input: browserScript, encoding: 'utf8' });
   assert.equal(parsed.status, 0, parsed.stderr);
-  const cookie = initial.headers.get('set-cookie');
-  assert.match(cookie, /^OmniForgeAuth_[a-f0-9]{16}=test-token; HttpOnly; SameSite=Strict; Path=\/$/);
-  assert.equal((await fetch(`${base}/api/state`, { headers: { cookie } })).status, 200);
-  const paneModule = await fetch(`${base}/pane-scope.mjs`, { headers: { cookie } });
+  const auth = { 'x-omniforge-token': 'test-token' };
+  assert.equal((await fetch(`${base}/api/state`, { headers: auth })).status, 200);
+  const paneModule = await fetch(`${base}/pane-scope.mjs`);
   assert.equal(paneModule.status, 200);
   assert.match(paneModule.headers.get('content-type'), /text\/javascript/);
   assert.match(await paneModule.text(), /export function reconcilePaneSessions/);
-  assert.equal((await fetch(`${base}/api/tasks`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: '{}' })).status, 403);
+  assert.equal((await fetch(`${base}/api/tasks`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status, 403);
   const eventsAbort = new AbortController();
-  const events = await fetch(`${base}/api/events`, { headers: { cookie, accept: 'text/event-stream' }, signal: eventsAbort.signal });
+  const events = await fetch(`${base}/api/events?token=test-token`, { headers: { accept: 'text/event-stream' }, signal: eventsAbort.signal });
   assert.equal(events.status, 200);
   eventsAbort.abort();
   const post = async (route, value) => fetch(`${base}${route}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-omniforge-token': 'test-token' }, body: JSON.stringify(value) });
@@ -51,20 +50,20 @@ test('local API requires a token and preserves project/task/memory boundaries', 
   assert.equal((await post(`/api/tasks/${task.id}/status`, { status: 'done' })).status, 200);
   assert.equal((await post(`/api/tasks/${dependent.id}/status`, { status: 'done' })).status, 200);
   assert.equal((await post('/api/memory', { scope: 'project', projectId: project.id, source: 'CONTEXT.md', text: 'Test with fixtures' })).status, 200);
-  const state = await (await fetch(`${base}/api/state`, { headers: { cookie } })).json();
+  const state = await (await fetch(`${base}/api/state`, { headers: auth })).json();
   assert.equal(state.projects.length, 1);
   assert.equal(state.tasks.length, 2);
   assert.equal(state.tasks[1].status, 'done');
   assert.equal(Object.hasOwn(state, 'notes'), false);
-  const selectedMemory = await (await fetch(`${base}/api/memory?projectId=${project.id}`, { headers: { cookie } })).json();
+  const selectedMemory = await (await fetch(`${base}/api/memory?projectId=${project.id}`, { headers: auth })).json();
   assert.equal(selectedMemory.notes[0].source, 'CONTEXT.md');
   const otherRoot = path.join(root, 'other');
   fs.mkdirSync(otherRoot);
   const other = await (await post('/api/projects', { name: 'Other', root: otherRoot })).json();
   assert.equal((await post('/api/memory', { scope: 'project', projectId: other.id, source: 'private', text: 'OTHER_PROJECT_SECRET' })).status, 200);
-  const firstMemory = await (await fetch(`${base}/api/memory?projectId=${project.id}`, { headers: { cookie } })).json();
+  const firstMemory = await (await fetch(`${base}/api/memory?projectId=${project.id}`, { headers: auth })).json();
   assert.equal(JSON.stringify(firstMemory).includes('OTHER_PROJECT_SECRET'), false);
-  const snapshot = await (await fetch(`${base}/api/state`, { headers: { cookie } })).text();
+  const snapshot = await (await fetch(`${base}/api/state`, { headers: auth })).text();
   assert.equal(snapshot.includes('OTHER_PROJECT_SECRET'), false);
   assert.equal((await post('/api/layout', { split: 10 })).status, 400);
   const utf8 = Buffer.from(JSON.stringify({ scope: 'global', source: 'usuário', text: 'decisão de física: café' }), 'utf8');
@@ -83,7 +82,7 @@ test('local API requires a token and preserves project/task/memory boundaries', 
   assert.equal(splitResponse.body.text, 'decisão de física: café');
 });
 
-test('separate local instances use distinct authentication cookies', async t => {
+test('the credential is never an ambient cookie, and each instance accepts only its own token from its own Host', async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-lab-cookie-'));
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
   const first = createOmniForgeServer({ dataDir: path.join(root, 'first'), repoRoot, token: 'first-token' });
@@ -96,14 +95,28 @@ test('separate local instances use distinct authentication cookies', async t => 
   });
   const firstUrl = await first.listen();
   const secondUrl = await second.listen();
-  const firstCookie = (await fetch(firstUrl)).headers.get('set-cookie');
-  const secondCookie = (await fetch(secondUrl)).headers.get('set-cookie');
-  assert.notEqual(firstCookie.split('=')[0], secondCookie.split('=')[0]);
+  // Cookies ignore ports, so any other 127.0.0.1 service could read one. The shell is public; the API is not.
+  for (const response of [await fetch(firstUrl), await fetch(new URL(firstUrl).origin)]) {
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('set-cookie'), null);
+  }
   const firstBase = new URL(firstUrl).origin;
   const secondBase = new URL(secondUrl).origin;
-  assert.equal((await fetch(`${firstBase}/api/state`, { headers: { cookie: firstCookie } })).status, 200);
-  assert.equal((await fetch(`${secondBase}/api/state`, { headers: { cookie: firstCookie } })).status, 403);
-  assert.equal((await fetch(`${secondBase}/api/state`, { headers: { cookie: secondCookie } })).status, 200);
+  assert.equal((await fetch(`${firstBase}/api/state`, { headers: { cookie: 'OmniForgeAuth_0123456789abcdef=first-token' } })).status, 403);
+  assert.equal((await fetch(`${firstBase}/api/state?token=first-token`)).status, 403);
+  assert.equal((await fetch(`${firstBase}/api/state`, { headers: { 'x-omniforge-token': 'first-token' } })).status, 200);
+  assert.equal((await fetch(`${secondBase}/api/state`, { headers: { 'x-omniforge-token': 'first-token' } })).status, 403);
+  assert.equal((await fetch(`${secondBase}/api/state`, { headers: { 'x-omniforge-token': 'second-token' } })).status, 200);
+  const sse = new AbortController();
+  t.after(() => sse.abort());
+  assert.equal((await fetch(`${firstBase}/api/events?token=second-token`, { signal: sse.signal })).status, 403);
+  assert.equal((await fetch(`${firstBase}/api/events?token=first-token`, { signal: sse.signal })).status, 200);
+  // DNS rebinding: a foreign name that resolves to loopback still sends its own Host header.
+  const { port } = new URL(firstUrl);
+  const rebound = await new Promise((resolve, reject) => {
+    http.get({ host: '127.0.0.1', port, path: '/api/state', headers: { host: `rebind.example:${port}`, 'x-omniforge-token': 'first-token' } }, response => { response.resume(); resolve(response.statusCode); }).on('error', reject);
+  });
+  assert.equal(rebound, 403);
 });
 
 test('memory API versions competing writes, denies mismatched scopes and explicitly forgets with retained history', async t => {
@@ -138,8 +151,7 @@ test('memory API versions competing writes, denies mismatched scopes and explici
   const historyPath = `/api/memory/${note.id}/history?${new URLSearchParams(binding)}`;
   assert.equal((await fetch(`${base}${updatePath}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(update) })).status, 403);
   assert.equal((await post(updatePath, update, { origin: 'https://foreign.example' })).status, 403);
-  const cookie = (await fetch(url)).headers.get('set-cookie');
-  assert.equal((await fetch(`${base}${updatePath}`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify(update) })).status, 403);
+  assert.equal((await fetch(`${base}${updatePath}`, { method: 'POST', headers: { cookie: 'OmniForgeAuth_0123456789abcdef=memory-test-token', 'content-type': 'application/json' }, body: JSON.stringify(update) })).status, 403);
   const competing = await Promise.all([post(updatePath, update, { origin: base }), post(updatePath, { ...update, text: 'COMPETING_PRIVATE_FACT' })]);
   assert.deepEqual(competing.map(response => response.status).sort(), [200, 409]);
   const winner = await competing.find(response => response.status === 200).json();

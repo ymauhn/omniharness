@@ -294,7 +294,10 @@
     import { mountWorkflows } from '/workflow-panel.mjs';
     import { mountArsenalPanel } from '/arsenal-panel.mjs';
     const $ = selector => document.querySelector(selector);
-    if(new URLSearchParams(location.search).has('token')){const clean=new URL(location.href);clean.searchParams.delete('token');history.replaceState(null,'',`${clean.pathname}${clean.search}${clean.hash}`);}
+    // The launch token lives in this origin's storage (port-scoped, unlike cookies) and travels as a header.
+    let authToken=new URLSearchParams(location.search).get('token');
+    if(authToken){try{localStorage.setItem('omniforge-token',authToken);}catch{}const clean=new URL(location.href);clean.searchParams.delete('token');history.replaceState(null,'',`${clean.pathname}${clean.search}${clean.hash}`);}
+    else{try{authToken=localStorage.getItem('omniforge-token');}catch{}}
     const local = { state:{ projects:[], sessions:[], tasks:[], skills:[], layout:{ split:50 } }, notes:[], memoryProjectId:null, memoryRequest:0, memoryRevision:null, contextRequest:0, projectId:null, paneSessions:[null,null], view:'workspace', graph:'knowledge', graphNode:null, graphModels:{}, buffers:new Map(), ptyViews:new Map(), confirmedAcks:new Set(), log:[], inventory:null, inventoryProjectId:null, source:null, tokenInvalid:false, authProbePending:false, toastTimer:null };
     let ptyModulesPromise, terminalStorage;
     try{terminalStorage=sessionStorage;}catch{}
@@ -314,7 +317,7 @@
     function toast(message) { const el=$('#toast'); el.textContent=message; el.hidden=false; clearTimeout(local.toastTimer); local.toastTimer=setTimeout(()=>{el.hidden=true;},4500); }
     function log(who,text,detail='') { local.log.push({who,text,detail,at:new Date().toISOString()}); if(local.log.length>80) local.log.shift(); renderLog(); }
     function invalidateToken() { if(local.tokenInvalid)return;local.tokenInvalid=true;local.source?.close();$('#connection').dataset.state='error';$('#connection').textContent='Novo URL necessário';const message='Token local inválido. Abra o novo endereço exibido pelo servidor OmniForge.';toast(message);log('Conexão',message); }
-    async function api(path,{method='GET',body}={}) { const options={method,credentials:'same-origin',headers:{'X-OmniForge-Client':'1'}}; if(body!==undefined){options.headers['Content-Type']='application/json';options.body=JSON.stringify(body);} let response; try { response=await fetch(path,options); } catch { throw Error('Servidor local indisponível'); } let result; try { result=await response.json(); } catch { result={}; } if(!response.ok) {if(response.status===403)invalidateToken();const error=Error(response.status===403?'Token local inválido. Abra o novo endereço do servidor.':result.error || result.message || `Falha HTTP ${response.status}`);error.status=response.status;throw error;} return result; }
+    async function api(path,{method='GET',body}={}) { const options={method,headers:{'X-OmniForge-Token':authToken||''}}; if(body!==undefined){options.headers['Content-Type']='application/json';options.body=JSON.stringify(body);} let response; try { response=await fetch(path,options); } catch { throw Error('Servidor local indisponível'); } let result; try { result=await response.json(); } catch { result={}; } if(!response.ok) {if(response.status===403)invalidateToken();const error=Error(response.status===403?'Token local inválido. Abra o novo endereço do servidor.':result.error || result.message || `Falha HTTP ${response.status}`);error.status=response.status;throw error;} return result; }
     async function action(path,body,success) { let result;try { result=await api(path,{method:'POST',body}); } catch(error) { toast(error.message);log('Erro',error.message);return null; } if(success)log('Ação local',typeof success==='function'?success(result):success);try{await refresh();}catch(error){const message=`Ação confirmada, mas a atualização da tela falhou: ${error.message}`;toast(message);log('Aviso',message);}return result; }
     async function refresh() { const state=await api('/api/state'); applyState(state); }
     function reconcilePanes() {
@@ -337,7 +340,7 @@
       if(contextWasShown&&local.projectId===previousProjectId&&local.memoryRevision!==previousMemoryRevision&&$('#context-session').value)$('#load-context').click();
     }
     function connect() {
-      const source=new EventSource('/api/events',{withCredentials:true});local.source=source;
+      const source=new EventSource(`/api/events?token=${encodeURIComponent(authToken||'')}`);local.source=source;
       source.onopen=()=>{ if(local.tokenInvalid)return;$('#connection').dataset.state='connected';$('#connection').textContent='Conectado';for(const id of local.paneSessions)if(id)replayTerminal(id); };
       source.onerror=async()=>{ if(local.tokenInvalid)return;$('#connection').dataset.state='error';$('#connection').textContent='Reconectando';if(local.authProbePending)return;local.authProbePending=true;try{await refresh();}catch{ /* 403 is handled by api; network errors allow SSE retry */ }finally{local.authProbePending=false;} };
       source.addEventListener('terminal',event=>{ try { acceptTerminal(JSON.parse(event.data)); } catch { /* malformed or foreign events are ignored */ } });
