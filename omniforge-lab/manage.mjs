@@ -74,6 +74,18 @@ function contains(parent, child) {
 // Path equality as the file system sees it: win32 path.relative ignores case, so "c:\users\x" is "C:\Users\X".
 const same = (a, b) => path.relative(a, b) === '';
 
+// Where a path really is: the deepest existing ancestor resolved (junction, symlink, subst drive, 8.3 name),
+// the part that does not exist yet appended as given. Install records this form and uninstall compares it.
+function canonical(file) {
+  const absolute = path.resolve(file);
+  try { return fs.realpathSync.native(absolute); }
+  catch (error) {
+    const parent = path.dirname(absolute);
+    if (!['ENOENT', 'ENOTDIR'].includes(error.code)) throw error;
+    return parent === absolute ? absolute : path.join(canonical(parent), path.basename(absolute));
+  }
+}
+
 function tar(args) {
   const result = spawnSync(TAR, args, { encoding: 'utf8', windowsHide: true });
   if (result.status !== 0) throw new Error(`tar failed: ${firstLine(result.stderr || result.error?.message)}`);
@@ -245,8 +257,14 @@ function loadRecord(prefix) {
   catch (error) { if (error.code === 'ENOENT') return { schema: 1, created: [], versions: {} }; throw error; }
 }
 
+// A record from before canonical recording may hold another spelling of the same path.
+function recorded(record, file) {
+  const target = canonical(file);
+  return record.created.some(item => same(canonical(item.path), target));
+}
+
 function mark(record, file, kind) {
-  if (!record.created.some(item => same(item.path, file))) record.created.push({ path: file, kind });
+  if (!recorded(record, file)) record.created.push({ path: canonical(file), kind });
 }
 
 function ensureDir(record, dir, kind = 'dir') {
@@ -374,7 +392,7 @@ export function install({ from, prefix = defaultPrefix(), exec = run, env = proc
   }
   // The mark also covers data that an uninstall without --remove-data kept; a folder without it was never ours.
   if (fs.existsSync(path.join(data, DATA_MARK))) mark(record, data, 'tree');
-  else if (!record.created.some(item => same(item.path, data))) out(`${data} existed before install: the Lab uses it, and uninstall never removes it.`);
+  else if (!recorded(record, data)) out(`${data} existed before install: the Lab uses it, and uninstall never removes it.`);
   activate(prefix, record, id, current?.previous ?? null, current?.backup ?? null);
   saveRecord(prefix, record);
   out(`Installed OmniForge ${id} in ${prefix} (data: ${path.join(prefix, 'data')})`);
@@ -492,13 +510,16 @@ function describe(item, prefix) {
 }
 
 export function uninstall({ prefix = defaultPrefix(), apply = false, removeData = false, tempDir = os.tmpdir(), out = console.log } = {}) {
-  prefix = path.resolve(prefix);
+  // Canonical, like the recorded paths: the launcher resolves its own real path, the user may type an alias.
+  prefix = canonical(prefix);
   const record = loadRecord(prefix);
   const data = path.join(prefix, 'data');
-  // A recorded path outside the prefix is never removed, whatever install.json says.
-  const ours = record.created.filter(item => same(item.path, prefix) || contains(prefix, item.path));
+  // A recorded path not really inside the prefix is never removed, whatever install.json says or however
+  // it is spelled; everything below compares and removes these canonical forms only.
+  const created = record.created.map(item => ({ ...item, path: canonical(item.path) }));
+  const ours = created.filter(item => same(item.path, prefix) || contains(prefix, item.path));
   const lines = ours.map(item => `${item.path}: ${describe(item, prefix)}`);
-  for (const item of record.created.filter(entry => !ours.includes(entry))) lines.push(`${item.path}: outside ${prefix}; ignored, never removed`);
+  for (const item of created.filter(entry => !ours.includes(entry))) lines.push(`${item.path}: outside ${prefix}; ignored, never removed`);
   out(lines.length ? `Recorded by install in ${prefix}:` : `No install record in ${prefix}.`);
   lines.forEach((line, index) => out(`${index + 1}. ${line}`));
   if (!apply) {

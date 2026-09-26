@@ -9,9 +9,11 @@ import { fileURLToPath } from 'node:url';
 import { doctor, pack, archive, install, update, rollback, repair, uninstall, run, RUNTIME } from '../manage.mjs';
 
 const PINNED = '1.2.0-beta.15';
+// Canonical, as install records paths: TEMP may be an 8.3 or junction spelling of this folder.
+const TMP = fs.realpathSync.native(os.tmpdir());
 
 function tmp(t, name) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `omniforge-manage-${name}-`));
+  const dir = fs.mkdtempSync(path.join(TMP, `omniforge-manage-${name}-`));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   return dir;
 }
@@ -369,6 +371,58 @@ test('the data guard covers paths inside data and never removes an ancestor of d
   assert.equal(uninstall({ prefix, apply: true, tempDir: dir, out: () => {} }), 0);
   assert.equal(fs.readFileSync(path.join(data, 'state.json'), 'utf8'), '{"schema":1}');
   assert.ok(!fs.existsSync(path.join(prefix, 'app')));
+});
+
+// <dir>\alias is a junction to <dir>\real: the prefix has two spellings, as with an 8.3 or junction %TEMP%.
+function aliased(t, name) {
+  const dir = tmp(t, name);
+  const real = path.join(dir, 'real');
+  fs.mkdirSync(real);
+  fs.symlinkSync(real, path.join(dir, 'alias'), 'junction');
+  return { dir, real, alias: path.join(dir, 'alias'), release: tinyZip(dir, '0.1.0', '0f'.repeat(20)) };
+}
+
+const installed = ['app', 'releases', 'run', 'current.json', 'install.json', 'omniforge.cmd'];
+
+test('install through a junction records canonical paths, and uninstall --apply by either spelling removes exactly them', t => {
+  const { dir, real, alias, release } = aliased(t, 'alias');
+  const prefix = path.join(real, 'OmniForge');
+  install({ from: release.zip, prefix: path.join(alias, 'OmniForge'), exec: fakeExec(), out: () => {} });
+  const recordFile = path.join(prefix, 'install.json');
+  const record = JSON.parse(fs.readFileSync(recordFile, 'utf8'));
+  assert.ok(record.created.every(item => contained(real, item.path)), JSON.stringify(record.created));
+  // A record written before canonical recording keeps the alias spelling install was given; the launcher
+  // resolves its prefix from its own real path.
+  record.created = record.created.map(item => ({ ...item, path: path.join(alias, path.relative(real, item.path)) }));
+  fs.writeFileSync(recordFile, JSON.stringify(record));
+  fs.writeFileSync(path.join(prefix, 'notes.txt'), 'mine, never recorded');
+  const lines = [];
+  assert.equal(uninstall({ prefix, apply: true, tempDir: dir, out: line => lines.push(line) }), 0);
+  for (const gone of installed) assert.ok(!fs.existsSync(path.join(prefix, gone)), `${gone}\n${lines.join('\n')}`);
+  assert.deepEqual(fs.readdirSync(prefix).sort(), ['data', 'notes.txt'], lines.join('\n'));
+  assert.ok(!lines.some(line => /ignored/.test(line)), lines.join('\n'));
+});
+
+test('a recorded path that is inside the prefix only as text, through a junction it holds, is never removed', t => {
+  const { dir, real, alias, release } = aliased(t, 'escape');
+  const prefix = path.join(real, 'OmniForge');
+  install({ from: release.zip, prefix, exec: fakeExec(), out: () => {} });
+  const victim = path.join(dir, 'victim');
+  fs.mkdirSync(victim);
+  fs.writeFileSync(path.join(victim, 'keep.txt'), 'not ours');
+  fs.symlinkSync(victim, path.join(prefix, 'escape'), 'junction');
+  const recordFile = path.join(prefix, 'install.json');
+  const record = JSON.parse(fs.readFileSync(recordFile, 'utf8'));
+  // Spelled like the prefix uninstall is given: contained as text, outside on disk.
+  const tampered = path.join(alias, 'OmniForge', 'escape', 'keep.txt');
+  record.created.push({ path: tampered, kind: 'file' }, { path: path.join(alias, 'OmniForge', 'escape'), kind: 'tree' });
+  fs.writeFileSync(recordFile, JSON.stringify(record));
+  const lines = [];
+  assert.equal(uninstall({ prefix: path.join(alias, 'OmniForge'), apply: true, removeData: true, tempDir: dir, out: line => lines.push(line) }), 0);
+  assert.equal(fs.readFileSync(path.join(victim, 'keep.txt'), 'utf8'), 'not ours');
+  for (const gone of [...installed, 'data']) assert.ok(!fs.existsSync(path.join(prefix, gone)), `${gone}\n${lines.join('\n')}`);
+  assert.deepEqual(fs.readdirSync(prefix), ['escape'], lines.join('\n'));
+  assert.equal(lines.filter(line => line.includes(`. ${victim}`) && /: outside .+; ignored, never removed$/.test(line)).length, 2, lines.join('\n'));
 });
 
 test('reinstalling the current build keeps the backup that rollback names', t => {
