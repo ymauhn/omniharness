@@ -30,7 +30,9 @@ const STRICT_IDENTITY = ['-c', 'user.useConfigOnly=true'];
 // husky folder) could stage content the owner never reviewed, a post-commit hook add commits, and post-index-change or
 // reference-transaction run on every add and merge. The hooks folder is this very file: a file holds no hooks, and
 // whatever could turn it into a folder could already rewrite the Lab. The command line's -c outranks every config file.
-const NO_HOOKS = ['-c', `core.hooksPath=${fileURLToPath(import.meta.url)}`];
+// core.fsmonitor names a program git runs on every status and add: off too. Hooks defined in the config itself
+// (hook.<name>.command, git 2.54+) are in no folder, so the merge gate refuses while any is set.
+const NO_HOOKS = ['-c', `core.hooksPath=${fileURLToPath(import.meta.url)}`, '-c', 'core.fsmonitor=false'];
 
 function fail(message, status = 400) {
   throw Object.assign(new Error(message), { status });
@@ -178,7 +180,8 @@ function untrackedInTheWay(root, paths, replaced) {
       const prefix = parts.slice(0, n).join('/');
       const stat = fs.lstatSync(path.join(root, prefix), { throwIfNoEntry: false });
       if (stat?.isDirectory() && n < parts.length) continue;
-      if (stat && !replaced.has(prefix)) found.add(prefix);
+      const trackedFolder = stat?.isDirectory() && [...replaced].some(name => name.startsWith(`${prefix}/`));
+      if (stat && !replaced.has(prefix) && !trackedFolder) found.add(prefix);
       break; // nothing on disk here, or not a folder: nothing below it either
     }
   }
@@ -271,6 +274,9 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     if (uncertain) refuse(`A sessão “${uncertain.name}” na worktree da tarefa está incerta; confira se o processo dela terminou e confirme a verificação antes do merge`);
     taskCurrent(task.id, expectedRevision);
     await rootReady(run);
+    const configHooks = async dir => (await git(dir, ['config', '--name-only', '--get-regexp', '^hook\\..*\\.command$'])).out.split('\n').map(line => line.trim()).filter(Boolean);
+    const hooks = [...new Set([...await configHooks(run.worktree), ...await configHooks(run.root)])];
+    if (hooks.length) refuse(`O repositório define hooks na configuração do git (${hooks.slice(0, 5).join(', ')}); o Lab não faz commit nem merge com eles ativos. Remova-os ou faça o merge à mão`);
     for (const ident of ['GIT_AUTHOR_IDENT', 'GIT_COMMITTER_IDENT']) {
       if ((await git(run.root, [...STRICT_IDENTITY, 'var', ident])).code !== 0) refuse('O git não tem identidade configurada (user.name e user.email); configure-a antes do merge');
     }
@@ -301,15 +307,19 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     // (before...head), deletions aside, that are new against the root's HEAD. A file the root stopped tracking counts
     // only when the task changed it; the root's own deletions the task never touched are not written.
     const names = async (...range) => (await gitOk(run.root, ['diff', '--name-only', '-z', '--no-renames', ...range, '--'])).split('\0').filter(Boolean);
-    const [touched, untracked, replaced] = await Promise.all([names('--diff-filter=d', `${before}...${attempt.headSha}`),
-      names('--diff-filter=A', before, attempt.headSha), names('--diff-filter=D', before, attempt.headSha)]);
+    const [touched, untracked, replaced, mergeBase] = await Promise.all([names('--diff-filter=d', `${before}...${attempt.headSha}`),
+      names('--diff-filter=A', before, attempt.headSha), names('--diff-filter=D', before, attempt.headSha), gitOk(run.root, ['merge-base', before, attempt.headSha])]);
+    // The owner reviewed baseSha..tree; git merges merge-base..head. A task branch reset or rebased onto the root would
+    // pass every tree check and still undo the root's work since the base.
+    if (mergeBase.trim() !== run.baseSha) refuse(`A branch da tarefa não parte mais da base revisada (${run.baseSha.slice(0, 7)}): o merge aplicaria outra mudança que a do diff; revise-a de novo`);
     const unowned = new Set(untracked), written = touched.filter(name => unowned.has(name));
     // Nothing awaits from here to the merge's spawn, so the task cannot change in between.
     const inTheWay = untrackedInTheWay(run.root, written, new Set(replaced));
     if (inTheWay.length) refuse(`A raiz tem arquivos não rastreados ou ignorados onde o merge escreveria: ${inTheWay.slice(0, 20).join(', ')}; mova-os antes do merge`);
     taskCurrent(task.id, expectedRevision);
     // The tested commit, not the branch name: the branch may have moved while the test ran.
-    const merged = await git(run.root, [...STRICT_IDENTITY, 'merge', '--no-ff', '--no-edit', '--no-verify', '-m', `Merge branch '${run.branch}'`, attempt.headSha]);
+    // Directory-rename detection could relocate a task file onto a path outside the checked set (an owner's ignored file).
+    const merged = await git(run.root, [...STRICT_IDENTITY, '-c', 'merge.directoryRenames=false', 'merge', '--no-ff', '--no-edit', '--no-verify', '-m', `Merge branch '${run.branch}'`, attempt.headSha]);
     if (merged.code !== 0) {
       // Not gitOk: nothing may skip the abort below.
       const conflicts = (await git(run.root, ['diff', '--name-only', '--diff-filter=U', '-z'])).out.split('\0').filter(Boolean);
