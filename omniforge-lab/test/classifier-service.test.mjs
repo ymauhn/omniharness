@@ -8,7 +8,7 @@ import { ClassifierService } from '../classifier-service.mjs';
 
 const repoRoot=path.resolve('.');
 const candidates=[{source_id:'source:a',description:'Review code'}];
-const selected=id=>({provider:'laya',source_id:id,reason:'selected',usage:{input_tokens:null,output_tokens:null},runnable:false});
+const selected=id=>({provider:'laya',source_id:id,reason:'selected',usage:{input_tokens:null,output_tokens:null},runnable:false,probability:0.9});
 const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
 function fakeSpawn({delay=10,closeDelay=0,reply=frame=>frame.op==='warm'?{id:frame.id,ok:true,ready:true}:{id:frame.id,ok:true,selection:selected(frame.candidates[0].source_id)}}={}) {
   const calls=[],children=[];
@@ -27,7 +27,7 @@ test('disabled by default; explicit warm caches one process and keeps payloads o
     await assert.rejects(service.select('private prompt',candidates),{code:'disabled'});
     await service.enable();assert.equal(service.status().state,'ready');
     const result=await service.select('private prompt',candidates);await service.select('next',candidates);
-    assert.equal(result.runnable,false);assert.equal(result.usage.input_tokens,null);assert.equal(fake.calls.length,1);
+    assert.equal(result.runnable,false);assert.equal(result.usage.input_tokens,null);assert.equal(result.probability,0.9);assert.equal(fake.calls.length,1);
     assert.equal(JSON.stringify(fake.calls[0]).includes('private prompt'),false);
     assert.equal(fake.calls[0][2].shell,false);assert.equal(fake.calls[0][2].env.HF_HUB_OFFLINE,'1');
   } finally {await service.close();}
@@ -67,7 +67,7 @@ test('readable pipe errors fail only the owned worker instead of crashing the La
 });
 
 test('typed replies reject invalid identity, authority, counts and protocol frames',async()=>{
-  const mutations=[r=>{r.id++;},r=>{r.selection.source_id='outside';},r=>{r.selection.runnable=true;},r=>{r.selection.usage.input_tokens=-1;},r=>{r.selection.reason='provider_failed';},r=>{delete r.selection.usage;},()=> 'x'.repeat(65537),()=> '{invalid}\n'];
+  const mutations=[r=>{r.id++;},r=>{r.selection.source_id='outside';},r=>{r.selection.runnable=true;},r=>{r.selection.usage.input_tokens=-1;},r=>{r.selection.reason='provider_failed';},r=>{delete r.selection.usage;},r=>{r.selection.probability=1.5;},r=>{r.selection.probability='0.9';},r=>{delete r.selection.probability;},()=> 'x'.repeat(65537),()=> '{invalid}\n'];
   for(const mutate of mutations){
     const fake=fakeSpawn({reply:frame=>{if(frame.op==='warm')return{id:frame.id,ok:true,ready:true};const reply={id:frame.id,ok:true,selection:selected('source:a')};return mutate(reply)||reply;}});
     const service=new ClassifierService({repoRoot,spawn:fake.spawn});
@@ -140,7 +140,7 @@ readline.createInterface({input:process.stdin}).on('line',line=>{
   const value=JSON.parse(line);
   if(value.op==='warm')process.stdout.write(JSON.stringify({id:value.id,ok:true,ready:true})+'\\n');
   else if(value.prompt==='hang')setInterval(()=>{},1000);
-  else process.stdout.write(JSON.stringify({id:value.id,ok:true,selection:{provider:'laya',source_id:value.candidates[0].source_id,reason:'selected',usage:{input_tokens:null,output_tokens:null},runnable:false}})+'\\n');
+  else process.stdout.write(JSON.stringify({id:value.id,ok:true,selection:{provider:'laya',source_id:value.candidates[0].source_id,reason:'selected',usage:{input_tokens:null,output_tokens:null},runnable:false,probability:null}})+'\\n');
 });`;
 
 test('real child JSONL process returns selection and close waits for its OS exit',async()=>{

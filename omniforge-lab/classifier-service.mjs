@@ -23,7 +23,8 @@ function input(prompt,candidates) {
   return {prompt,candidates:candidates.map(({source_id,description})=>({source_id,description}))};
 }
 function selection(value,candidates) {
-  if (!keysAre(value,['provider','source_id','reason','usage','runnable']) || value.provider !== 'laya' || value.runnable !== false ||
+  if (!keysAre(value,['provider','source_id','reason','usage','runnable','probability']) || value.provider !== 'laya' || value.runnable !== false ||
+      (value.probability !== null && !(typeof value.probability === 'number' && value.probability >= 0 && value.probability <= 1)) ||
       !REASONS.has(value.reason) || !keysAre(value.usage,['input_tokens','output_tokens']) ||
       Object.values(value.usage).some(count=>count!==null&&(!Number.isSafeInteger(count)||count<0)) ||
       (value.reason === 'selected' ? !candidates.some(candidate=>candidate.source_id===value.source_id) : value.source_id !== null)) throw problem('protocol_error');

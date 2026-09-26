@@ -3,7 +3,7 @@
 Thresholds are uncalibrated policy settings, not probabilities of correctness.
 Callers supply an already-redacted excerpt, never sessions or full skill bodies.
 """
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 import hashlib
 import http.client
 import importlib
@@ -56,6 +56,7 @@ class Selection:
     reason: str = "unavailable"
     usage: Usage = Usage()
     runnable: bool = False
+    probability: float | None = None  # the top option's score, for display; uncalibrated, never a decision input
 
 
 def _probability(value):
@@ -152,14 +153,15 @@ def _selection(value, request, candidates, config, provider):
                 if type(fit) is not dict or fit.get("type") != "noul" or not _probability(fit.get("noul")):
                     raise ValueError()
                 fits[candidate.source_id] = fit["noul"]
+        top = probabilities[chosen]
         if chosen == NONE:
-            return Selection(provider, reason="none", usage=usage)
+            return Selection(provider, reason="none", usage=usage, probability=top)
         runner_up = max(p for key, p in probabilities.items() if key != chosen)
-        if probabilities[chosen] < config.min_probability or probabilities[chosen] - runner_up < config.min_margin:
-            return Selection(provider, reason="below_threshold", usage=usage)
+        if top < config.min_probability or top - runner_up < config.min_margin:
+            return Selection(provider, reason="below_threshold", usage=usage, probability=top)
         if config.require_fit and fits[chosen] < config.min_fit:
-            return Selection(provider, reason="selected_fit_failed", usage=usage)
-        return Selection(provider, chosen, "selected", usage)
+            return Selection(provider, reason="selected_fit_failed", usage=usage, probability=top)
+        return Selection(provider, chosen, "selected", usage, probability=top)
     except (KeyError, ValueError, TypeError, OverflowError):
         return Selection(provider, reason="invalid_response", usage=usage)
 
@@ -305,3 +307,26 @@ class LayaClassifier:
         except Exception:
             return Selection("laya", reason="provider_failed")
         return _selection(value, request, candidates, config, "laya")
+
+
+def main():
+    """The Lab router's JEV bridge: stdin {api_key, prompt, questions: {name: [candidate]}}, one select_jev per question.
+
+    The caller has already required a vault key and the owner's per-request opt-in; the key travels only on stdin.
+    Malformed input exits 2 before any request and prints nothing.
+    """
+    try:
+        request = _json(sys.stdin.buffer.read(MAX_RESPONSE_BYTES + 1))
+        if type(request) is not dict or set(request) != {"api_key", "prompt", "questions"} or type(request["questions"]) is not dict:
+            raise ValueError()
+        questions = {name: [Candidate(row["source_id"], row["description"]) for row in rows] for name, rows in request["questions"].items()}
+    except (KeyError, TypeError, ValueError, UnicodeError, RecursionError):
+        return 2
+    answers = {name: asdict(select_jev(request["prompt"], candidates, enabled=True, api_key=request["api_key"]))
+               for name, candidates in questions.items()}
+    sys.stdout.write(json.dumps(answers, allow_nan=False))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

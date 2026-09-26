@@ -51,6 +51,8 @@ class Worker:
                 raise ValueError()
             if (result.reason == 'selected' and result.source_id not in {candidate.source_id for candidate in candidates}) or (result.reason != 'selected' and result.source_id is not None):
                 raise ValueError()
+            if result.probability is not None and not adapter._probability(result.probability):
+                raise ValueError()
             if type(result.usage) is not adapter.Usage or any(value is not None and (type(value) is not int or not 0 <= value <= 2**53-1) for value in (result.usage.input_tokens,result.usage.output_tokens)):
                 raise ValueError()
             return {'id':identifier,'ok':True,'selection':asdict(result)}
