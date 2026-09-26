@@ -539,6 +539,14 @@ test('no agent run starts on a task while its merge runs: the merge would then m
   assert.deepEqual(f.app.engine.list(), [], 'nothing was launched');
 });
 
+test('the test command never follows git location variables the Lab inherited', async t => {
+  const saved = process.env.GIT_INDEX_FILE;
+  t.after(() => { if (saved === undefined) delete process.env.GIT_INDEX_FILE; else process.env.GIT_INDEX_FILE = saved; });
+  process.env.GIT_INDEX_FILE = path.join(os.tmpdir(), 'another-index');
+  const result = await runTestCommand({ command: 'node -e "process.stdout.write(String(process.env.GIT_INDEX_FILE))"', cwd: os.tmpdir() });
+  assert.equal(result.outputTail, 'undefined');
+});
+
 test('review routes require the master token', async t => {
   const f = await fixture(t);
   f.setRun();

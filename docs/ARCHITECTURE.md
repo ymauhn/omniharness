@@ -76,7 +76,7 @@ Outside `dataDir`: `.omniharness/runtime/laya-multilingual/<rev>/` is the opt-in
 | `usage.mjs` | Codex quota read and the four-figure usage summary |
 | `terminal-output.mjs` | bounded terminal output buffer shared by SSE and replay |
 | `lib/fsutil.mjs` | the one durable/atomic file-write helper every service above uses |
-| `lib/git-env.mjs` | drops inherited git location variables (`GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`, …) from the Lab's own git calls and from agent launches |
+| `lib/git-env.mjs` | drops inherited git location variables (`GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`, …) from the Lab's own git calls, agent launches and the merge's test command |
 | `app/main.mjs` | page composition root: builds every panel, owns the one `EventSource` |
 | `app/state.mjs`, `app/dom.mjs` | shared page state, `api()`/`connect()`, small DOM helpers |
 | `app/workspace.mjs`, `app/tasks.mjs`, `app/fleet.mjs`, `app/review-panel.mjs`, `app/graphs.mjs`, `app/assets.mjs`, `app/navigation.mjs` | one page view each: terminals, task list, Agentes fleet/kanban, diff/merge panel, the three graphs, asset inventory, view switching |

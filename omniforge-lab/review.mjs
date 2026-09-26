@@ -9,7 +9,7 @@ import { spawn, execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { writeFileAtomic } from './lib/fsutil.mjs';
-import { gitEnv } from './lib/git-env.mjs';
+import { gitEnv, withoutGitLocation } from './lib/git-env.mjs';
 
 const MAX_PATCH = 256 * 1024;
 const MAX_LISTING = 16 * 1024 * 1024;
@@ -130,7 +130,8 @@ export function runTestCommand({ command, cwd, timeoutMs = TEST_TIMEOUT_MS }) {
     : ['/bin/sh', ['-c', command]];
   const started = Date.now(), hash = createHash('sha256');
   let tail = Buffer.alloc(0), timedOut = false;
-  const child = spawn(file, args, { cwd, windowsHide: true, detached: !win, stdio: ['ignore', 'pipe', 'pipe'] });
+  // The owner's tests run git in this worktree, never in a repository or index the Lab's own environment points at.
+  const child = spawn(file, args, { cwd, env: withoutGitLocation(process.env), windowsHide: true, detached: !win, stdio: ['ignore', 'pipe', 'pipe'] });
   const take = chunk => { hash.update(chunk); tail = Buffer.concat([tail, chunk]).subarray(-MAX_TAIL); };
   child.stdout.on('data', take);
   child.stderr.on('data', take);
