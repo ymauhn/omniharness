@@ -387,5 +387,8 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     return { status: 200, body: await worktreeDiff(run) };
   }
 
-  return { handle, recordGauntlet };
+  // The server asks before a new agent run: the merge tests and commits this task's worktree, then marks it done.
+  const isMerging = taskId => merging === taskId;
+
+  return { handle, recordGauntlet, isMerging };
 }

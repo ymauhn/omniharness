@@ -304,6 +304,8 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
         if (command) { output = shells.command(command[1], input.command); engine.input(command[1], '\r'); changed = false; }
         else if (write) { output = shells.write(write[1], input.data); engine.input(write[1], input.data); changed = false; }
         // Only host and revision: a review kind and its prompt come from the gauntlet route, never from the page.
+        // Checked in the same tick as the synchronous run: the merge would otherwise mark the new run's task done.
+        else if (taskRun && review.isMerging(taskRun[1])) return send(response, 409, { error: 'O merge desta tarefa está em andamento; aguarde-o terminar antes de rodar um agente' });
         else if (taskRun) output = engine.run(taskRun[1], { host: input.host, expectedRevision: input.expectedRevision });
         else if (taskRoute) { output = await routeTask({ task: store.task(taskRoute[1]), input }, { catalog, classifier, keys, jevSelect }); changed = false; }
         else if (resize) { output = shells.resize(resize[1], input.cols, input.rows); changed = false; }

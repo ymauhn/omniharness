@@ -36,8 +36,9 @@ async function fixture(t, { title = 'Adicionar saudação' } = {}) {
   const runs = new Map();
   // duringTest runs while the merge waits on its test command: the window in which others can act.
   const timing = { testTimeoutMs: 60_000, duringTest: null };
-  // Agent runs only: no Gauntlet run in these fixtures.
-  const app = createOmniForgeServer({ dataDir: path.join(dir, 'data'), token: TOKEN, getRun: (id, kind) => (kind ? null : runs.get(id) ?? null),
+  // Agent runs only: no Gauntlet run in these fixtures. No agent host either: a /run that got past a guard never
+  // launches a real CLI (it fails before anything is created).
+  const app = createOmniForgeServer({ dataDir: path.join(dir, 'data'), token: TOKEN, getRun: (id, kind) => (kind ? null : runs.get(id) ?? null), engineOptions: { hosts: {} },
     runTest: async options => { await timing.duringTest?.(); return runTestCommand({ ...options, timeoutMs: timing.testTimeoutMs }); } });
   const base = new URL(await app.listen()).origin;
   t.after(async () => {
@@ -478,6 +479,19 @@ test('no Gauntlet starts while its task merges: the gate test and the hunters wo
   release();
   assert.match((await merge).body.attempt.mergeSha, /^[0-9a-f]{40}$/);
   assert.deepEqual(started, []);
+});
+
+test('no agent run starts on a task while its merge runs: the merge would then mark the new run\'s task done', async t => {
+  const f = await fixture(t);
+  f.setRun();
+  write(f.worktree, 'hello.txt', 'hi\n');
+  let during;
+  f.timing.duringTest = async () => { during = await f.post(`/api/tasks/${f.task.id}/run`, { host: 'claude', expectedRevision: f.app.store.task(f.task.id).revision }); };
+  const response = await f.merge({ testCommand: 'exit 0' });
+  assert.equal(response.status, 200, (await response.clone().json()).error);
+  assert.equal(during.status, 409);
+  assert.match((await during.json()).error, /merge desta tarefa está em andamento/);
+  assert.deepEqual(f.app.engine.list(), [], 'nothing was launched');
 });
 
 test('review routes require the master token', async t => {
