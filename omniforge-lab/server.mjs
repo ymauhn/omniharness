@@ -127,6 +127,12 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
       if (request.method === 'GET' && ['/copilot.mjs', '/copilot.css', '/copilot-provider.mjs', '/memory-panel.mjs', '/memory-panel.css', '/workflow-panel.mjs', '/workflow-panel.css', '/terminal-grid.mjs', '/terminal-grid.css', '/arsenal-panel.mjs', '/arsenal-panel.css', '/extensions-panel.mjs', '/usage-panel.mjs'].includes(url.pathname)) {
         return send(response, 200, fs.readFileSync(path.join(HERE, url.pathname.slice(1)), 'utf8'), url.pathname.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8');
       }
+      // The page's ES modules under app/: no secret inside, so no auth, same as the panel modules above.
+      // The name is constrained to [a-z0-9-]+.mjs and resolved only inside app/, so it cannot escape it.
+      const appModule = /^\/app\/([a-z0-9-]+\.mjs)$/.exec(url.pathname);
+      if (request.method === 'GET' && appModule) {
+        return send(response, 200, fs.readFileSync(path.join(HERE, 'app', appModule[1]), 'utf8'), 'text/javascript; charset=utf-8');
+      }
       const vendorFiles = {
         '/vendor/xterm.mjs': ['@xterm/xterm/lib/xterm.mjs', 'text/javascript; charset=utf-8'],
         '/vendor/xterm.css': ['@xterm/xterm/css/xterm.css', 'text/css; charset=utf-8'],

@@ -1,58 +1,72 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import vm from 'node:vm';
 import { setImmediate as tick } from 'node:timers/promises';
+import './support/browser-globals.mjs';
+import { local, bindRefresher } from '../app/state.mjs';
+import { createWorkspace } from '../app/workspace.mjs';
+import { createTasks } from '../app/tasks.mjs';
+import { createGraphs } from '../app/graphs.mjs';
+import { createAssets } from '../app/assets.mjs';
 
-// Runs the page's real task, composer, memory and inventory handlers against a minimal DOM seam.
-const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-function block(from, to) {
-  const start = html.indexOf(from), end = html.indexOf(to, start);
-  assert.ok(start >= 0 && end > start, `missing page block: ${from}`);
-  return html.slice(start, end);
-}
+// Runs the page's real task, composer, memory and inventory handlers (tasks.mjs, workspace.mjs,
+// graphs.mjs, assets.mjs) against a minimal DOM seam, wired together the way main.mjs wires them,
+// with fetch (not action/api) as the mocked network boundary.
 class Element {
-  constructor(tag = 'div', className = '', text = '') { Object.assign(this, { tag, className, children: [], events: {}, attributes: {}, dataset: {}, style: {}, value: '', disabled: false, _text: String(text) }); }
-  append(child) { this.children.push(child); }
-  replaceChildren() { this.children = []; this._text = ''; }
+  constructor(tag = 'div', className = '', text = '') {
+    Object.assign(this, { tag, className, children: [], parent: null, events: {}, attributes: {}, dataset: {}, style: {}, value: '', disabled: false, hidden: false, scrollTop: 0, scrollHeight: 0, clientHeight: 0, _text: String(text) });
+  }
+  append(child) { child.parent = this; this.children.push(child); }
+  replaceChildren() { for (const child of this.children) child.parent = null; this.children = []; this._text = ''; }
+  remove() { this.parent.children.splice(this.parent.children.indexOf(this), 1); this.parent = null; }
+  get childElementCount() { return this.children.length; }
   get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
   set textContent(value) { this.replaceChildren(); this._text = String(value); }
-  set innerHTML(_value) { throw Error('Task text must be rendered without HTML injection'); }
+  set innerHTML(_value) { throw Error('Page text must be rendered without HTML injection'); }
   get selectedOptions() { return []; }
   setAttribute(name, value) { this.attributes[name] = value; }
   addEventListener(name, callback) { (this.events[name] ||= []).push(callback); }
   fire(name) { return Promise.all((this.events[name] || []).map(callback => callback({ currentTarget: this, target: this, preventDefault() {} }))); }
+  focus() { doc.activeElement = this; }
+  contains(node) { for (let item = node; item; item = item.parent) if (item === this) return true; return false; }
   find(match) { for (const child of this.children) { if (match(child)) return child; const found = child.find(match); if (found) return found; } return null; }
   querySelector(selector) { return this.find(node => node.tag === selector.match(/^[a-z]+/)[0]); }
+  querySelectorAll() { return []; }
 }
+let doc;
 const deferred = () => { let resolve, reject; const promise = new Promise((ok, fail) => { resolve = ok; reject = fail; }); return { promise, resolve, reject }; };
 
 function environment() {
-  const ids = new Map(), requests = [], apiCalls = [], messages = [], calls = [];
+  const ids = new Map(), requests = [], calls = [];
   const $ = selector => { if (!ids.has(selector)) ids.set(selector, new Element()); return ids.get(selector); };
+  doc = { activeElement: null, createElement: tag => new Element(tag), createElementNS: (_ns, tag) => new Element(tag), querySelectorAll: () => [], querySelector: $, body: { dataset: {} } };
+  globalThis.document = doc;
+  const env = { $, requests, calls };
   const form = (selector, fields) => {
     const element = $(selector);
-    element.tag = 'form'; element.append(new Element('button'));
-    element.elements = Object.fromEntries(fields.map(name => [name, { value: '' }]));
+    element.tag = 'form'; element.elements = Object.fromEntries(fields.map(name => [name, { value: '' }])); element.append(new Element('button'));
     element.reset = () => { for (const field of Object.values(element.elements)) field.value = ''; };
   };
   form('#task-form', ['title']); form('#coord-form', ['text', 'action']); form('#memory-form', ['scope', 'sessionId', 'source', 'text']);
-  const local = { projectId: 'p', state: { projects: [{ id: 'p' }, { id: 'q' }], tasks: [] }, inventory: null, inventoryProjectId: null };
-  const env = { $, local, requests, apiCalls, messages, calls, respond: async () => ({ id: 'created' }), apiQueue: [] };
-  const make = (tag, className, text) => new Element(tag, className, text);
-  env.ctx = vm.createContext({
-    local, $, make, one: (parent, ...args) => { const node = make(...args); parent.append(node); return node; }, keepFocus: () => () => {},
-    asArray: value => Array.isArray(value) ? value : [], encodeURIComponent,
-    projectById: id => local.state.projects.find(project => project.id === id), taskById: id => local.state.tasks.find(task => task.id === id),
-    sessionById: () => undefined, currentProjectSessions: () => [], fillSelect(select, options, value) { select.value = value || ''; }, statusLabel: status => status || '', time: () => '10:00',
-    action: (path, body) => { requests.push({ path, body }); return env.respond(path, body); },
-    api: path => { apiCalls.push(path); return env.apiQueue.shift(); },
-    refresh: async () => { calls.push('refresh'); }, toast: message => messages.push(message),
-    renderTasks: () => calls.push('renderTasks'), renderAssets: () => calls.push('renderAssets'), loadMemory: () => calls.push('memory'), updateMemoryScope() {},
-    copilot: { revision: () => 1, sync() {} }, arsenal: { focusTask() {} }, showView() {},
+  Object.assign(local, {
+    projectId: 'p', state: { projects: [{ id: 'p' }, { id: 'q' }], sessions: [], tasks: [], skills: [], layout: { split: 50 } },
+    notes: [], memoryRevision: null, inventory: null, inventoryProjectId: null, inventoryRequest: 0, view: 'workspace', graph: 'knowledge',
   });
-  vm.runInContext(block('    function renderTasks()', '    async function loadMemory()') + block('    async function loadInventory()', '    function renderAssets()') + block("    $('#task-form').addEventListener", "    $('#context-session')"), env.ctx);
-  return env;
+  env.respond = async () => ({ ok: true, status: 200, json: async () => ({ id: 'created' }) });
+  globalThis.fetch = (path, options) => {
+    requests.push({ path, body: options?.body ? JSON.parse(options.body) : undefined });
+    return env.respond();
+  };
+  bindRefresher(async () => { calls.push('refresh'); });
+
+  const showView = view => calls.push(['view', view]);
+  const copilot = { revision: () => 1, sync() {} };
+  const catalog = { search() {}, sync() {}, load() {} };
+  const memoryPanel = { load() {}, sync() {} };
+  const workspace = createWorkspace({ renderAll: () => calls.push('render'), loadMemory: () => calls.push('memory'), clearContext() {}, showView, copilot, storage: { getItem: () => null, setItem() {} } });
+  const tasks = createTasks({ showView, arsenal: { focusTask() {} } });
+  const graphs = createGraphs({ assignPane: workspace.assignPane, renderWorkspace: workspace.renderWorkspace, catalog, memoryPanel, showView });
+  const assets = createAssets();
+  return Object.assign(env, { workspace, tasks, graphs, assets });
 }
 
 test('task, composer and memory forms send one request while the first submit is in flight', async () => {
@@ -64,7 +78,7 @@ test('task, composer and memory forms send one request while the first submit is
   };
   for (const [selector, fill] of Object.entries(fills)) {
     const form = env.$(selector), pending = deferred();
-    fill(form); env.respond = () => pending.promise; env.requests.length = 0;
+    fill(form); env.respond = () => pending.promise.then(value => ({ ok: true, status: 200, json: async () => value })); env.requests.length = 0;
     const first = form.fire('submit'), second = form.fire('submit');
     await tick();
     assert.equal(env.requests.length, 1, `${selector} must not submit twice`);
@@ -95,38 +109,41 @@ test('composer turns a long draft into a bounded first-line title and keeps the 
 
 test('task status select sends its revision, restores and refreshes after a conflict, and loads details as text on open', async () => {
   const env = environment();
-  env.local.state.tasks = [{ id: 't1', projectId: 'p', title: 'Race', dependsOn: [], status: 'open', revision: 3, hasDetails: true }];
-  env.ctx.renderTasks();
+  local.state.tasks = [{ id: 't1', projectId: 'p', title: 'Race', dependsOn: [], status: 'open', revision: 3, hasDetails: true }];
+  env.tasks.renderTasks();
   const list = env.$('#task-list'), select = list.find(node => node.tag === 'select');
-  env.respond = async () => null;
+  env.respond = async () => ({ ok: false, status: 409, json: async () => ({ error: 'conflito' }) });
   select.value = 'blocked';
   await select.fire('change');
   assert.equal(env.requests[0].body.expectedRevision, 3);
   assert.equal(select.value, 'open');
   assert.ok(env.calls.includes('refresh'));
   const more = list.find(node => node.tag === 'details');
-  assert.deepEqual(env.apiCalls, [], 'details load only when opened');
-  env.apiQueue.push(Promise.resolve({ id: 't1', details: 'Race\n<b>Contexto completo</b>' }));
+  const detailsFetches = env.requests.filter(request => request.path.endsWith('/details'));
+  assert.deepEqual(detailsFetches, [], 'details load only when opened');
+  env.requests.length = 0;
+  env.respond = async () => ({ ok: true, status: 200, json: async () => ({ id: 't1', details: 'Race\n<b>Contexto completo</b>' }) });
   more.open = true;
   await more.fire('toggle');
   await more.fire('toggle');
-  assert.deepEqual(env.apiCalls, ['/api/tasks/t1/details']);
+  assert.deepEqual(env.requests.map(request => request.path), ['/api/tasks/t1/details'], 'a second toggle does not refetch');
   assert.match(list.textContent, /<b>Contexto completo<\/b>/);
 });
 
 test('asset inventory applies only the latest request for the current project and reports skipped folders', async () => {
   const env = environment(), first = deferred(), second = deferred(), button = env.$('#refresh-assets');
-  env.apiQueue.push(first.promise, second.promise);
-  const a = env.ctx.loadInventory();
+  const queue = [first.promise, second.promise];
+  env.respond = () => queue.shift().then(value => ({ ok: true, status: 200, json: async () => value }));
+  const a = env.assets.loadInventory();
   assert.equal(button.disabled, true);
-  env.local.projectId = 'q';
-  const b = env.ctx.loadInventory();
+  local.projectId = 'q';
+  const b = env.assets.loadInventory();
   second.resolve({ files: ['b.png'], unreadableDirectories: 2 });
   await b;
   first.reject(Error('Falha do projeto anterior'));
   await a;
-  assert.equal(env.local.inventoryProjectId, 'q');
-  assert.deepEqual([...env.local.inventory.files], ['b.png']);
-  assert.deepEqual(env.messages, ['Inventário parcial: 2 pastas sem leitura ignoradas.']);
+  assert.equal(local.inventoryProjectId, 'q');
+  assert.deepEqual([...local.inventory.files], ['b.png']);
+  assert.equal(env.$('#toast').textContent, 'Inventário parcial: 2 pastas sem leitura ignoradas.');
   assert.equal(button.disabled, false);
 });
