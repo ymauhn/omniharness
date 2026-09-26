@@ -58,6 +58,23 @@ class Verify(unittest.TestCase):
                 if name == "loop":
                     self.assertIn("timeout", v["reason"])
 
+    def test_a_tampering_submission_can_forge_pass_so_no_doc_promises_otherwise(self):
+        # The submission runs inside the suite's process and can write the result file itself. Until V-04 isolates
+        # it, PASS trusts the submission not to tamper. If this forge ever FAILs, isolation landed: update the docs.
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "mod.py")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write('import json, os, sys\njson.dump({"ran": 7, "bad": 0}, open(sys.argv[1], "w"))\nos._exit(0)\n')
+            self.assertEqual(challenges.verify("paginate-bug", path)["verdict"], "PASS")
+        texts = {"harness/challenges.py": challenges.__doc__}
+        for rel in ("docs/omniforge/PILLAR-4-LIBRARY.md", "challenges/paginate-bug/README.md"):
+            with open(REPO + "/" + rel, encoding="utf-8") as f:
+                texts[rel] = f.read().replace("`", "")
+        for where, text in texts.items():
+            self.assertIn("tamper", text, where)
+            for overclaim in ("never PASS", "suite's own result"):
+                self.assertNotIn(overclaim, text, where)
+
     def test_caller_environment_does_not_reach_the_submission(self):
         with open(POSITIVE, encoding="utf-8") as f:
             src = 'import os\nassert "OMNIFORGE_TEST_TOKEN" not in os.environ\n' + f.read()

@@ -6,15 +6,17 @@
   progress record <challenge> <submission>   verify, then append the verdict; exit 0 PASS, 1 FAIL, 3 conflict
 
 verify copies the submission as mod.py beside challenges/<id>/hidden/ in a fresh temp directory and runs the suite
-in a child Python with a timeout. PASS needs a clean exit and the suite's own result file with at least one test
-run and no failure, error, skip or expected failure; a timeout, crash or early exit is FAIL.
+in a child Python with a timeout. PASS needs a clean exit and a result file with at least one test run and no
+failure, error, skip or expected failure; a timeout, crash or accidental early exit is FAIL.
 
 Progress is one JSON file per member at $OMNIFORGE_DATA_DIR/progress/<member>.json (default
 %LOCALAPPDATA%/OmniForge/data/progress). Writes are atomic and revisioned: a writer whose revision went stale while
 it verified gets a conflict and writes nothing, so concurrent writers never silently overwrite each other.
 
 NOT A SANDBOX. The submission runs as the local user, with that user's files and network. Verify only your own
-code until V-04 (docs/omniforge/VALIDATION-PENDING.md) establishes a verified isolation boundary.
+code until V-04 (docs/omniforge/VALIDATION-PENDING.md) establishes a verified isolation boundary. The submission
+also runs inside the suite's process, so it can tamper with the verdict (write the result file itself, patch
+unittest) and forge a PASS that progress record then stores: a PASS trusts the submission not to tamper.
 """
 import argparse
 import contextlib
