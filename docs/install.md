@@ -11,7 +11,7 @@ On the Codex Windows host, `./scripts/check.ps1` selects the already-installed b
 Visual coverage is required. With the runner's Python, install `-m pip install -r tests/visual/requirements.txt`, then `-m playwright install chromium` (network installation requires authorisation). Invoke Playwright as a Python module, so its Scripts directory need not be on PATH. `check.ps1` rejects skipped tests. The screenshot suite uses Chromium, not an external ffmpeg command; Playwright manages its own downloaded browser/media binaries.
 
 - Python 3.12+ (`python --version`; the reference machine has 3.12.10; the installer uses `os.path.isjunction`, new in 3.12). Stdlib only, no pip packages.
-- Node 18+ (`node --version`; reference 24.19). Plain Node, no npm packages; only `tests/test_driver.js` needs it.
+- Node 22+ (`node --version`; reference 24.19). The harness drivers need plain Node; the OmniForge Lab (`omniforge-lab/`, see [its installer](omniforge/INSTALL.md)) needs Node 22 or newer and its locked npm packages.
 - git on PATH.
 - Claude Code (reference 2.1.267) for the Gauntlet and the enforced gate. Codex and Hermes get the portable skills and the prose gate; see their sections.
 - Optional: Docker for the thesis-review compile gate (`docker run --rm -v "$PWD":/w -w /w texlive/texlive latexmk -pdf main.tex`; the first `docker pull texlive/texlive` is about 2 GB and is gated: STOP: confirm. The agent says "The compile gate pulls `texlive/texlive` (about 2 GB, one time) and runs it in Docker; alternatively hand me the Overleaf `.log`. Proceed?" and waits). Without Docker, hand the agent an Overleaf `.log` instead. Whether Docker is installed on the reference machine is not recorded in the audit ([integrations/overleaf.md](integrations/overleaf.md)).
@@ -128,7 +128,7 @@ Run these in a plain terminal, not from inside Claude Code: `rmdir` is on the as
 
    (one pair per directory under `.agents/skills/`). Do not use `rd /s` or `Remove-Item -Recurse` on a junction.
 
-2. Delete the driver copy: `del "%USERPROFILE%\.claude\workflows\gauntlet-driver.js"`.
+2. Delete the three driver copies: `del "%USERPROFILE%\.claude\workflows\gauntlet-driver.js" "%USERPROFILE%\.claude\workflows\scout-driver.js" "%USERPROFILE%\.claude\workflows\swarm-driver.js"` (keep any `*.pre-omniharness*` backups for the owner's triage).
 
 3. Restore the settings: copy `~/.claude/settings.json.pre-omniharness` over `~/.claude/settings.json` (if there was no settings file before the install, there is no backup; delete the merged file or remove the `permissions` entries and the `guard_bash.py` hook by hand).
 
