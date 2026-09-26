@@ -576,6 +576,10 @@ test('the Gauntlet runs only on its own request, report-only in the finished run
   assert.notEqual(smuggled.worktree, run.worktree);
   await waitFor(() => fs.existsSync(path.join(smuggled.worktree, 'agent-call.json')), 'fake Claude started');
   assert.equal(call(smuggled).args.at(-1), 'Tarefa: Revisar com Gauntlet');
+  // Let it finish: closing the Lab inside a PTY's launch window cannot confirm the stop (slow runners hit it).
+  await lab_.until(project.id, smuggled.id, 'blocked');
+  assert.equal((await post(`/api/sessions/${smuggled.sessionId}/write`, { data: '\r' })).status, 200);
+  await lab_.until(project.id, smuggled.id, 'done');
 });
 
 test('a review in a finished run\'s worktree still sees that run\'s uncertain session when the data folder is an alias', t => {
