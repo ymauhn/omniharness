@@ -10,7 +10,10 @@ const driver = new AsyncFunction('agent', 'parallel', 'phase', 'log', 'args', 'b
 const tests = {command: 'local-check', exit_code: 0, passed: true, count: 3}
 const tasks = [{id: 'a', prompt: 'A', scope: ['src/a/**'], dependsOn: []},
                {id: 'b', prompt: 'B', scope: ['src/b.py'], dependsOn: ['a']}]
-async function run(options = {}, transform = x => x, host = true, settlement = {usd: 0.01, tokens: 20}, verified = true, preflight = true) {
+const concurrent = ts => Promise.all(ts.map(t => t()))
+const sequential = async ts => { const out = []; for (const t of ts) out.push(await t()); return out }
+const tick = ms => new Promise(resolve => setTimeout(resolve, ms))
+async function run(options = {}, transform = x => x, host = true, settlement = {usd: 0.01, tokens: 20}, verified = true, preflight = true, parallel = concurrent) {
   const calls = [], leases = []
   const checks = []
   let base = 'a'.repeat(40)
@@ -52,7 +55,7 @@ async function run(options = {}, transform = x => x, host = true, settlement = {
   const isolation = preflight === null ? undefined : {
     preflight: async context => {
       checks.push(['preflight', context.label])
-      const result = typeof preflight === 'function' ? preflight(context) : preflight
+      const result = typeof preflight === 'function' ? await preflight(context) : preflight
       return result === null ? null : {os_sandbox_verified: result === false ? false : true,
         attempt_id: context.label, reservation: context.reservation,
         worker_identity: 'worker-' + context.label,
@@ -68,7 +71,7 @@ async function run(options = {}, transform = x => x, host = true, settlement = {
         ...(typeof result === 'object' ? result : {})}
     },
   }
-  const result = await driver(agent, ts => Promise.all(ts.map(t => t())), () => {}, () => {}, args, budget, isolation)
+  const result = await driver(agent, parallel, () => {}, () => {}, args, budget, isolation)
   return {result, calls, leases, checks}
 }
 ;(async () => {
@@ -133,6 +136,29 @@ async function run(options = {}, transform = x => x, host = true, settlement = {
   assert.equal(verifiedB.result.parouPor, 'isolation')
   assert(verifiedB.calls.some(call => call.label === 'review'))
   console.log('PASS admitted worker identity must match agent report and host verification')
+  const wave = {tasks: [tasks[0]], tournament: 3}
+  for (const [verified, settlement, reason] of [
+    [context => context.label !== 'implement:a:0', {usd: 0.01, tokens: 20}, 'isolation'],
+    [true, label => label === 'implement:a:0' ? {usage_complete: false} : {}, 'accounting']]) {
+    const halted = await run(wave, x => x, true, settlement, verified, true, sequential)
+    assert.equal(halted.result.parouPor, reason)
+    assert.deepEqual(halted.calls.map(call => call.label), ['implement:a:0'])
+    assert.deepEqual(halted.checks, [['preflight', 'implement:a:0'], ['verify', 'implement:a:0']])
+    assert.deepEqual(halted.leases.map(cap => cap.cancelled === true), [false, true, true])
+  }
+  const admittedLate = await run({tasks: [tasks[0]], tournament: 2}, x => x, true, {usd: 0.01, tokens: 20}, true,
+    async context => { await tick(context.label === 'implement:a:0' ? 5 : 15); return context.label === 'implement:a:0' ? null : true })
+  assert.equal(admittedLate.result.parouPor, 'isolation')
+  assert.equal(admittedLate.calls.length, 0)
+  assert.deepEqual(admittedLate.leases.map(cap => cap.cancelled === true), [true, true])
+  const firstReason = await run({tasks: [tasks[0]], tournament: 2},
+    async (report, call) => { if (call.label === 'implement:a:0') await tick(20); return report }, true,
+    label => label === 'implement:a:0' ? {usage_complete: false} : {}, true,
+    async context => { if (context.label === 'implement:a:1') { await tick(5); return null } return true })
+  assert.equal(firstReason.result.parouPor, 'isolation')
+  assert.deepEqual(firstReason.calls.map(call => call.label), ['implement:a:0'])
+  assert.equal(firstReason.result.usage.tokens, null)
+  console.log('PASS a failed wave launches no further agent, cancels their leases and keeps the first stop reason')
   let reserved = 0
   const cancelled = []
   const partial = await run({tasks: [tasks[0]], tournament: 2}, x => x, {

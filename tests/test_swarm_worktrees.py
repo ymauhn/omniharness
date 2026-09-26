@@ -3,6 +3,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from harness.swarm_worktrees import Worktrees
 
@@ -76,6 +77,12 @@ class WorktreeIsolation(unittest.TestCase):
         self.git("add", "src/b.txt", cwd=path)
         (path / "src/b.txt").write_text("other\n")
         self.assertEqual(self.host.audit(a)["violations"], ["src/b.txt"])
+
+    def test_git_never_inherits_the_coordinator_stdin(self):
+        # The JSON-lines host blocks reading stdin; on Windows a child inheriting that pipe stalls behind the read.
+        with patch("harness.swarm_worktrees.subprocess.run", wraps=subprocess.run) as run:
+            self.host.git(self.repo, "rev-parse", "HEAD")
+        self.assertIs(run.call_args.kwargs.get("stdin"), subprocess.DEVNULL)
 
     def test_committed_changes_are_checked_against_pinned_base(self):
         a = self.host.create("run-c", "a", self.base, ["src/a.txt"])

@@ -83,6 +83,39 @@ class Accounting(unittest.TestCase):
         self.ledger.settle(lease, stream("over-session"), exit_code=0)
         self.assertTrue(self.ledger.status("over")["blocked"])
 
+    def test_worker_binding_is_one_to_one_for_an_unstarted_labelled_reservation(self):
+        lease = self.ledger.reserve("run", "implement:a:0", estimated_usd=0.01, tokens=10)
+        self.assertEqual(self.ledger.attempt(lease), {
+            "run": "run", "label": "implement:a:0", "state": "reserved", "session": None,
+            "receipt": None, "docker_id": None, "worker_identity": None, "launched": 0})
+        self.assertIsNone(self.ledger.attempt("missing"))
+        bind = {"run": "run", "label": "implement:a:0", "docker_id": "d1", "worker_identity": "w1"}
+        for wrong in ({"run": "other"}, {"label": "implement:a:1"}, {"docker_id": ""}):
+            with self.subTest(wrong=wrong), self.assertRaises(ValueError):
+                self.ledger.bind_worker(lease, **{**bind, **wrong})
+        self.ledger.bind_worker(lease, **bind)
+        with self.assertRaises(ValueError):
+            self.ledger.bind_worker(lease, **{**bind, "docker_id": "d2", "worker_identity": "w2"})
+        other = self.ledger.reserve("run", "implement:a:1", estimated_usd=0.01, tokens=10)
+        for reused in ({"docker_id": "d1", "worker_identity": "w2"}, {"docker_id": "d2", "worker_identity": "w1"}):
+            with self.subTest(reused=reused), self.assertRaises(ValueError):
+                self.ledger.bind_worker(other, **{**bind, "label": "implement:a:1", **reused})
+        self.ledger.start(lease, session="s")
+        row = self.ledger.attempt(lease)
+        self.assertEqual((row["state"], row["session"], row["docker_id"], row["launched"]), ("running", "s", "d1", 1))
+        self.ledger.settle(lease, stream(), exit_code=0)
+        self.assertEqual(self.ledger.attempt(lease)["receipt"]["total_tokens"], 76)
+
+    def test_caller_rejected_evidence_settles_unknown_and_blocks(self):
+        lease = self.ledger.reserve("run", "a", estimated_usd=0.05, tokens=100)
+        self.ledger.start(lease, session="s")
+        receipt = self.ledger.settle(lease, stream(), exit_code=0, issue="stream differs from process evidence")
+        self.assertFalse(receipt["usage_complete"])
+        self.assertEqual(receipt["issues"], ["stream differs from process evidence"])
+        self.assertIsNone(receipt["total_tokens"])
+        self.assertEqual(self.ledger.settle(lease, stream(), exit_code=0), receipt)
+        self.assertTrue(self.ledger.status("run")["blocked"])
+
     def test_only_unstarted_reservations_can_be_cancelled(self):
         lease = self.ledger.reserve("run", "a", estimated_usd=0.1, tokens=1000)
         self.ledger.cancel(lease)

@@ -24,7 +24,7 @@ Push-Location (Split-Path $PSScriptRoot -Parent)
 try {
     & $Python -c $testBootstrap
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    foreach ($test in @('tests/test_driver.js', 'tests/test_scout_driver.js', 'tests/test_swarm_driver.js', 'tests/test_site.js')) {
+    foreach ($test in @('tests/test_driver.js', 'tests/test_scout_driver.js', 'tests/test_swarm_driver.js', 'tests/test_swarm_host.js', 'tests/test_site.js')) {
         & node $test
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }

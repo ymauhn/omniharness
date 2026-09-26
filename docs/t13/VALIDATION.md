@@ -1,5 +1,36 @@
 # T13 validation record
 
+## 2026-09-26 — offline host callback/ledger facade
+
+Branch `claude/t13-host-facade` from `81d9a13`, Windows 11, bundled Python 3.12, Node 24.19.0. Every new test was run red before its implementation:
+
+- ledger: `attempt`/`issue` missing;
+- host module absent;
+- T13/D1: the earlier container was stopped by a colliding prepare;
+- D2: the driver kept launching after an isolation failure;
+- `Worktrees.git`: stdin was inherited.
+
+Four mutations of the facade guards each turned a host test red:
+
+- reconcile skipped;
+- durable-row check skipped;
+- report identity unchecked;
+- gate ignored in verify.
+
+The JSON-lines test first hung in `git rev-parse`. A faulthandler dump showed Git for Windows blocked on the stdin pipe that the host was reading. Fixed at `Worktrees.git`.
+
+- **Focused tests.**
+  - `tests.test_swarm_host`: 16 methods, T1–T13.
+  - Ledger, bridge, broker and worktree tests passed.
+  - `node tests/test_swarm_host.js`: 5/5 scenarios (T3, T4, T5, T9/T11, T11), stable in 3 consecutive runs.
+  - `node tests/test_swarm_driver.js`: 11/11.
+- **Full suite.** `python -m unittest discover tests`: **322 tests OK, zero skipped**, 145.7 s. The first run errored only in `test_omniforge_e2e` because this fresh worktree lacked `omniforge-lab/node_modules`. `npm ci --prefix omniforge-lab` installed the locked `node-pty` 1.2.0-beta.15; npm did not run its install scripts, and the shipped win32-x64 prebuild loaded. The e2e module then passed 5/5.
+- **Node suites.** `test_driver.js` 5, `test_scout_driver.js` 6 and `test_site.js` 1 passed.
+- **Not run.** The Lab/mascot npm suites and the full `scripts/check.ps1`.
+- **Probe.** The model-free MCP→Docker reprobe on this source passed **26/26** in 12.2 s: `model_invoked=false`, `task_pass=null`, container removed, no fixture preserved, no labelled container left. Report: [claude-broker-2026-09-26.json](../experiments/claude-broker-2026-09-26.json). The 2026-09-25 report is unchanged.
+- **Limits.** Offline fixtures only: fake Docker CLI and a fake model turn. This establishes no live isolation, provider cap, billed usage or managed admission.
+- **Review repair.** The first D1 fix also dropped the exact-ID stop of an attempt's own failed start. With post-start profile drift, the container kept running and the driver then released its unbound lease. Now prepare skips cleanup only when `start` raises `FileExistsError` from its exclusive attempt directory. The new test `test_t13_failed_own_start_is_stopped_before_its_lease_is_released` was red first: the actions ended at `inspect, start, inspect`. Revalidated: `python -m unittest discover tests` **323 OK, zero skipped**, 271.3 s; `test_swarm_driver.js` 11/11; `test_swarm_host.js` 5/5. The MCP→Docker reprobe was not rerun.
+
 ## 2026-09-25 — prepared Claude worker and attempt-labeled reservations
 
 Source commits `ce3950d7fe09566b95d7596f88e8e0d0b327b7cd` and `6c33ff206151084159b9d613103a9077686684e5` on `codex/mvp-native-host-adapter`; exact handoff in [NATIVE-ADAPTER-CHECKPOINT](NATIVE-ADAPTER-CHECKPOINT.md). The Swarm coordinator passes one exact label to each reservation. The Claude bridge can prepare/start a verified Docker worker before dispatch, consume one pinned handle, and confirm exact removal; broker startup binds durable CID/nonce. Offline tests cover A/B identity, reused handle, stale deadline, changed MCP binding, stop without removal and duplicate reservation. Independent review found the false cancelled-state success and rechecked its fix. No real model turn, host callback facade or full managed isolation is claimed.
