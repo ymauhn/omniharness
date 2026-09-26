@@ -233,7 +233,8 @@ def score_task_graph(graph, policy, attempts, *, run_started_ms, run_ended_ms,
             or run_ended_ms <= run_started_ms or not isinstance(attempts, (tuple, list))):
         raise ValueError("bounded run interval and attempt sequence required")
     attempt_ids = set()
-    accepted = set()
+    accepted = {}
+    evidence_nodes = {}
     active = []
     waits = []
     per_agent = {}
@@ -261,25 +262,30 @@ def score_task_graph(graph, policy, attempts, *, run_started_ms, run_ended_ms,
         per_agent.setdefault(attempt.agent_id, []).extend(own_active)
         if attempt.verdict in {"accepted", "verification"}:
             _id(attempt.evidence_id, "accepted or verification evidence id")
+            if evidence_nodes.setdefault(attempt.evidence_id, attempt.node_id) != attempt.node_id:
+                raise ValueError("evidence id is shared by another node")
         if attempt.verdict == "accepted":
-            accepted.add(attempt.node_id)
+            accepted.setdefault(attempt.node_id, []).append((attempt.started_ms, attempt.ended_ms))
         if attempt.verdict == "no_progress":
             _id(attempt.loop_key, "no-progress loop key")
             _id(attempt.no_progress_adjudication_id, "no-progress adjudication id")
-            key = (attempt.node_id, attempt.loop_key)
-            no_progress[key] = no_progress.get(key, 0) + 1
+            # Per node: an adjudicator's loop_key granularity cannot dodge the penalty.
+            no_progress[attempt.node_id] = no_progress.get(attempt.node_id, 0) + 1
     for intervals in per_agent.values():
         if _union_ms(intervals) != sum(end - start for start, end in intervals):
             raise ValueError("one agent has overlapping active attempts")
-    credited = set()
-    pending = set(accepted)
-    while pending:
-        ready = {node_id for node_id in pending
-                 if set(nodes[node_id].dependencies) <= credited}
-        if not ready:
-            break
-        credited.update(ready)
-        pending.difference_update(ready)
+    credited_ms = {}
+
+    def credit(node_id):
+        # Earliest accepted end among attempts started at or after every prerequisite's credit.
+        if node_id not in credited_ms:
+            floors = [credit(dep) for dep in nodes[node_id].dependencies]
+            floor = None if None in floors else max(floors, default=run_started_ms)
+            credited_ms[node_id] = None if floor is None else min(
+                (end for start, end in accepted.get(node_id, ()) if start >= floor), default=None)
+        return credited_ms[node_id]
+
+    credited = {node_id for node_id in nodes if credit(node_id) is not None}
     critical_pass = all(not node.critical or node_id in credited
                         for node_id, node in nodes.items())
     quality = sum((weights[node_id] for node_id in credited), Fraction())
