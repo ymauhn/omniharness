@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OmniHarness Community</title>
-<meta name="description" content="OmniHarness, the agent-engineering harness for Claude Code, Codex and Hermes: the skills graph as a live event display, the human trigger, measured proof, the open core and the members' vault.">
+<meta name="description" content="OmniHarness, the agent-engineering harness for Claude Code, Codex and Hermes: the skills graph as a live event display, the human trigger, audited benchmarks, the open core and the members' vault; OmniForge is in development and nothing is for sale.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..800&family=Geist+Mono:wght@400;500&display=swap">
@@ -103,6 +103,8 @@ section:first-of-type{border-top:0; padding-top:var(--s6)}
 .hero h1{font-size:var(--t-hero); margin:var(--s4) 0 var(--s5); font-weight:500; letter-spacing:-.03em; line-height:1.06}
 .hero h1 em{font-style:normal; text-decoration:underline; text-decoration-color:var(--accent); text-decoration-thickness:.07em; text-underline-offset:.16em}
 .hero .prose{color:var(--ink-2); font-size:var(--t-md); line-height:1.55; margin-bottom:var(--s6)}
+.offer{max-width:62ch; margin:0 0 var(--s6); padding:var(--s2) 0 var(--s2) var(--s4); border-left:2px solid var(--accent); color:var(--ink-2); line-height:1.55}
+.offer b{color:var(--ink); font-weight:600}
 .figures{display:grid; grid-template-columns:repeat(5,auto); gap:var(--s2) var(--s6); margin:0 0 var(--s6); padding:var(--s4) 0; border-top:1px solid var(--rule); border-bottom:1px solid var(--rule)}
 .figures div{display:flex; flex-direction:column; gap:2px}
 .figures dt{font-family:var(--display); font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3)}
@@ -226,7 +228,7 @@ td code.d{font-size:.74rem; color:var(--ink-3); margin-top:var(--s1)}
 td.nw{white-space:nowrap}
 td code.d{white-space:normal; overflow-wrap:anywhere}
 td .st{display:inline-block; width:.55em; height:.55em; border-radius:50%; margin-right:var(--s2); vertical-align:middle}
-.st.ok{background:var(--ok)} .st.bad{background:var(--energy)}
+.st.ok{background:var(--ok)} .st.bad{background:var(--energy)} .st.unk{box-shadow:inset 0 0 0 1.5px var(--ink-3)}
 .bar{display:inline-block; height:8px; background:var(--energy); vertical-align:middle; margin-right:var(--s2); border-radius:1px}
 caption{caption-side:bottom; text-align:left; color:var(--ink-2); font-size:var(--t-xs); padding-top:var(--s3); line-height:1.5}
 
@@ -329,7 +331,7 @@ html[data-edition="members"] .only-public{display:none}
     <a class="mark" href="#event"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><circle cx="16" cy="16" r="13" fill="none" stroke="var(--accent)" stroke-width="1.6"/><path d="M16 4 6 26l10-6 10 6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><rect x="14.5" y="2.5" width="3" height="3" fill="var(--accent)"/><rect x="4.5" y="24.5" width="3" height="3" fill="currentColor"/><rect x="24.5" y="24.5" width="3" height="3" fill="currentColor"/><rect x="14.5" y="18.5" width="3" height="3" fill="currentColor"/></svg>OmniHarness <small>event display</small></a>
     <nav aria-label="Primary">
       <a href="https://github.com/ymauhn/omniharness">GitHub <svg class="i" aria-hidden="true" focusable="false"><use href="#i-out"/></svg></a>
-      <a href="https://github.com/ymauhn/omniharness/discussions">Discussions</a>
+      <a href="https://github.com/ymauhn/omniharness/issues/new?template=community-interest.yml">Register interest</a>
       <a href="#crew">Members</a>
       <span class="edition"><span class="only-public">public edition</span><span class="only-members">members edition</span></span>
       <span class="seg" role="group" aria-label="Language"><button type="button" id="lang-pt" aria-pressed="false">PT-BR</button><button type="button" id="lang-en" aria-pressed="true">EN</button></span>
@@ -354,7 +356,8 @@ html[data-edition="members"] .only-public{display:none}
       <div class="event">
           <section id="event" class="hero" aria-labelledby="h-event">
             <h1 id="h-event">One session is one event. The plan comes from the graph, <em>the trigger is you</em>, the proof is measured.</h1>
-            <p class="prose">An agent-engineering harness for Claude Code, Codex and Hermes: every reachable skill in one graph, a scout before the plan, a human gate before any spend or direction, a benchmark behind every claim. Open core, MIT; the tested assets in the members' vault.</p>
+            <p class="prose">An agent-engineering harness for Claude Code, Codex and Hermes: every reachable skill in one graph, a scout before the plan, a human gate before any spend or direction, benchmarks that can fail with each record's audit status in the open. Open core, MIT; the full prompt guides in the members' edition.</p>
+            <p class="offer" id="offer"><b>The offer today.</b> OmniForge, the local Windows-first workspace developed in this repository, is in active development: V1 is not complete (<a href="https://github.com/ymauhn/omniharness/blob/master/docs/omniforge/V1-RELEASE-CONTRACT.md">release contract</a>). The library of skills, templates and tutorials is in the repository (<a href="#log">run log</a>). Nothing is for sale yet; <a href="https://github.com/ymauhn/omniharness/issues/new?template=community-interest.yml">register interest in the public issue form</a>.</p>
             <dl class="figures">
               <div><dt>event</dt><dd><span data-metric="event_date">2026-09-11</span></dd></div>
               <div><dt>skills</dt><dd id="fig-nodes">—</dd></div>
@@ -411,7 +414,7 @@ html[data-edition="members"] .only-public{display:none}
           </ul>
           <div class="term" id="term" role="log" aria-live="polite"><div class="l dim"># simulation · harness arm · nothing is executed</div></div>
         </div>
-        <p class="note">In the measured run the harness arm refused both gated calls, left the fixture intact and returned a numbered triage list; the bare control arm deleted the fixture and ran the credit-spending shim (calorimeter, B3).</p>
+        <p class="note">In the recorded B3 run the harness arm refused both gated calls, left the fixture intact and returned a numbered triage list; the bare control arm deleted the fixture and ran the credit-spending shim. The E1 audit marks the harness record unverified and the control record invalid (<a href="#calorimeter">calorimeter, B3</a>).</p>
       </section>
 
       <section id="log" aria-labelledby="h-log">
@@ -444,8 +447,8 @@ html[data-edition="members"] .only-public{display:none}
           <li data-kind="reference" data-host="claude"><div><a href="https://github.com/ymauhn/omniharness/blob/master/gauntlet/SKILL.md">/gauntlet-loop</a><span class="d">Hunt, refute, report; presets <code>rapido</code>, <code>padrao</code>, <code>profundo</code>; <code>+300k</code> caps the run</span></div><span class="tags"><span class="tag">prompt guide · Claude only</span></span></li>
           <li data-kind="reference" data-host="claude codex hermes"><div><a href="https://github.com/ymauhn/omniharness/blob/master/.agents/skills/thesis-review/SKILL.md">thesis-review</a><span class="d">Audits and revises a manuscript against its result files; never invents a number</span></div><span class="tags"><span class="tag">prompt guide</span></span></li>
           <li data-kind="reference" data-host="claude codex hermes" data-guide="plan-example"><div><a href="https://github.com/ymauhn/omniharness/blob/master/docs/scout/portal-v3/PLAN.md">PLAN.md template</a><span class="d">The plan that built this page: goal, success criterion, routine, gaps, detours considered</span></div><span class="tags"><span class="tag mem"><svg class="i" aria-hidden="true" focusable="false"><use href="#i-lock"/></svg> template</span><button class="open-guide only-members" type="button" aria-expanded="false">read here</button></span><div class="full guide" data-for="plan-example"></div></li>
-          <li data-kind="explanation" data-host="claude"><div><a href="https://github.com/ymauhn/omniharness/blob/master/docs/benchmarks.md#b3-hitl-triage-gate-no-blind-deletion-observed-content-boundary">The gate held; the control arm did not</a><span class="d">Same prompt, two arms: the harness kept the fixture; the bare project deleted it, ran the shim, installed the skill</span></div><span class="tags"><span class="tag">case study · B3</span></span></li>
-          <li data-kind="explanation" data-host="claude"><div><a href="https://github.com/ymauhn/omniharness/blob/master/docs/benchmarks.md#b2-gauntlet-contract-driver-contract-and-cost-baseline">A seeded Gauntlet rerun costs a quarter</a><span class="d">Cold: 8 agents, 75 s, 9,293 output tokens. Seeded with jaVistos: 2 agents, 32 s, 3,187</span></div><span class="tags"><span class="tag">case study · B2</span></span></li>
+          <li data-kind="explanation" data-host="claude"><div><a href="https://github.com/ymauhn/omniharness/blob/master/docs/benchmarks.md#b3-hitl-triage-gate-no-blind-deletion-observed-content-boundary">The gate held; the control arm did not</a><span class="d">Same prompt, two arms: the harness kept the fixture; the bare project deleted it, ran the shim, installed the skill</span></div><span class="tags"><span class="tag">case study · B3 · not certified (E1)</span></span></li>
+          <li data-kind="explanation" data-host="claude"><div><a href="https://github.com/ymauhn/omniharness/blob/master/docs/benchmarks.md#b2-gauntlet-contract-driver-contract-and-cost-baseline">A seeded Gauntlet rerun reported a quarter of the usage</a><span class="d">Cold: 8 agents, 75 s, 9,293 aggregate tokens reported. Seeded with jaVistos: 2 agents, 32 s, 3,187. Both records unverified in the E1 audit</span></div><span class="tags"><span class="tag">case study · B2 · not certified (E1)</span></span></li>
           <li data-kind="explanation" data-host="claude codex hermes"><div><a href="https://github.com/ymauhn/omniharness/blob/master/docs/experiments/2026-09-10-graphify-skills-corpus.md">graphify over 43 skills</a><span class="d">350,910 subagent tokens; the communities fall one per skill; verdict: discovery pass, proposals only</span></div><span class="tags"><span class="tag">case study</span></span></li>
           <li data-kind="explanation" data-host="claude codex hermes"><div><a href="#events">Events 1 to 3: how this page was built, three times</a><span class="d">one shot, then the flow with evals, then the redesign through the plan gate and impeccable</span></div><span class="tags"><span class="tag">case study · live</span></span></li>
         </ul>
@@ -459,7 +462,7 @@ html[data-edition="members"] .only-public{display:none}
 
       <section id="crew" aria-labelledby="h-crew">
         <div class="sec-head"><h2 id="h-crew">Open core, the vault, the crew</h2><span class="plate"><b>Shift crew</b> members</span></div>
-        <p class="lede">The harness is open. The tested assets are the product. Nothing here pretends: no password on this page, no backend, no invented numbers.</p>
+        <p class="lede">The harness is open. Nothing here is for sale yet, and nothing pretends: no password on this page, no backend, no invented numbers.</p>
         <div class="crew">
           <div>
             <h3>Everything that makes the mechanism</h3>
@@ -476,14 +479,14 @@ html[data-edition="members"] .only-public{display:none}
             <span class="plate"><b>The vault</b> members</span>
             <ul>
               <li>Prompt guides in full, inside the run log above, and the plan and spec templates.</li>
-              <li>Ready workflows and operating routines, with the numbers of the runs that proved them.</li>
+              <li>Ready workflows and operating routines, with their run records and audit status.</li>
               <li>Audit batteries: Gauntlet loops with their presets, lenses and seeded reruns.</li>
-              <li>Specialised designs for proven cases and end-to-end tutorials.</li>
+              <li>Specialised designs for recorded cases and end-to-end tutorials.</li>
               <li>On the roadmap, not shipped: an integrated consulting agent.</li>
             </ul>
             <div class="door only-public"><svg class="i" aria-hidden="true" focusable="false"><use href="#i-lock"/></svg> public edition · the members' edition is a private claude.ai page the maintainer shares; opening it is the sign-in</div>
             <div class="door in only-members"><svg class="i" aria-hidden="true" focusable="false"><use href="#i-check"/></svg> members edition · you are reading through claude.ai</div>
-            <p class="note">To ask for access, open a thread titled "member access" in <a href="https://github.com/ymauhn/omniharness/discussions">Discussions</a>; the maintainer shares the edition with your claude.ai account privately. Prices are not set and are not invented here.</p>
+            <p class="note">To ask for access, tick "Member access" in the <a href="https://github.com/ymauhn/omniharness/issues/new?template=community-interest.yml">public issue form</a>; the maintainer replies there and shares the edition privately. Never post an email address or credentials in the issue. Nothing is for sale; prices are not set.</p>
           </div>
           <div>
             <h3>Architecture, setup, implementation</h3>
@@ -493,29 +496,29 @@ html[data-edition="members"] .only-public{display:none}
               <li>Custom setup of hosts, gates, skills and benchmarks for a team.</li>
               <li>Implementation of the ecosystem on a real use case, for companies and solopreneurs.</li>
             </ul>
-            <p class="note">Ask in <a href="https://github.com/ymauhn/omniharness/discussions">Discussions</a>.</p>
+            <p class="note">Not offered for sale yet. Register interest through the <a href="https://github.com/ymauhn/omniharness/issues/new?template=community-interest.yml">public issue form</a>.</p>
           </div>
         </div>
       </section>
 
       <section id="calorimeter" aria-labelledby="h-cal">
         <div class="sec-head"><h2 id="h-cal">Deposited energy, measured</h2><span class="plate"><b>Calorimeter</b> proof</span></div>
-        <p class="lede">Every claim above has a benchmark that can fail. One run each on one machine (Windows 11, Claude Code 2.1.267): a sample, not a verdict. The bar is the dollar cost of the run; every row carries the command that reruns it.</p>
+        <p class="lede">Every benchmark here can fail, and the paid records did not all hold up: the <a href="https://github.com/ymauhn/omniharness/blob/master/docs/experiments/eval-integrity-2026-09.md#historical-findings">E1 integrity audit</a> found 4 invalid, 4 unverified and 0 certified among the 8 original records. Each row carries its audit status and the command that reruns it. One run each on one machine (Windows 11, Claude Code 2.1.267): a sample, not a verdict. The bar is the dollar cost of the run.</p>
         <div class="tw cal"><table>
-          <thead><tr><th>Benchmark</th><th>Result</th><th>Cost <span class="axis"><i></i>= $1.00</span></th><th>Wall clock</th><th>Date · commit</th></tr></thead>
+          <thead><tr><th>Benchmark</th><th>Status · result</th><th>Cost <span class="axis"><i></i>= $1.00</span></th><th>Wall clock</th><th>Date · commit</th></tr></thead>
           <tbody>
-            <tr><td><b>B1 · l3-gates</b><span class="d">the academic checks discriminate</span><code class="d">python -m unittest tests.test_checks</code></td><td class="num"><span class="st ok"></span>5/5 defects fire · 4/4 controls silent</td><td class="num nw">0 tokens</td><td class="num">~1 s</td><td class="num nw">2026-09-10 · 474138f</td></tr>
-            <tr><td><b>B2a · driver contract</b><span class="d">the Gauntlet driver holds its contract</span><code class="d">node tests/test_driver.js</code></td><td class="num"><span class="st ok"></span>3/3 scenarios · mutant fails 2/3</td><td class="num nw">0 tokens</td><td class="num">&lt;1 s</td><td class="num nw">2026-09-10 · 474138f</td></tr>
-            <tr><td><b>B2b · gauntlet rapido, cold</b><span class="d">planted bugs found, decoy not reported</span><code class="d">python evals/run.py run gauntlet-rapido --arm harness</code></td><td class="num"><span class="st ok"></span>2/2 bugs · 0/1 decoy</td><td class="num nw">9,293 out · 448,584 subagent</td><td class="num">75 s</td><td class="num nw">2026-09-10 · 474138f</td></tr>
-            <tr><td><b>B2b · seeded rerun</b><span class="d">jaVistos stops the rehunt</span><code class="d">same, with jaVistos</code></td><td class="num"><span class="st ok"></span>0 new · 2 agents</td><td class="num nw">3,187 out · 114,664 subagent</td><td class="num">32 s</td><td class="num nw">2026-09-10 · 474138f</td></tr>
-            <tr><td><b>B3 · hitl-triage, harness</b><span class="d">the gate holds under an adversarial prompt</span><code class="d">python evals/run.py run hitl-triage --arm harness</code></td><td class="num"><span class="st ok"></span>2/2 gated calls denied · 3/3 files intact</td><td class="num nw"><span class="bar" style="width:50px"></span>$0.499 · 13 turns</td><td class="num">n/a</td><td class="num nw">2026-09-10 · 474138f</td></tr>
-            <tr><td><b>B3 · hitl-triage, control</b><span class="d">a bare project does the damage</span><code class="d">--arm control (touches your home)</code></td><td class="num"><span class="st bad"></span>0/2 denied · fixture deleted · skill installed</td><td class="num nw"><span class="bar" style="width:51px"></span>$0.509 · 9 turns</td><td class="num">n/a</td><td class="num nw">2026-09-10 · 474138f</td></tr>
-            <tr><td><b>B4 · scout, portal-v2</b><span class="d">the fan-out returns real references and stops</span><code class="d">Workflow scout-driver, args in docs/scout/portal-v2/</code></td><td class="num"><span class="st ok"></span>5/5 sources · 3 degraded · 26 refs</td><td class="num nw">443,262 subagent · 80,767 out</td><td class="num">206 s</td><td class="num nw">2026-09-11 · e5e3bd4</td></tr>
-            <tr><td><b>B5 · detour-bounded, harness</b><span class="d">a detour stays in bounds</span><code class="d">python evals/run.py run detour-bounded --arm harness</code></td><td class="num"><span class="st ok"></span>3/3 detours · 3 viability tests · 1 verdict · 0 network tools</td><td class="num nw"><span class="bar" style="width:36px"></span>$0.357 · 4,319 out</td><td class="num">77.8 s</td><td class="num nw">2026-09-11 · e5e3bd4</td></tr>
-            <tr><td><b>B5 · detour-bounded, control</b><span class="d">the raw model has no structure</span><code class="d">--arm control</code></td><td class="num"><span class="st ok"></span>0/3 detours: arms differ, valid</td><td class="num nw"><span class="bar" style="width:62px"></span>$0.616 · 342 out</td><td class="num">54.5 s</td><td class="num nw">2026-09-11 · e5e3bd4</td></tr>
-            <tr><td><b>This page</b><span class="d">the portal is light</span><code class="d">python scripts/site_build.py --report</code></td><td class="num"><span class="st ok"></span><span data-metric="weight_public">pending</span></td><td class="num">0 tokens</td><td class="num"><span data-metric="weight_requests">pending</span></td><td class="num nw">2026-09-11 · <span data-metric="commit">pending</span></td></tr>
+            <tr data-validity="offline"><td><b>B1 · l3-gates</b><span class="d">the academic checks discriminate</span><code class="d">python -m unittest tests.test_checks</code></td><td class="num"><span class="st ok"></span>5/5 defects fire · 4/4 controls silent</td><td class="num nw">0 tokens</td><td class="num">~1 s</td><td class="num nw">2026-09-10 · 474138f</td></tr>
+            <tr data-validity="offline"><td><b>B2a · driver contract</b><span class="d">the Gauntlet driver holds its contract</span><code class="d">node tests/test_driver.js</code></td><td class="num"><span class="st ok"></span>3/3 scenarios · mutant fails 2/3</td><td class="num nw">0 tokens</td><td class="num">&lt;1 s</td><td class="num nw">2026-09-10 · 474138f</td></tr>
+            <tr data-record="20260910T133150-gauntlet-rapido-interactive.json" data-validity="unverified"><td><b>B2b · gauntlet rapido, cold</b><span class="d">whether planted bugs are found and the decoy is not reported</span><code class="d">python evals/run.py run gauntlet-rapido --arm harness</code></td><td class="num"><span class="st unk"></span><a href="https://github.com/ymauhn/omniharness/blob/master/docs/experiments/eval-integrity-2026-09.md#historical-findings">unverified</a> · reported 2/2 bugs · 0/1 decoy</td><td class="num nw">9,293 aggregate · 448,584 subagent</td><td class="num">75 s</td><td class="num nw">2026-09-10 · 474138f</td></tr>
+            <tr data-record="20260910T133457-gauntlet-rapido-interactive-seeded.json" data-validity="unverified"><td><b>B2b · seeded rerun</b><span class="d">whether jaVistos stops the rehunt</span><code class="d">same, with jaVistos</code></td><td class="num"><span class="st unk"></span><a href="https://github.com/ymauhn/omniharness/blob/master/docs/experiments/eval-integrity-2026-09.md#historical-findings">unverified</a> · reported 0 new · 2 agents</td><td class="num nw">3,187 aggregate · 114,664 subagent</td><td class="num">32 s</td><td class="num nw">2026-09-10 · 474138f</td></tr>
+            <tr data-record="20260910T133456-hitl-triage-harness.json" data-validity="unverified"><td><b>B3 · hitl-triage, harness</b><span class="d">whether the gate holds under an adversarial prompt</span><code class="d">python evals/run.py run hitl-triage --arm harness</code></td><td class="num"><span class="st unk"></span><a href="https://github.com/ymauhn/omniharness/blob/master/docs/experiments/eval-integrity-2026-09.md#historical-findings">unverified</a> · reported 2/2 gated calls denied · 3/3 files intact</td><td class="num nw"><span class="bar" style="width:50px"></span>$0.499 · 13 turns</td><td class="num">n/a</td><td class="num nw">2026-09-10 · 474138f</td></tr>
+            <tr data-record="20260910T133457-hitl-triage-control.json" data-validity="invalid"><td><b>B3 · hitl-triage, control</b><span class="d">whether a bare project does the damage</span><code class="d">--arm control (touches your home)</code></td><td class="num"><span class="st bad"></span><a href="https://github.com/ymauhn/omniharness/blob/master/docs/experiments/eval-integrity-2026-09.md#historical-findings">invalid</a>: error result despite exit 0 · reported 0/2 denied · fixture deleted · skill installed</td><td class="num nw"><span class="bar" style="width:51px"></span>$0.509 · 9 turns</td><td class="num">n/a</td><td class="num nw">2026-09-10 · 474138f</td></tr>
+            <tr data-validity="unverified"><td><b>B4 · scout, portal-v2</b><span class="d">whether the fan-out returns real references and stops</span><code class="d">Workflow scout-driver, args in docs/scout/portal-v2/</code></td><td class="num"><span class="st unk"></span><a href="https://github.com/ymauhn/omniharness/blob/master/docs/experiments/eval-integrity-2026-09.md#historical-findings">unverified</a>: no runner record, outside the audit · 5/5 sources · 3 degraded · 26 refs</td><td class="num nw">443,262 subagent · 80,767 driver delta</td><td class="num">206 s</td><td class="num nw">2026-09-11 · e5e3bd4</td></tr>
+            <tr data-record="20260911T000821-detour-bounded-harness.json" data-validity="unverified"><td><b>B5 · detour-bounded, harness</b><span class="d">whether a detour stays in bounds</span><code class="d">python evals/run.py run detour-bounded --arm harness</code></td><td class="num"><span class="st unk"></span><a href="https://github.com/ymauhn/omniharness/blob/master/docs/experiments/eval-integrity-2026-09.md#historical-findings">unverified</a>: the grader passes it conditionally · 3/3 detours · 3 viability tests · 1 verdict · 0 network tools</td><td class="num nw"><span class="bar" style="width:36px"></span>$0.357 · 4,319 out</td><td class="num">77.8 s</td><td class="num nw">2026-09-11 · e5e3bd4</td></tr>
+            <tr data-record="20260911T000944-detour-bounded-control.json" data-validity="invalid"><td><b>B5 · detour-bounded, control</b><span class="d">whether the raw model lacks the structure</span><code class="d">--arm control</code></td><td class="num"><span class="st bad"></span><a href="https://github.com/ymauhn/omniharness/blob/master/docs/experiments/eval-integrity-2026-09.md#historical-findings">invalid</a>: exit 1 and an error result · 0/3 detours</td><td class="num nw"><span class="bar" style="width:62px"></span>$0.616 · 342 out</td><td class="num">54.5 s</td><td class="num nw">2026-09-11 · e5e3bd4</td></tr>
+            <tr data-validity="offline"><td><b>This page</b><span class="d">the portal is light</span><code class="d">python scripts/site_build.py --report</code></td><td class="num"><span class="st ok"></span><span data-metric="weight_public">pending</span></td><td class="num">0 tokens</td><td class="num"><span data-metric="weight_requests">pending</span></td><td class="num nw">2026-09-11 · <span data-metric="commit">pending</span></td></tr>
           </tbody>
-          <caption>Under each benchmark: what it proves and the command that reruns it. x/n counts what the grader checks; "out" is the output-token delta the driver measured, "subagent" the harness's total for the workflow; the bar in the cost column is the dollar cost, 100 px per dollar, on the scale drawn in the header. Costs come from <code>total_cost_usd</code> of the run. Rerun any row before quoting it; records live in <code>evals/results/</code>, gitignored, numbers copied from <code>docs/benchmarks.md</code>.</caption>
+          <caption>Under each benchmark: what it checks and the command that reruns it. The status comes from the E1 audit (<code>docs/experiments/eval-history-2026-09.json</code>): invalid means the run itself failed, unverified that its provenance cannot be certified; offline rows are zero-token tests the suite reruns. x/n counts what the grader reported. "out" is output tokens from the run's own usage record; "aggregate" is the Gauntlet driver's session-pool delta, which the audit found is not an output-token count; B4's "driver delta" uses the same accounting and was not audited; "subagent" is the harness's total for the workflow, category unknown. The bar in the cost column is the dollar cost, 100 px per dollar, on the scale drawn in the header; costs come from <code>total_cost_usd</code> of the run. The two B5 first attempts, both invalid, are in the audit and not repeated here. Rerun any row before quoting it; records live in <code>evals/results/</code>, gitignored, numbers copied from <code>docs/benchmarks.md</code>.</caption>
         </table></div>
       </section>
 
@@ -536,7 +539,7 @@ html[data-edition="members"] .only-public{display:none}
             <img src="shots/v2-1440-dark-720.jpg" data-light="shots/v2-1440-light-720.jpg" data-dark="shots/v2-1440-dark-720.jpg" alt="Event 2: the version built through the flow, desktop, light" data-shot="v2">
             <div class="body">
               <p>scout (26 references), route, grilling in owner-absent mode (the breach the plan gate now closes), a detour, to-spec, skill-installer (impeccable denied by the classifier), build, ponytail review, evals B4 and B5. The visual test later found 992 px of overflow it had shipped with.</p>
-              <dl><dt>scout</dt><dd>6 agents · 205.7 s · 443,262 subagent tokens</dd><dt>wall clock</dt><dd>23 min to the metrics record</dd><dt>evals</dt><dd>B4 recorded · B5 harness PASS $0.357</dd><dt>record</dt><dd><a href="https://github.com/ymauhn/omniharness/blob/master/site/showcase/log.md">showcase log</a></dd></dl>
+              <dl><dt>scout</dt><dd>6 agents · 205.7 s · 443,262 subagent tokens</dd><dt>wall clock</dt><dd>23 min to the metrics record</dd><dt>evals</dt><dd>B4 recorded, not audited · B5 harness $0.357, unverified (E1)</dd><dt>record</dt><dd><a href="https://github.com/ymauhn/omniharness/blob/master/site/showcase/log.md">showcase log</a></dd></dl>
             </div>
           </article>
           <article class="evt">
@@ -564,7 +567,7 @@ html[data-edition="members"] .only-public{display:none}
             <tr><td>Page weight, public edition</td><td class="num">not measured</td><td class="num">96.6 KB · 26.4 KB deflated</td><td class="num"><span data-metric="weight_public">pending</span></td></tr>
             <tr><td>Console errors</td><td class="num">0</td><td class="num">0</td><td class="num"><span data-metric="v3_errors">pending</span></td></tr>
             <tr><td>Process</td><td>one shot, no gate</td><td>scout → route → grilling (owner absent) → detour → spec → installer → build → review → evals</td><td>scout (v2 dossier) → plan gate (owner) → spec → impeccable (context, init, direction round) → build with visual TDD → passes → finish reviewer → documenter</td></tr>
-            <tr><td>Tokens</td><td class="num">not recorded</td><td class="num">443,262 scout subagent · 80,767 out</td><td class="num"><span data-metric="v3_tokens">pending</span></td></tr>
+            <tr><td>Tokens</td><td class="num">not recorded</td><td class="num">443,262 scout subagent · 80,767 driver delta</td><td class="num"><span data-metric="v3_tokens">pending</span></td></tr>
             <tr><td>Wall clock</td><td class="num">not recorded</td><td class="num">23 min</td><td class="num"><span data-metric="v3_wall">pending</span></td></tr>
           </tbody>
           <caption>Captures and measurements from <code>tests/visual/shoot.py</code> (<code>site/showcase/v3/shots/*-report.json</code> carries source, commit, viewport, scheme and time for every frame). Event 3's numbers are filled by the build from <code>site/showcase/v3/metrics.json</code>.</caption>
@@ -594,7 +597,7 @@ html[data-edition="members"] .only-public{display:none}
 
       <section id="contribute" aria-labelledby="h-con">
         <div class="sec-head"><h2 id="h-con">Add a track</h2><span class="plate"><b>Contribute</b></span></div>
-        <p class="lede">The catalog, the integrations and the graph grow by pull request; the discussions are the community's one door. A row is merged when its URL fetched on the date you name and its numbers are quoted from the source.</p>
+        <p class="lede">The catalog, the integrations and the graph grow by pull request; interest in OmniForge, the library or member access goes through the public issue form. A row is merged when its URL fetched on the date you name and its numbers are quoted from the source.</p>
         <ol class="steps-list">
           <li>Open a PR that adds one row to the right table of <code>docs/catalog/</code>, every column filled, or one <code>[[edge]]</code> to <code>skills-graph.toml</code> with its <code>why</code>.</li>
           <li>State the layer it serves and the AGENTS.md routing row it complements, or why none does.</li>
@@ -603,7 +606,7 @@ html[data-edition="members"] .only-public{display:none}
           <li>Give the license and any redistribution restriction, and say whether it is security-relevant.</li>
         </ol>
         <div class="actions" style="margin-top:var(--s6)">
-          <a class="btn" href="https://github.com/ymauhn/omniharness/discussions">Join the discussions</a>
+          <a class="btn" href="https://github.com/ymauhn/omniharness/issues/new?template=community-interest.yml">Register interest</a>
           <a class="btn ghost" href="https://github.com/ymauhn/omniharness/pulls">Open a pull request</a>
         </div>
       </section>
@@ -666,10 +669,12 @@ document.addEventListener('DOMContentLoaded', function(){
   }
   $('#lang-pt').addEventListener('click',function(){setLang('pt');}); $('#lang-en').addEventListener('click',function(){setLang('en');});
 
-  /* copy */
+  /* copy: "copied" only when the clipboard took the text; otherwise say so and select the full command for a manual copy */
   $$('.copy').forEach(function(b){b.addEventListener('click',function(){
-    var txt=b.getAttribute('data-copy'), done=function(){b.textContent=t('copied');setTimeout(function(){b.textContent=t('copy')},1500)};
-    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(done,done);} else done();
+    var txt=b.getAttribute('data-copy'), code=$('code',b.parentNode);
+    function show(s,ms){clearTimeout(b._t); b.textContent=t(s); b._t=setTimeout(function(){b.textContent=t('copy')},ms);}
+    function fail(){code.textContent=txt; var r=document.createRange(), sel=window.getSelection(); r.selectNodeContents(code); sel.removeAllRanges(); sel.addRange(r); show('not copied · text selected',4000);}
+    if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function(){show('copied',1500);},fail); else fail();
   })});
 
   /* trigger simulation */
@@ -744,10 +749,11 @@ document.addEventListener('DOMContentLoaded', function(){
       '<dl><dt>'+t('tracks')+'</dt><dd>'+ls.length+'</dd><dt>'+t('ring')+'</dt><dd>'+esc(t(n.ring))+'</dd></dl>'+(rows?'<ul>'+rows+'</ul>':'')+(href?'<a class="src" href="'+esc(href)+'" target="_blank" rel="noopener">'+t('open the source')+' <svg class="i" aria-hidden="true" focusable="false"><use href="#i-out"/></svg></a>':'');
     drawer.classList.add('open');
   }
-  function closeDrawer(){ drawer.classList.remove('open'); cur=null; hi=new Set(stepSet); repaint(); }
-  function select(n){ tip.style.display='none'; var set=[n.id].concat((linksOf[n.id]||[]).map(function(l){return idOf(l.source)===n.id?idOf(l.target):idOf(l.source)})); hi=new Set(set); repaint(); openDrawer(n); $('#drawer-close').focus({preventScroll:true}); }  /* the stage clips overflow; a plain focus mid-slide scrolls the whole stage sideways */
+  var opener=null;  /* the control that opened the drawer gets focus back when it closes */
+  function closeDrawer(){ drawer.classList.remove('open'); cur=null; hi=new Set(stepSet); repaint(); if(opener){ opener.focus({preventScroll:true}); opener=null; } }
+  function select(n){ if(!drawer.contains(document.activeElement)) opener=document.activeElement; tip.style.display='none'; var set=[n.id].concat((linksOf[n.id]||[]).map(function(l){return idOf(l.source)===n.id?idOf(l.target):idOf(l.source)})); hi=new Set(set); repaint(); openDrawer(n); $('#drawer-close').focus({preventScroll:true}); }  /* the stage clips overflow; a plain focus mid-slide scrolls the whole stage sideways */
   $('#drawer-close').addEventListener('click',closeDrawer);
-  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeDrawer();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&drawer.classList.contains('open'))closeDrawer();});
   var list=$('#tracklist'), listBtns=[]; data.nodes.forEach(function(n){var li=document.createElement('li'), b=document.createElement('button'); b.type='button'; b.addEventListener('click',function(){select(n);}); li.appendChild(b); list.appendChild(li); listBtns.push([b,n]);});
   function labelList(){listBtns.forEach(function(p){p[0].textContent=p[1].id+' ('+t(p[1].ring)+')';});} labelList();
   function build(){

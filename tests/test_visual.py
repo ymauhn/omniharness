@@ -1,8 +1,9 @@
 """Visual TDD for the portal (zero tokens): Playwright renders site/public/index.html at two viewports and two colour
 schemes; the assertions are measurements, not opinions (the owner's Q6 set, plan gate of 2026-09-11): no console errors,
 no horizontal overflow, body contrast at least 4.5:1 in both themes, the graph canvas has drawn pixels, the rendered node
-count equals the embedded graph data, a node tooltip appears within 300 ms, a click opens the drawer, the library filter
-and the copy button respond, the theme toggle stamps the explicit choice with the contrast kept, the language switch
+count equals the embedded graph data, a node tooltip appears within 300 ms, a click opens the drawer and closing it returns
+focus to the track that opened it, the library filter responds, the copy button confirms only a write the clipboard took
+and selects the command when the write is rejected, the theme toggle stamps the explicit choice with the contrast kept, the language switch
 translates every slot without overflow and survives a reload. Missing dependencies are errors, never skipped coverage. The captures it leaves are the frames the
 showcase compares across versions."""
 import os
@@ -44,6 +45,12 @@ class Visual(unittest.TestCase):
         self.assertEqual(s.get("stage_scroll"), 0, f"the stage scrolled sideways by {s.get('stage_scroll')}px after the drawer")
         self.assertTrue(s.get("filter_count") and s["filter_count"] < 20, f"library filter did not narrow the rows ({s.get('filter_count')})")
         self.assertEqual((s.get("copy_label") or "").strip().lower(), "copied", f"copy button did not confirm ({s.get('copy_label')!r})")
+        self.assertEqual(s.get("copy_clip"), s.get("copy_text"), "the clipboard does not hold the command the button confirmed")
+        self.assertEqual(s.get("copy_fail_label"), "not copied · text selected", f"a rejected clipboard write was reported as {s.get('copy_fail_label')!r}")
+        self.assertEqual(s.get("copy_fail_selection"), s.get("copy_text"), "a rejected copy did not select the full command for a manual copy")
+        self.assertEqual(s.get("drawer_focus_in"), "drawer-close", f"opening a track from the list moved focus to {s.get('drawer_focus_in')!r}")
+        self.assertTrue(s.get("drawer_focus_escape"), "Escape did not return focus to the track that opened the drawer")
+        self.assertTrue(s.get("drawer_focus_close"), "the close button did not return focus to the track that opened the drawer")
         self.assertEqual(s.get("theme_after"), "dark", f"theme toggle did not stamp the explicit choice ({s.get('theme_after')!r})")
         self.assertTrue(s.get("theme_changed"), "theme toggle did not change the ground")
         self.assertGreaterEqual(s.get("theme_contrast") or 0, 4.5, f"contrast after the toggle {s.get('theme_contrast')}")

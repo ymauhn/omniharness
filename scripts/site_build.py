@@ -30,10 +30,11 @@ def read(p):
         return f.read()
 
 
-def href(n):
+def href(n, root=ROOT):
+    """Source link: a path under the root the graph was scanned from (graph.json "root"), whichever checkout builds."""
     for p in n.get("paths", []):
-        if p.startswith(ROOT + "/"):
-            return GITHUB + p[len(ROOT) + 1:]
+        if p.startswith(root + "/"):
+            return GITHUB + p[len(root) + 1:]
     for h in n.get("hosts", []):
         if h.startswith("plugin:") and h[7:] in PLUGIN_URL:
             return PLUGIN_URL[h[7:]]
@@ -49,7 +50,7 @@ def graph_payload(graph):
         plug = next((h[7:] for h in hosts if h.startswith("plugin:")), None)
         return plug or ("repo" if "repo" in hosts else (hosts[0] if hosts else n["ring"]))
     return {"generated": graph["generated"],
-            "nodes": [{"id": n["id"], "ring": n["ring"], "group": group(n), "d": blurb(n.get("description") or ""), "href": href(n)} for n in nodes],
+            "nodes": [{"id": n["id"], "ring": n["ring"], "group": group(n), "d": blurb(n.get("description") or ""), "href": href(n, graph.get("root", ROOT))} for n in nodes],
             "edges": [{"s": e["from"], "t": e["to"], "type": e["type"]} for e in graph["edges"] if e["from"] in ids and e["to"] in ids]}
 
 

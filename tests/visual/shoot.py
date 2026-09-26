@@ -4,7 +4,8 @@ python tests/visual/shoot.py [--src site/public/index.html] [--out site/showcase
 For each viewport (1440x1000 desktop, 390x844 mobile) and colour scheme (light, dark): a full-page JPEG, the console
 errors, horizontal overflow, the contrast ratio of body text against the page ground, and whether the graph canvas has
 drawn pixels. With --states, viewport captures at 1440 light: a graph node under the pointer (tooltip timed), the
-"Tutorial" library filter pressed, the first copy button pressed; plus the drawer on click and the rendered node count,
+"Tutorial" library filter pressed, the first copy button pressed, then pressed again with a clipboard that rejects the
+write; plus the drawer on click, the focus it returns to the keyboard opener on Escape and on close, and the rendered node count,
 read through the page's `window.__portal` hook ({nodePos(i), count(), data()}), which v3 exposes for this test.
 Writes <out>/<tag>-<width>-<scheme>.jpg, the state captures, and <out>/<tag>-report.json (provenance: source, commit,
 viewport, scheme, timestamp). Needs the installed python-playwright with chromium.
@@ -60,6 +61,15 @@ def states(page, out, tag):
         page.screenshot(path=os.path.join(out, f"{tag}-state-drawer.jpg"), type="jpeg", quality=65)
         page.keyboard.press("Escape"); page.wait_for_timeout(400)
         r["stage_scroll"] = page.evaluate("() => document.querySelector('.stage').scrollLeft")  # the drawer's focus must not shift the clipped stage
+        # keyboard: a track opened from the list gets focus back on Escape and on the close button
+        opener = "() => document.activeElement === document.querySelector('#tracklist button')"
+        page.focus("#tracklist button"); page.keyboard.press("Enter"); page.wait_for_timeout(400)
+        r["drawer_focus_in"] = page.evaluate("() => document.activeElement.id")
+        page.keyboard.press("Escape"); page.wait_for_timeout(400)
+        r["drawer_focus_escape"] = page.evaluate(opener)
+        page.focus("#tracklist button"); page.keyboard.press("Enter"); page.wait_for_timeout(400)
+        page.keyboard.press("Enter"); page.wait_for_timeout(400)  # the close button has focus
+        r["drawer_focus_close"] = page.evaluate(opener + " && !document.getElementById('drawer').classList.contains('open')")
     else:
         r["tooltip_ms"] = None; r["drawer"] = False
     btn = page.query_selector('.fbtn[data-kind="tutorial"]')
@@ -72,7 +82,15 @@ def states(page, out, tag):
     if copy:
         copy.scroll_into_view_if_needed(); copy.click(); page.wait_for_timeout(200)
         r["copy_label"] = copy.evaluate("el => el.textContent")
+        r["copy_text"] = copy.get_attribute("data-copy")
+        r["copy_clip"] = page.evaluate("() => navigator.clipboard.readText().catch(e => 'read failed: ' + e)")
         page.screenshot(path=os.path.join(out, f"{tag}-state-copy.jpg"), type="jpeg", quality=65)
+        # a rejected write must say so and leave the full command selected for a manual copy
+        page.evaluate("() => { navigator.clipboard.writeText = () => Promise.reject(new DOMException('denied', 'NotAllowedError')) }")
+        copy.click(); page.wait_for_timeout(200)
+        r["copy_fail_label"] = copy.evaluate("el => el.textContent")
+        r["copy_fail_selection"] = page.evaluate("() => String(getSelection())")
+        page.screenshot(path=os.path.join(out, f"{tag}-state-copy-fail.jpg"), type="jpeg", quality=65)
     # the explicit theme choice: stamps <html data-theme>, swaps the captures, keeps the contrast
     before = page.evaluate("() => getComputedStyle(document.body).backgroundColor")
     page.click("#theme-toggle"); page.wait_for_timeout(500)
