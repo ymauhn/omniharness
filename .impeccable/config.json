@@ -46,7 +46,7 @@
           "omniforge-lab/index.html"
         ],
         "createdAt": "2026-09-26T13:07:36.752Z",
-        "reason": "OmniForge Lab is a dense terminal/ops UI; task AGENTS.md sets an explicit 11px functional-text floor (not 14-16px), matching the pre-existing meta/label scale across the whole page"
+        "reason": "owner delegated the Lab's text sizes to Claude on 2026-09-26; Claude chose an 11px floor for functional text in this dense ops UI (meta/labels 11-13px); omniforge-lab/test/font-size-floor.test.mjs enforces the floor"
       }
     ]
   }

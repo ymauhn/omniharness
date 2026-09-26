@@ -52,8 +52,10 @@ function environment() {
 
   const storage = { getItem: () => null, setItem() {} };
   const workspace = createWorkspace({ renderAll() {}, loadMemory() {}, clearContext() {}, showView() {}, copilot: { revision: () => 1, sync() {} }, storage });
-  const tasks = createTasks({ showView() {}, runControls: createFleet({ openSession() {} }).taskControls });
-  return { workspace, tasks, doc, local, $ };
+  const views = [], pinned = [];
+  const arsenal = { focusTask: id => { pinned.push(id); return true; } };
+  const tasks = createTasks({ showView: view => views.push(view), runControls: createFleet({ openSession() {} }).taskControls, arsenal });
+  return { workspace, tasks, doc, local, $, views, pinned };
 }
 
 test('an open session form keeps a valid project the user chose across state re-renders', async () => {
@@ -80,6 +82,7 @@ test('re-rendering the sidebar and task list restores keyboard focus by stable k
     ['#session-list', node => node.textContent.startsWith('Build')],
     ['#task-list', node => node.tag === 'select'],
     ['#task-list', node => node.textContent === 'Rodar com Claude'],
+    ['#task-list', node => node.textContent === 'Vincular agente'],
   ];
   for (const [list, match] of targets) {
     const before = $(list).descendants().find(match);
@@ -133,4 +136,15 @@ test('a handoff kept across a mid-request re-render cannot be submitted twice', 
     tasks.renderTasks();
     assert.equal(find('handoff-note').value, '', 'the draft is dropped after the confirmed write');
   } finally { globalThis.fetch = realFetch; }
+});
+
+test('"Vincular agente" opens the Arsenal on that task and moves keyboard focus there, not to <body>', async () => {
+  const { tasks, $, views, pinned } = environment();
+  tasks.renderTasks();
+  const button = $('#task-list').descendants().find(node => node.textContent === 'Vincular agente');
+  button.focus();
+  await button.fire('click');
+  assert.deepEqual([views, pinned], [['arsenal'], ['t']]);
+  // No profile is open in this fake panel, so there is no task picker: focus lands on the Arsenal heading.
+  assert.equal(doc.activeElement, $('#arsenal-title'));
 });

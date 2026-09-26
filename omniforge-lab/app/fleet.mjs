@@ -194,6 +194,7 @@ export function createFleet({ openSession, onChange = () => {} }) {
     }
     const lines = entry.pending ? ['Sugerindo host e skill…'] : entry.error ? [entry.error] : entry.result ? suggestionLines(entry.result) : [];
     if (lines.length) { const box = one(item, 'div', 'route-suggestion'); box.id = `route-${task.id}`; for (const line of lines) one(box, 'p', 'meta', line); }
+    return row; // the task card adds its other task actions to this same row
   }
 
   // A second click while one is in flight is ignored. Focus never moves: the answer can arrive seconds later, and a

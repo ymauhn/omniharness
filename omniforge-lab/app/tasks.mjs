@@ -89,9 +89,13 @@ export function createTasks({ showView, runControls, reviewPanel, arsenal }) {
         });
       }
       renderTaskOwner(item, task);
-      runControls(item, task);
-      const agent = one(item, 'button', 'secondary', 'Vincular agente'); agent.type = 'button'; agent.dataset.focusKey = `task:${task.id}:agent`;
-      agent.addEventListener('click', () => { showView('arsenal'); arsenal.focusTask(task.id); });
+      const actions = runControls(item, task) ?? item;
+      const agent = one(actions, 'button', 'secondary', 'Vincular agente'); agent.type = 'button'; agent.dataset.focusKey = `task:${task.id}:agent`;
+      agent.addEventListener('click', () => {
+        showView('arsenal'); arsenal.focusTask(task.id);
+        // This button is hidden now: focus goes to the preselected task picker, or the Arsenal heading when no profile is open.
+        ($('#arsenal-panel').querySelector('[data-focus-key="pin-task"]') ?? $('#arsenal-title')).focus();
+      });
       if (task.worktree) {
         const review = one(item, 'button', 'secondary', 'Revisar'); review.type = 'button'; review.dataset.focusKey = `task:${task.id}:review`;
         review.setAttribute('aria-label', `Revisar ${task.title}`); review.addEventListener('click', () => reviewPanel.open(task.id));
