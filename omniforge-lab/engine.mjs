@@ -9,6 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { writeFileAtomic } from './lib/fsutil.mjs';
+import { gitEnv } from './lib/git-env.mjs';
 
 const HOOK = path.join(path.dirname(fileURLToPath(import.meta.url)), 'agent-hook.mjs');
 const ACTIVE = new Set(['starting', 'working', 'blocked', 'idle']);
@@ -41,7 +42,8 @@ export function findExecutable(name, fallbackDir, env = process.env) {
 }
 
 /** Codex: PATH, then the Codex app's newest complete build (%LOCALAPPDATA%/OpenAI/Codex/bin/<build>/), then its
- * .sandbox-bin copy, which has no code-mode host: an agent there cannot use any tool (fails closed), quota reads work. */
+ * .sandbox-bin copy, which has no code-mode host: an agent there cannot use any tool (fails closed), so runs refuse it;
+ * quota reads work. */
 export function findCodex(env = process.env) {
   const bin = env.LOCALAPPDATA && path.join(env.LOCALAPPDATA, 'OpenAI', 'Codex', 'bin');
   let builds = [];
@@ -52,7 +54,7 @@ export function findCodex(env = process.env) {
 }
 
 // argv only, never a shell: branch names and paths do not pass through a command interpreter.
-const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+const git = (cwd, ...args) => execFileSync('git', args, { cwd, env: gitEnv(), encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const tryGit = (cwd, ...args) => { try { return git(cwd, ...args); } catch { return null; } };
 
 const unknownUsage = reason => ({ status: 'unknown', inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheCreationTokens: null, source: null, reason });
@@ -89,7 +91,8 @@ export function claudeUsage(homeDir, sessionId, worktree) {
 }
 
 // Codex: the newest <home>/.codex/sessions/**/rollout-*.jsonl whose session_meta cwd is this worktree and that began
-// after the run; its last token_count total. Codex counts cached input inside inputTokens (Claude does not).
+// after the run; its last token_count total. Codex counts cached input inside input_tokens, Claude does not: the stored
+// inputTokens is input_tokens minus cached_input_tokens (never negative), so every host reports input excluding cache reads.
 function codexUsage(homeDir, run) {
   const root = path.join(homeDir, '.codex', 'sessions');
   const started = Date.parse(run.startedAt);
@@ -106,7 +109,8 @@ function codexUsage(homeDir, run) {
   // ponytail: the run's own rollout is read whole, so one over ~512 MiB reports unknown; read it from the end if that happens.
   const total = jsonLines(best.file).findLast(row => row?.payload?.type === 'token_count' && row.payload.info?.total_token_usage)?.payload.info.total_token_usage;
   if (!total) return { usage: unknownUsage('A sessão do Codex não registrou contagem de tokens'), hostSessionId: best.id };
-  return { usage: { status: 'observed', inputTokens: total.input_tokens ?? null, outputTokens: total.output_tokens ?? null, cacheReadTokens: total.cached_input_tokens ?? null,
+  const input = Number.isSafeInteger(total.input_tokens) ? Math.max(0, total.input_tokens - (total.cached_input_tokens ?? 0)) : null;
+  return { usage: { status: 'observed', inputTokens: input, outputTokens: total.output_tokens ?? null, cacheReadTokens: total.cached_input_tokens ?? null,
     cacheCreationTokens: total.cache_write_input_tokens ?? null, source: best.file, reason: null }, hostSessionId: best.id };
 }
 
@@ -128,12 +132,14 @@ export class AgentEngine extends EventEmitter {
     const orphans = this.runs.filter(run => ACTIVE.has(run.state));
     for (const run of orphans) this.finish(run, { state: 'failed', detail: 'interrompido', exitCode: null });
     if (orphans.length) this.save();
-    // Exit code 0 is done; any other code is failed. No code, or a signal, is an interruption: on POSIX node-pty
-    // reports a process killed by the Lab's stop or shutdown as code 0 plus the signal.
+    // Exit code 0 is done; any other code is failed. No code, a signal, or a session the Lab stopped is an interruption:
+    // on POSIX node-pty reports a process killed by the Lab's stop or shutdown as code 0 plus the signal; on Windows
+    // taskkill ends it with code 1 and no signal, and the PTY layer has marked the session stopped before this event.
     shells.on('closed', ({ sessionId, code, signal }) => {
       const run = this.runs.find(item => item.sessionId === sessionId && ACTIVE.has(item.state));
       if (!run) return;
-      this.finish(run, code === null || signal ? { state: 'failed', detail: 'interrompido', exitCode: null }
+      const stoppedByLab = ['stopping', 'stopped'].includes(this.store.session(sessionId).status);
+      this.finish(run, code === null || signal || stoppedByLab ? { state: 'failed', detail: 'interrompido', exitCode: null }
         : code === 0 ? { state: 'done', detail: '', exitCode: 0 } : { state: 'failed', detail: `saiu com código ${code}`, exitCode: code });
       // This runs inside node-pty's exit callback: a failed write must not take the Lab down.
       try { this.publish(run); }
@@ -190,6 +196,10 @@ export class AgentEngine extends EventEmitter {
     if (this.hosts) return this.hosts[host];
     const file = host === 'claude' ? findExecutable('claude', path.join(this.homeDir, '.local', 'bin'), this.env) : this.codexPath;
     if (!file || process.platform === 'win32' && !/\.exe$/i.test(file)) fail(`Executável nativo do ${LABEL[host]} não encontrado; o Lab não aceita atalhos .cmd/.bat nem shells`);
+    // findCodex's last fallback: fine for the quota read, but an agent there fails every tool closed (V-08).
+    if (path.basename(path.dirname(file)).toLowerCase() === '.sandbox-bin') {
+      fail('O Codex encontrado é a cópia .sandbox-bin, onde toda ferramenta do agente falha; instale o Codex CLI ou o app do Codex');
+    }
     return { file, args: [] };
   }
 
@@ -294,7 +304,9 @@ export class AgentEngine extends EventEmitter {
     if (!EVENTS.has(event)) fail('Evento de agente inválido', 400);
     detail = typeof detail === 'string' ? detail.slice(0, 200) : '';
     let state;
-    if (event === 'UserPromptSubmit' || event === 'PreToolUse') state = 'working';
+    // Working with no detail: the tool name would make every tool switch a runs.json write (fsync) and a broadcast that
+    // reloads every window; a repeated working event is then a no-op set.
+    if (event === 'UserPromptSubmit' || event === 'PreToolUse') [state, detail] = ['working', ''];
     // Claude's notification_type: permission_prompt/elicitation_dialog wait on the owner, idle_prompt waits for a
     // new prompt; older versions send only the message text. Anything else (auth_success) changes nothing.
     else if (event === 'Notification') state = /permission|elicitation/i.test(detail) ? 'blocked' : /idle|waiting/i.test(detail) ? 'idle' : null;

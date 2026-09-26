@@ -502,7 +502,14 @@ export function repair({ prefix = defaultPrefix(), out = console.log } = {}) {
 function describe(item, prefix) {
   const data = path.join(prefix, 'data');
   if (!fs.existsSync(item.path)) return 'recorded by install; already absent';
-  if (same(item.path, data)) return `user data, removed only with --remove-data; ${fs.readdirSync(data).length} entries, the Lab's OMNIFORGE_DATA_DIR`;
+  if (same(item.path, data)) {
+    let worktrees = 0;
+    try { worktrees = fs.readdirSync(path.join(data, 'worktrees')).length; } catch { /* no agent run yet */ }
+    // Each is registered in an owner's repository (engine.mjs, git worktree add): deleting the folder leaves that behind.
+    const agents = worktrees ? `; includes ${worktrees} agent worktree(s) in worktrees${path.sep}: unmerged agent work there is lost, ` +
+      "and their omniforge/* branches and .git/worktrees entries stay in the owner's repositories" : '';
+    return `user data, removed only with --remove-data; ${fs.readdirSync(data).length} entries, the Lab's OMNIFORGE_DATA_DIR${agents}`;
+  }
   if (same(item.path, path.join(prefix, 'run'))) return `pid records of started Labs and demos; --apply refuses while one is running; ${fs.readdirSync(item.path).length} entries`;
   if (item.kind === 'tree') return `installed app ${path.basename(item.path)}; recorded in install.json, ${listFiles(item.path).length} files`;
   if (item.kind === 'dir') return 'install folder, removed only when empty; recorded in install.json';

@@ -21,14 +21,17 @@ class ReviewE2E(LabCase):
         with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": SENTINEL}):
             super().setUpClass()
 
-    def finished_task(self, page, project, title):
-        """Create a task, run it with the fake Claude, answer its permission prompt and wait for it to finish."""
+    def finished_task(self, page, project, title, acknowledge=False):
+        """Create a task, run it with the fake Claude, answer its permission prompt and wait for it to finish. The agent
+        exits on its own, so its session stays uncertain; `acknowledge` records the owner's check, which a merge needs."""
         task = self.api(page, "/api/tasks", {"projectId": project["id"], "title": title})
         run = self.api(page, f"/api/tasks/{task['id']}/run", {"host": "claude", "expectedRevision": task["revision"]})
         self.assertEqual(run.get("state"), "working", run)
         self.wait_run(page, project, task, "blocked")
         self.api(page, f"/api/sessions/{run['sessionId']}/write", {"data": "\r"})
         self.wait_run(page, project, task, "done")
+        if acknowledge:
+            self.api(page, f"/api/sessions/{run['sessionId']}/acknowledge", {"verification": "Processo do agente encerrado (E2E)"})
         return task
 
     def wait_run(self, page, project, task, state, timeout=30):
@@ -54,7 +57,7 @@ class ReviewE2E(LabCase):
     def test_diff_refused_merge_then_merge_into_the_scratch_main(self):
         context, page = self.open()
         project = self.scratch_repo(page, "Revisão E2E")
-        task = self.finished_task(page, project, "Gerar agent-call")
+        task = self.finished_task(page, project, "Gerar agent-call", acknowledge=True)
         panel = self.open_review(page, project, task)
         self.assertIn("adicionado", panel.locator(".review-files").inner_text())
         self.assertIn('+{"args"', panel.locator(".review-patch [data-kind=add]").first.inner_text())

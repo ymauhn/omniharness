@@ -109,12 +109,35 @@ test('a PTY launch override replaces the program, arguments and folder but keeps
   const session = store.addSession({ projectId: project.id, name: 'Agente' });
   let spawned;
   const child = { pid: 4321, onData() {}, onExit() {}, kill() {} };
-  const coordinator = new PtyCoordinator(store, { env: { PATH: 'x', KEEP: '1' }, spawnPty: (file, args, options) => { spawned = { file, args, options }; return child; } });
+  // Git location variables (as inside a git hook that launched the Lab) would point the agent's git at another repository.
+  const env = { PATH: 'x', KEEP: '1', GIT_DIR: path.join(temp, 'hook', '.git'), git_work_tree: temp, GIT_INDEX_FILE: 'index' };
+  const coordinator = new PtyCoordinator(store, { env, spawnPty: (file, args, options) => { spawned = { file, args, options }; return child; } });
   coordinator.start(session.id, { cwd: path.join(temp, 'data'), file: process.execPath, args: ['--flag', 'a "b"'], env: { EXTRA: '2' } });
   assert.equal(spawned.file, fs.realpathSync.native(process.execPath));
   assert.deepEqual(spawned.args, ['--flag', 'a "b"']);
   assert.equal(spawned.options.cwd, path.join(temp, 'data'));
   assert.deepEqual(spawned.options.env, { PATH: 'x', KEEP: '1', EXTRA: '2', OMNIFORGE_PROJECT_ID: project.id, OMNIFORGE_SESSION_ID: session.id });
+});
+
+test('the engine\'s git ignores git location variables the Lab inherited (as inside a git hook)', t => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-engine-'));
+  const store = new WorkspaceStore(path.join(temp, 'data'));
+  t.after(() => { store.close(); fs.rmSync(temp, { recursive: true, force: true, maxRetries: 5 }); });
+  const shells = Object.assign(new EventEmitter(), { start() {} });
+  const engine = new AgentEngine({ store, shells, hookUrl: () => 'http://127.0.0.1:9/api/agent-events', homeDir: path.join(temp, 'home'), hosts: { claude: { file: process.execPath, args: [] } } });
+  const decoy = repo(path.join(temp, 'decoy'));
+  const project = store.addProject({ name: 'Repo', root: repo(path.join(temp, 'repo')) });
+  const task = store.addTask({ projectId: project.id, title: 'Hook' });
+  const hook = { GIT_DIR: path.join(decoy, '.git'), GIT_WORK_TREE: decoy, GIT_INDEX_FILE: path.join(decoy, '.git', 'index') };
+  const saved = Object.fromEntries(Object.keys(hook).map(key => [key, process.env[key]]));
+  Object.assign(process.env, hook);
+  let run;
+  try { run = engine.run(task.id, { host: 'claude', expectedRevision: task.revision }); }
+  finally { for (const [key, value] of Object.entries(saved)) if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+  assert.equal(run.baseSha, git(project.root, 'rev-parse', 'HEAD'));
+  assert.equal(git(run.worktree, 'rev-parse', '--abbrev-ref', 'HEAD'), run.branch);
+  assert.notEqual(git(project.root, 'branch', '--list', run.branch), '');
+  assert.equal(git(decoy, 'branch', '--list', 'omniforge/*'), '', 'the decoy repository is untouched');
 });
 
 test('the hook relay always exits 0 and never writes to stdout, even with the Lab gone or garbage input', () => {
@@ -185,8 +208,9 @@ test('a Claude task runs in its own worktree and branch, reports hook states and
   assert.equal(git(root, 'status', '--porcelain'), '');
   await waitFor(() => events.some(event => event.runId === run.id && event.state === 'done'), 'SSE agent done');
   const mine = events.filter(event => event.runId === run.id);
+  // The fake's PreToolUse (tool Bash) while already working is a no-op: no runs.json write, no broadcast per tool switch.
   assert.deepEqual(mine.map(event => [event.state, event.detail]), [
-    ['starting', ''], ['working', ''], ['working', 'Bash'], ['blocked', 'permission_prompt'], ['working', ''], ['idle', ''], ['done', ''],
+    ['starting', ''], ['working', ''], ['blocked', 'permission_prompt'], ['working', ''], ['idle', ''], ['done', ''],
   ]);
   assert.deepEqual(Object.keys(mine[0]), ['taskId', 'projectId', 'runId', 'sessionId', 'host', 'state', 'detail', 'at']);
   assert.deepEqual([mine[0].taskId, mine[0].projectId, mine[0].sessionId, mine[0].host], [task.id, project.id, run.sessionId, 'claude']);
@@ -269,7 +293,8 @@ test('a Codex task gets notify as TOML and reads its own rollout; hook secrets a
   assert.equal((await post(`/api/sessions/${codex.sessionId}/write`, { data: 'continue\r' })).status, 200);
   const codexDone = await lab_.until(project.id, codex.id, 'done');
   assert.equal(codexDone.hostSessionId, 'fake-thread');
-  assert.deepEqual(codexDone.usage, { status: 'observed', inputTokens: 80, outputTokens: 9, cacheReadTokens: 40, cacheCreationTokens: 2,
+  // Codex's input_tokens (80) include its cached input (40); like Claude's, the stored input excludes cache reads.
+  assert.deepEqual(codexDone.usage, { status: 'observed', inputTokens: 40, outputTokens: 9, cacheReadTokens: 40, cacheCreationTokens: 2,
     source: path.join(lab_.home, '.codex', 'sessions', '2026', '09', '26', 'rollout-2026-09-26T10-00-00-fake-thread.jsonl'), reason: null });
   assert.equal((await post(`/api/sessions/${claude.sessionId}/write`, { data: '\r' })).status, 200);
   const failed = await lab_.until(project.id, claude.id, 'failed');
@@ -309,7 +334,13 @@ test('a run is refused before anything is created when the repository, task or e
   const restricted = await lab(t, { codexPath: null, engineOptions: { hosts: null, env: { PATH: shims } } });
   await refusal(restricted.root, { host: 'claude' }, 409, /Claude.*\.cmd/, restricted);
   await refusal(restricted.root, { host: 'codex' }, 409, /Codex.*\.cmd/, restricted);
-  for (const ctx of [lab_, restricted]) {
+  // The .sandbox-bin copy serves the quota read, but an agent there fails every tool closed.
+  const sandboxBin = path.join(temp, 'home', '.codex', '.sandbox-bin');
+  fs.mkdirSync(sandboxBin, { recursive: true });
+  fs.writeFileSync(path.join(sandboxBin, process.platform === 'win32' ? 'codex.exe' : 'codex'), '');
+  const sandboxed = await lab(t, { codexPath: path.join(sandboxBin, process.platform === 'win32' ? 'codex.exe' : 'codex'), engineOptions: { hosts: null } });
+  await refusal(sandboxed.root, { host: 'codex' }, 409, /\.sandbox-bin.*instale o Codex CLI ou o app do Codex/, sandboxed);
+  for (const ctx of [lab_, restricted, sandboxed]) {
     assert.equal(fs.existsSync(path.join(ctx.dataDir, 'worktrees')), false);
     assert.equal(git(ctx.root, 'branch', '--list', 'omniforge/*'), '');
     assert.equal(git(ctx.root, 'status', '--porcelain'), '');
@@ -349,6 +380,18 @@ test('an agent killed by a signal (POSIX Lab stop or shutdown reports code 0) en
   shells.emit('closed', { sessionId: run.sessionId, code: 0, signal: 9 });
   const stopped = engine.runForTask(task.id);
   assert.deepEqual([stopped.state, stopped.detail, stopped.exitCode], ['failed', 'interrompido', null]);
+});
+
+test('an agent the Lab stops ends failed/interrompido with no exit code, also on Windows where taskkill exits it with 1', async t => {
+  const lab_ = await lab(t);
+  const { root, post } = lab_;
+  const project = await (await post('/api/projects', { name: 'Repo', root })).json();
+  const task = await (await post('/api/tasks', { projectId: project.id, title: 'Parar pelo Lab' })).json();
+  const run = await (await post(`/api/tasks/${task.id}/run`, { host: 'codex', expectedRevision: 1 })).json();
+  await waitFor(() => fs.existsSync(path.join(run.worktree, 'agent-call.json')) && lab_.app.store.session(run.sessionId).status === 'running', 'fake Codex running');
+  assert.equal((await post(`/api/sessions/${run.sessionId}/stop`, {})).status, 200);
+  const stopped = await lab_.until(project.id, run.id, 'failed');
+  assert.deepEqual([stopped.detail, stopped.exitCode], ['interrompido', null]);
 });
 
 test('a run moves an open task to running and leaves a blocked or done task as it was', t => {

@@ -326,3 +326,18 @@ test('the Lab process never runs a program planted in the current folder', async
   const hardened = spawnSync(process.execPath, ['--input-type=module', '-e', probe], { cwd: dir, env, encoding: 'utf8' });
   assert.deepEqual(JSON.parse(hardened.stdout.trim().split(/\r?\n/).at(-1)), { code: 'ENOENT', ran: false }, hardened.stderr);
 });
+
+test('a session the page opens starts in the project root, so the root\'s uncertainty guard applies whatever cwd it sends', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-lab-api-'));
+  const app = createOmniForgeServer({ dataDir: path.join(root, 'data'), token: 'test-token' });
+  const base = new URL(await app.listen()).origin;
+  t.after(async () => { await app.close(); fs.rmSync(root, { recursive: true, force: true, maxRetries: 5 }); });
+  const project = app.store.addProject({ name: 'Root', root });
+  // A root shell whose process tree the Lab could not confirm gone.
+  app.store.setSessionStatus(app.store.addSession({ projectId: project.id, name: 'Shell' }).id, 'interrupted');
+  const response = await fetch(`${base}/api/sessions`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-omniforge-token': 'test-token' },
+    body: JSON.stringify({ projectId: project.id, name: 'Outra', cwd: path.join(root, 'elsewhere') }) });
+  assert.equal(response.status, 409);
+  assert.match((await response.json()).error, /sessão incerta/);
+  assert.equal(app.store.data.sessions.length, 1, 'no session was created');
+});

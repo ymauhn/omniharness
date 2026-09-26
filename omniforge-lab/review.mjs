@@ -8,6 +8,7 @@ import path from 'node:path';
 import { spawn, execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { writeFileAtomic } from './lib/fsutil.mjs';
+import { gitEnv } from './lib/git-env.mjs';
 
 const MAX_PATCH = 256 * 1024;
 const MAX_LISTING = 16 * 1024 * 1024;
@@ -23,8 +24,6 @@ const FINISHED = new Set(['idle', 'done', 'failed']);
 const PRESETS = new Set(['rapido', 'padrao']);
 const SEVERITIES = [['high', 'ALTA'], ['medium', 'M[ÉE]DIA'], ['low', 'BAIXA'], ['unverified', 'SEM VERIFICA[ÇC][ÃA]O']];
 const SYSTEM32 = path.join(process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows', 'System32');
-// Variables that point git at another repository or index, as inside a git hook.
-const GIT_LOCATION = /^GIT_(DIR|WORK_TREE|INDEX_FILE|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|COMMON_DIR|PREFIX)$/i;
 const STRICT_IDENTITY = ['-c', 'user.useConfigOnly=true'];
 
 function fail(message, status = 400) {
@@ -34,11 +33,6 @@ function fail(message, status = 400) {
 // A refusal is a gate that said no: it is recorded as an evidence attempt, unlike a bad request.
 function refuse(reason) {
   throw Object.assign(new Error(reason), { status: 409, refused: true });
-}
-
-export function gitEnv(extra = {}) {
-  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !GIT_LOCATION.test(key)));
-  return { ...env, GIT_TERMINAL_PROMPT: '0', ...extra };
 }
 
 function git(dir, args, { env = gitEnv(), limit = MAX_LISTING } = {}) {
@@ -81,7 +75,8 @@ function summarize(numstat) {
 }
 
 // The worktree's whole content (tracked, uncommitted and untracked, .gitignore respected) against baseSha,
-// staged into a throwaway copy of the worktree's index so the agent's own index never changes.
+// staged into a throwaway copy of the worktree's index so the agent's own index never changes. `tree` names that
+// content: the merge takes it only when the worktree still holds the same tree.
 async function worktreeDiff(run) {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-diff-'));
   try {
@@ -91,16 +86,17 @@ async function worktreeDiff(run) {
     const env = gitEnv({ GIT_INDEX_FILE: index });
     await gitOk(run.worktree, ['add', '-A'], { env });
     const diff = (...format) => ['diff', '--cached', '--no-renames', '--no-color', '--no-ext-diff', '--no-textconv', ...format, run.baseSha, '--'];
-    const [numstat, names, patch] = await Promise.all([
+    const [numstat, names, patch, tree] = await Promise.all([
       gitOk(run.worktree, diff('--numstat', '-z'), { env }),
       gitOk(run.worktree, diff('--name-status', '-z'), { env }),
       git(run.worktree, diff(), { env, limit: MAX_PATCH }),
+      gitOk(run.worktree, ['write-tree'], { env }),
     ]);
     if (patch.code !== 0) fail(`Falha do git: ${firstLine(patch.err)}`, 500);
     const { counts, stat } = summarize(numstat);
     const parts = names.split('\0'), files = [];
     for (let i = 0; i + 1 < parts.length; i += 2) files.push({ path: parts[i + 1], status: parts[i], ...counts.get(parts[i + 1]) });
-    return { baseSha: run.baseSha, branch: run.branch, files, stat, patch: patch.out, truncated: patch.truncated };
+    return { baseSha: run.baseSha, branch: run.branch, tree: tree.trim(), files, stat, patch: patch.out, truncated: patch.truncated };
   } finally {
     fs.rmSync(temp, { recursive: true, force: true });
   }
@@ -163,20 +159,21 @@ const validRun = run => /^[0-9a-f]{40,64}$/.test(run.baseSha) && run.branch !== 
   [run.branch, run.baseBranch].every(name => typeof name === 'string' && name && !name.startsWith('-')) &&
   [run.root, run.worktree].every(dir => typeof dir === 'string' && path.isAbsolute(dir));
 
-// Paths the merge would add (rows of `git diff --name-status -z --no-renames`) that something untracked in
-// the root already occupies, or whose parent folder is an untracked file there. Git treats ignored files as
-// expendable, so the merge would overwrite them, or `merge --abort` delete them.
-function untrackedInTheWay(root, nameStatus) {
-  const rows = nameStatus.split('\0'), removed = new Set(), found = [];
-  for (let i = 0; i + 1 < rows.length; i += 2) if (rows[i] === 'D') removed.add(rows[i + 1]);
+// Paths the task adds since the merge base (rows of `git diff --name-status -z --no-renames`) that something untracked
+// in the root already occupies, or whose parent folder is an untracked file there. Git treats ignored files as
+// expendable, so the merge would overwrite them, or `merge --abort` delete them. `rootAdded` (-z names) is what the
+// root added since the merge base.
+function untrackedInTheWay(root, nameStatus, rootAdded) {
+  // Tracked files git handles itself: one the root added, or one the task removes (a folder may go where it stood).
+  const rows = nameStatus.split('\0'), tracked = new Set(rootAdded.split('\0')), found = [];
+  for (let i = 0; i + 1 < rows.length; i += 2) if (rows[i] === 'D') tracked.add(rows[i + 1]);
   for (let i = 0; i + 1 < rows.length; i += 2) {
     if (rows[i] !== 'A') continue;
     const parts = rows[i + 1].split('/');
     for (let n = 1; n <= parts.length; n++) {
       const name = parts.slice(0, n).join('/');
       const stat = fs.lstatSync(path.join(root, name), { throwIfNoEntry: false });
-      // A tracked file the merge removes may stand where a folder goes; git replaces it itself.
-      if (stat && (n === parts.length || !stat.isDirectory()) && !removed.has(name)) { found.push(name); break; }
+      if (stat && (n === parts.length || !stat.isDirectory()) && !tracked.has(name)) { found.push(name); break; }
     }
   }
   return [...new Set(found)];
@@ -257,12 +254,15 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     if (task.dependsOn.some(id => store.task(id).status !== 'done')) refuse('Dependências não concluídas');
   };
 
-  async function gatedMerge(task, run, attempt, testCommand, expectedRevision) {
+  async function gatedMerge(task, run, attempt, { testCommand, expectedRevision, reviewedTree }) {
     if (!run) refuse('Nenhuma execução registrada para esta tarefa');
     if (!validRun(run)) refuse('Registro de execução inválido');
     if (RUNNING.has(run.state)) refuse(`O agente ainda está em execução (${run.state}); aguarde terminar`);
     // Its hunters may still be writing probe files in the worktree, which the commit below would take.
     if (ACTIVE.has(getRun(task.id, 'gauntlet')?.state)) refuse('O Gauntlet ainda está revisando esta tarefa; aguarde o relatório e encerre a sessão dele antes do merge');
+    // An agent process that may outlive its session could still be writing in the worktree the commit below takes.
+    const uncertain = store.uncertainSessionIn(task.projectId, run.worktree);
+    if (uncertain) refuse(`A sessão “${uncertain.name}” na worktree da tarefa está incerta; confira se o processo dela terminou e confirme a verificação antes do merge`);
     taskCurrent(task.id, expectedRevision);
     await rootReady(run);
     for (const ident of ['GIT_AUTHOR_IDENT', 'GIT_COMMITTER_IDENT']) {
@@ -270,6 +270,8 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     }
     if (await currentBranch(run.worktree) !== run.branch) refuse(`A worktree da tarefa não está na branch ${run.branch}`);
     await gitOk(run.worktree, ['add', '-A']);
+    // The commit takes this index: it must hold the tree of the diff the owner reviewed, not what arrived since.
+    if ((await gitOk(run.worktree, ['write-tree'])).trim() !== reviewedTree) refuse('O conteúdo da worktree mudou desde a revisão; abra o diff de novo');
     if (token && (await git(run.worktree, ['grep', '--cached', '-q', '-F', '-e', token])).code === 0) refuse('O conteúdo da tarefa contém o token local do Lab; remova-o antes do merge');
     if ((await git(run.worktree, ['diff', '--cached', '--quiet'])).code !== 0) {
       const commit = await git(run.worktree, [...STRICT_IDENTITY, 'commit', '-q', '-m', `omniforge: ${task.title}`]);
@@ -287,9 +289,14 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     const before = (await gitOk(run.root, ['rev-parse', 'HEAD'])).trim();
     const status = async () => new Set((await gitOk(run.root, ['status', '--porcelain', '-z'])).split('\0').filter(Boolean));
     const statusBefore = await status();
-    const changes = await gitOk(run.root, ['diff', '--name-status', '-z', '--no-renames', before, attempt.headSha, '--']);
+    // Each side's changes since the merge base (A...B): against the root's HEAD, the root's own deletions would read
+    // as task additions and refuse the merge over files it never writes.
+    const [changes, rootAdded] = await Promise.all([
+      gitOk(run.root, ['diff', '--name-status', '-z', '--no-renames', `${before}...${attempt.headSha}`, '--']),
+      gitOk(run.root, ['diff', '--name-only', '-z', '--no-renames', '--diff-filter=A', `${attempt.headSha}...${before}`, '--']),
+    ]);
     // Nothing awaits from here to the merge's spawn, so the task cannot change in between.
-    const inTheWay = untrackedInTheWay(run.root, changes);
+    const inTheWay = untrackedInTheWay(run.root, changes, rootAdded);
     if (inTheWay.length) refuse(`A raiz tem arquivos não rastreados ou ignorados onde o merge escreveria: ${inTheWay.slice(0, 20).join(', ')}; mova-os antes do merge`);
     taskCurrent(task.id, expectedRevision);
     // The tested commit, not the branch name: the branch may have moved while the test ran.
@@ -318,18 +325,21 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     if (merging) fail('Outro merge em andamento; aguarde', 409);
     merging = task.id;
     try {
-      await gatedMerge(task, run, attempt, testCommand, input.expectedRevision);
+      await gatedMerge(task, run, attempt, { testCommand, expectedRevision: input.expectedRevision, reviewedTree: input.reviewedTree });
     } catch (error) {
       if (!error.refused) throw error;
       attempt.refused = { reason: error.message };
-      record(task, attempt);
-      throw error;
     } finally {
       merging = null;
     }
-    // The merge has landed: the task follows it at its current revision, whether or not the evidence write fails.
-    try { return { task: store.setTaskStatus(task.id, 'done', store.task(task.id).revision), attempt }; }
-    finally { record(task, attempt); }
+    // The outcome stands whatever the evidence write does: a refusal stays a refusal, and a merge that landed marks
+    // the task done at its current revision. A failed write only adds evidenceError to the reply.
+    let evidenceError;
+    try { record(task, attempt); }
+    catch (error) { evidenceError = `A evidência desta tentativa não foi salva: ${error.message}`; }
+    const extra = evidenceError ? { evidenceError } : {};
+    if (attempt.refused) return { status: 409, body: { error: attempt.refused.reason, ...extra } };
+    return { status: 200, body: { task: store.setTaskStatus(task.id, 'done', store.task(task.id).revision), attempt, ...extra }, changed: true };
   }
 
   // The owner's confirmed request: a Gauntlet of the task's finished run, in its worktree, on a non-empty diff.
@@ -363,7 +373,7 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     if (!match || !['GET diff', 'GET evidence', 'POST merge', 'POST gauntlet'].includes(`${method} ${match[2]}`)) return null;
     const task = store.task(match[1]);
     if (match[2] === 'evidence') return { status: 200, body: readEvidence(task.id) };
-    if (match[2] === 'merge') return { status: 200, body: await merge(task, input), changed: true };
+    if (match[2] === 'merge') return merge(task, input);
     if (match[2] === 'gauntlet') return { status: 200, body: await gauntlet(task, input), changed: true };
     const run = getRun(task.id);
     if (!run) fail('Nenhuma execução registrada para esta tarefa', 404);
@@ -371,5 +381,8 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     return { status: 200, body: await worktreeDiff(run) };
   }
 
-  return { handle, recordGauntlet };
+  // The server asks before a new agent run: the merge tests and commits this task's worktree, then marks it done.
+  const isMerging = taskId => merging === taskId;
+
+  return { handle, recordGauntlet, isMerging };
 }

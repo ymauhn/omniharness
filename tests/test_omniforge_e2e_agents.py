@@ -108,7 +108,7 @@ class AgentsE2E(LabCase):
         self.wait_state(page, codex, "done")
         self.assertLess(self.states(page, codex).index("idle"), self.states(page, codex).index("done"))
         self.view(page, "fleet")
-        page.locator("#fleet-runs .fleet-run", has_text=codex).get_by_text("Tokens observados: 80 entrada · 9 saída · 40 cache lido · 2 cache criado").wait_for()
+        page.locator("#fleet-runs .fleet-run", has_text=codex).get_by_text("Tokens observados: 40 entrada · 9 saída · 40 cache lido · 2 cache criado").wait_for()
         self.view(page, "tasks")
         self.assertTrue(item.get_by_role("button", name="Rodar com Codex").is_enabled(), "a finished run frees the task for another run")
 

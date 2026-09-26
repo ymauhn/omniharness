@@ -6,7 +6,8 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createOmniForgeServer } from '../server.mjs';
-import { createReview, gauntletSummary, gitEnv, runTestCommand } from '../review.mjs';
+import { createReview, gauntletSummary, runTestCommand } from '../review.mjs';
+import { gitEnv } from '../lib/git-env.mjs';
 
 const TOKEN = 'review-token-5f0c9a1e7b3d';
 const BRANCH = 'omniforge/task';
@@ -36,8 +37,9 @@ async function fixture(t, { title = 'Adicionar saudação' } = {}) {
   const runs = new Map();
   // duringTest runs while the merge waits on its test command: the window in which others can act.
   const timing = { testTimeoutMs: 60_000, duringTest: null };
-  // Agent runs only: no Gauntlet run in these fixtures.
-  const app = createOmniForgeServer({ dataDir: path.join(dir, 'data'), token: TOKEN, getRun: (id, kind) => (kind ? null : runs.get(id) ?? null),
+  // Agent runs only: no Gauntlet run in these fixtures. No agent host either: a /run that got past a guard never
+  // launches a real CLI (it fails before anything is created).
+  const app = createOmniForgeServer({ dataDir: path.join(dir, 'data'), token: TOKEN, getRun: (id, kind) => (kind ? null : runs.get(id) ?? null), engineOptions: { hosts: {} },
     runTest: async options => { await timing.duringTest?.(); return runTestCommand({ ...options, timeoutMs: timing.testTimeoutMs }); } });
   const base = new URL(await app.listen()).origin;
   t.after(async () => {
@@ -53,9 +55,11 @@ async function fixture(t, { title = 'Adicionar saudação' } = {}) {
   const headers = { 'x-omniforge-token': TOKEN, 'content-type': 'application/json' };
   const get = route => fetch(`${base}${route}`, { headers });
   const post = (route, body) => fetch(`${base}${route}`, { method: 'POST', headers, body: JSON.stringify(body) });
-  const merge = body => post(`/api/tasks/${task.id}/merge`, { expectedRevision: app.store.task(task.id).revision, ...body });
+  // As the page does: the merge carries the tree of the diff the owner just reviewed.
+  const reviewedTree = async () => (await (await get(`/api/tasks/${task.id}/diff`)).json()).tree;
+  const merge = async body => post(`/api/tasks/${task.id}/merge`, { expectedRevision: app.store.task(task.id).revision, reviewedTree: body.reviewedTree ?? await reviewedTree(), ...body });
   const evidence = async () => (await get(`/api/tasks/${task.id}/evidence`)).json();
-  return { dir, root, worktree, baseSha, app, base, project, task, runs, timing, setRun, get, post, merge, evidence };
+  return { dir, root, worktree, baseSha, app, base, project, task, runs, timing, setRun, get, post, merge, reviewedTree, evidence };
 }
 
 const write = (dir, file, content) => fs.writeFileSync(path.join(dir, file), content);
@@ -117,7 +121,7 @@ test('merge commits pending work, runs the test, merges with --no-ff and records
   const reader = events.body.getReader(), decoder = new TextDecoder();
   let received = decoder.decode((await reader.read()).value);
 
-  const body = { testCommand: 'node -e "process.stdout.write(\'tests passed\')"', note: 'Revisado pelo dono' };
+  const body = { testCommand: 'node -e "process.stdout.write(\'tests passed\')"', note: 'Revisado pelo dono', reviewedTree: await f.reviewedTree() };
   const replies = await Promise.all([f.merge(body), f.merge(body)]);
   const [response, concurrent] = replies[0].status === 200 ? replies : replies.reverse();
   const result = await response.json();
@@ -171,6 +175,33 @@ test('merge commits pending work, runs the test, merges with --no-ff and records
 
   const again = await f.merge({});
   assert.equal(again.status, 409, 'a merged branch has nothing new to integrate');
+});
+
+test('merge takes only the reviewed content: a missing or stale reviewed tree is refused before any commit', async t => {
+  const f = await fixture(t);
+  f.setRun();
+  write(f.worktree, 'hello.txt', 'olá\n');
+  const reviewed = await f.reviewedTree();
+  assert.match(reviewed, /^[0-9a-f]{40,64}$/);
+  const refusal = 'O conteúdo da worktree mudou desde a revisão; abra o diff de novo';
+  const refused = async body => {
+    const response = await f.post(`/api/tasks/${f.task.id}/merge`, { expectedRevision: f.app.store.task(f.task.id).revision, ...body });
+    assert.equal(response.status, 409);
+    assert.equal((await response.json()).error, refusal);
+  };
+  await refused({});
+  // Written after the owner's review: it must not ride along with the reviewed diff.
+  write(f.worktree, 'late.txt', 'not reviewed\n');
+  await refused({ reviewedTree: reviewed });
+  assert.equal(git(f.worktree, 'rev-parse', 'HEAD'), f.baseSha, 'nothing was committed');
+  assert.deepEqual((await f.evidence()).attempts.map(attempt => attempt.refused.reason), [refusal, refusal]);
+
+  fs.rmSync(path.join(f.worktree, 'late.txt'));
+  assert.equal(await f.reviewedTree(), reviewed, 'the same content is the same tree');
+  const response = await f.merge({ reviewedTree: reviewed });
+  const { attempt, error } = await response.json();
+  assert.equal(response.status, 200, error);
+  assert.equal(git(f.root, 'rev-parse', `${attempt.headSha}^{tree}`), reviewed, 'the merged commit is the reviewed tree');
 });
 
 test('merge refusals leave the root untouched and are recorded as evidence', async t => {
@@ -268,10 +299,20 @@ test('a task changed during the test is refused before the merge; once merged, t
   assert.equal(refusal.test.exitCode, 0);
   assert.equal(refusal.mergeSha, null);
 
-  // An evidence write that fails after the merge must not strand the task open.
+  // A failed evidence write hides neither a refusal nor a merge that landed, and never strands the task open.
   f.timing.duringTest = null;
   fs.writeFileSync(path.join(f.app.store.dataDir, 'evidence', `${f.task.id}.json`), '{');
-  assert.equal((await f.merge({})).status, 500);
+  const gated = await f.merge({ testCommand: 'exit 3' });
+  const outcome = await gated.json();
+  assert.equal(gated.status, 409);
+  assert.equal(outcome.error, 'O comando de teste falhou (código 3)');
+  assert.match(outcome.evidenceError, /evidência/);
+  const merged = await f.merge({});
+  const result = await merged.json();
+  assert.equal(merged.status, 200, result.error);
+  assert.equal(result.attempt.mergeSha, git(f.root, 'rev-parse', 'HEAD'));
+  assert.equal(result.task.status, 'done');
+  assert.match(result.evidenceError, /evidência/);
   assert.notEqual(git(f.root, 'rev-parse', 'HEAD'), before);
   assert.equal(f.app.store.task(f.task.id).status, 'done');
 });
@@ -300,6 +341,33 @@ test('merge refuses to overwrite or remove untracked or ignored owner files in t
   assert.equal(fs.readFileSync(path.join(f.root, 'ignored.txt'), 'utf8'), 'OWNER_SECRET=keep-me\n');
   assert.equal(fs.readFileSync(path.join(f.root, 'cache'), 'utf8'), 'owner cache\n');
   assert.equal(f.app.store.task(f.task.id).status, 'open');
+});
+
+test('a file the root stopped tracking since the base is not in the way of a task that never touched it', async t => {
+  const f = await fixture(t);
+  f.setRun();
+  // The owner untracks README.md and ignores it; it stays on disk. The task's branch still has it, unchanged.
+  git(f.root, 'rm', '-q', '--cached', 'README.md');
+  write(f.root, '.gitignore', 'ignored.txt\nREADME.md\n');
+  git(f.root, 'commit', '-q', '-am', 'untrack README');
+  write(f.worktree, 'hello.txt', 'hi\n');
+  const response = await f.merge({});
+  assert.equal(response.status, 200, (await response.clone().json()).error);
+  assert.equal(fs.readFileSync(path.join(f.root, 'README.md'), 'utf8'), 'base\n');
+  assert.equal(fs.readFileSync(path.join(f.root, 'hello.txt'), 'utf8'), 'hi\n');
+});
+
+test('a file the root and the task both added is tracked in the root, so git merges it itself', async t => {
+  const f = await fixture(t);
+  f.setRun();
+  write(f.root, 'hello.txt', 'hi\n');
+  git(f.root, 'add', 'hello.txt');
+  git(f.root, 'commit', '-q', '-m', 'owner adds the same file');
+  write(f.worktree, 'hello.txt', 'hi\n');
+  write(f.worktree, 'other.txt', 'task\n');
+  const response = await f.merge({});
+  assert.equal(response.status, 200, (await response.clone().json()).error);
+  assert.equal(fs.readFileSync(path.join(f.root, 'other.txt'), 'utf8'), 'task\n');
 });
 
 test('a run on the base branch is refused before anything is committed in the root', async t => {
@@ -333,6 +401,30 @@ test('merge refuses without a configured git identity and never invents one', as
   assert.equal(response.status, 409);
   assert.match((await response.json()).error, /identidade/);
   assert.equal(git(f.root, 'rev-parse', BRANCH), f.baseSha, 'nothing was committed');
+});
+
+test('merge refuses while a session in the task worktree is stopping, interrupted or uncertain, naming it', async t => {
+  const f = await fixture(t);
+  f.setRun();
+  write(f.worktree, 'hello.txt', 'hi\n');
+  const store = f.app.store;
+  // The agent's process tree may still write in the worktree the merge commits.
+  const session = store.addSession({ projectId: f.project.id, name: 'Claude · agente', cwd: f.worktree });
+  for (const status of ['stopping', 'interrupted']) {
+    store.setSessionStatus(session.id, status);
+    const response = await f.merge({});
+    assert.equal(response.status, 409);
+    assert.match((await response.json()).error, /sessão “Claude · agente” na worktree da tarefa/);
+  }
+  store.flagUncertainSession(session.id);
+  store.session(session.id).status = 'stopped';
+  assert.equal((await f.merge({})).status, 409, 'uncertain in memory even when stored as stopped');
+  assert.equal(git(f.root, 'rev-parse', BRANCH), f.baseSha, 'nothing was committed');
+  assert.equal((await f.evidence()).attempts.length, 3);
+  store.session(session.id).status = 'interrupted';
+  store.acknowledgeInterruptedSession(session.id, 'processo conferido');
+  const response = await f.merge({});
+  assert.equal(response.status, 200, (await response.clone().json()).error);
 });
 
 test('merge refuses task content that carries the Lab token', async t => {
@@ -376,18 +468,31 @@ test('no Gauntlet starts while its task merges: the gate test and the hunters wo
   // A review of its own with a stub startRun: nothing could start an agent even if the guard failed.
   const review = createReview({ store: f.app.store, getRun: (id, kind) => (kind ? null : f.runs.get(id) ?? null), startRun: (id, options) => started.push(options),
     runTest: async ({ command }) => { testing(); await finished; return { command, exitCode: 0, timedOut: false, outputSha256: sha256(''), outputTail: '', durationMs: 1 }; } });
-  const expectedRevision = f.app.store.task(f.task.id).revision;
+  const expectedRevision = f.app.store.task(f.task.id).revision, reviewedTree = await f.reviewedTree();
   const post = (route, input) => review.handle({ method: 'POST', url: new URL(`http://lab/api/tasks/${f.task.id}/${route}`), input });
   const gauntlet = () => post('gauntlet', { expectedRevision, preset: 'rapido' });
   // Asked just before the merge, it is still reading its diff when the merge begins.
   const early = gauntlet();
-  const merge = post('merge', { expectedRevision, testCommand: 'npm test' });
+  const merge = post('merge', { expectedRevision, reviewedTree, testCommand: 'npm test' });
   await assert.rejects(early, { status: 409, message: /merge/ });
   await inTest;
   await assert.rejects(gauntlet(), { status: 409, message: /merge/ }, 'none starts while the merge test runs');
   release();
   assert.match((await merge).body.attempt.mergeSha, /^[0-9a-f]{40}$/);
   assert.deepEqual(started, []);
+});
+
+test('no agent run starts on a task while its merge runs: the merge would then mark the new run\'s task done', async t => {
+  const f = await fixture(t);
+  f.setRun();
+  write(f.worktree, 'hello.txt', 'hi\n');
+  let during;
+  f.timing.duringTest = async () => { during = await f.post(`/api/tasks/${f.task.id}/run`, { host: 'claude', expectedRevision: f.app.store.task(f.task.id).revision }); };
+  const response = await f.merge({ testCommand: 'exit 0' });
+  assert.equal(response.status, 200, (await response.clone().json()).error);
+  assert.equal(during.status, 409);
+  assert.match((await during.json()).error, /merge desta tarefa está em andamento/);
+  assert.deepEqual(f.app.engine.list(), [], 'nothing was launched');
 });
 
 test('review routes require the master token', async t => {
