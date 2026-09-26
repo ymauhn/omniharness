@@ -6,6 +6,7 @@ they are not a visual verdict. Set OMNIFORGE_E2E_EVIDENCE=<dir> to keep viewport
 Missing Playwright/Chromium or Node dependencies are errors, never skipped coverage.
 """
 import json
+import sys
 import os
 import shutil
 import subprocess
@@ -157,6 +158,9 @@ class LabE2E(unittest.TestCase):
         page.get_by_role("button", name="Fechar painel 8 sem parar a sessão").click()
         self.assertEqual(page.locator("#terminal-grid > .terminal-pane").count(), 7)
         self.assertEqual(page.locator("#session-list .rail-item").count(), 2)
+        slider = page.locator(".grid-sizes input[type=range]").first.evaluate(
+            "el => { const s = getComputedStyle(el); return [s.paddingLeft, s.borderTopStyle]; }")
+        self.assertEqual(slider, ["0px", "none"], "the global form-control rule must not restyle range sliders")
         evidence(page, "grid-seven-panes")
         context.close()
 
@@ -329,6 +333,13 @@ class LabE2E(unittest.TestCase):
                     self.assertEqual(unnamed, [], f"{theme}/{name}@{width}: controls without an accessible name")
                 if width == 1440:
                     evidence(page, f"theme-{theme}")
+            if width == 390:
+                # A long project root (the isolated demo lives deep in %TEMP%) must wrap, not widen the page.
+                self.select_project(page, "Projeto isolado")
+                page.locator("[data-view=assets]").click()
+                page.wait_for_timeout(250)
+                overflow = page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")
+                self.assertLessEqual(overflow, 1, f"assets@390 with a long root: horizontal overflow {overflow}px")
             nav = page.get_by_role("button", name="Tarefas")
             nav.focus()
             page.keyboard.press("Enter")
@@ -366,15 +377,22 @@ class LabE2E(unittest.TestCase):
         page.locator("#coord-text").fill("Verificar links quebrados nos assets")
         page.locator("#coord-form button[type=submit]").click()
         page.wait_for_selector("#view-assets:not([hidden])")
+        self.assertIn("template revisado", page.locator("#coord-log").text_content())
         panel = page.locator("#extensions-panel")
         panel.get_by_text("Versão 1", exact=True).wait_for()
-        panel.get_by_text("Ver código e manifesto").click()
+        panel.get_by_text("Ver código e manifesto da versão 1").click()
         panel.locator("pre.ext-code").wait_for()
         self.assertIn("function check(input)", panel.locator("pre.ext-code").inner_text())
         enable = panel.get_by_role("button", name="Ativar versão 1")
         self.assertTrue(enable.is_disabled())
-        panel.get_by_role("button", name="Pré-visualizar nos fixtures").click()
+        panel.locator(".ext-check input").check()
+        panel.get_by_role("button", name="Pré-visualizar versão 1 nos fixtures").focus()
+        page.keyboard.press("Enter")
+        page.wait_for_function("() => document.activeElement?.dataset.focusKey === 'preview:1'")
         panel.get_by_text("pré-visualização aprovada").first.wait_for()
+        self.assertTrue(panel.locator(".ext-check input").is_checked(), "the review tick survives the render")
+        self.assertTrue(panel.locator("pre.ext-code").is_visible(), "the open code viewer survives the render")
+        panel.locator(".ext-check input").uncheck()
         panel.get_by_role("button", name="Ativar versão 1").click()
         panel.get_by_text("Marque a revisão").wait_for()
         panel.locator(".ext-check input").check()
@@ -385,6 +403,18 @@ class LabE2E(unittest.TestCase):
         self.assertIn("README.md:2 → img/falta.png", panel.locator(".ext-missing").inner_text())
         self.assertNotIn("img/ok.png", panel.locator(".ext-missing").inner_text())
         evidence(page, "minitool-report")
+        # Another project selected outside Assets must not inherit this project's report or status.
+        self.view(page, "workspace")
+        self.select_project(page, "OmniHarness")
+        self.view(page, "assets")
+        panel.get_by_text("Nenhuma versão ativa").wait_for()
+        self.assertEqual(panel.locator(".ext-report").count(), 0)
+        self.assertNotIn("img/falta.png", panel.inner_text())
+        self.assertNotIn("Versão 1 ativada", panel.inner_text())
+        self.view(page, "workspace")
+        self.select_project(page, "Projeto isolado")
+        self.view(page, "assets")
+        panel.get_by_text("Ativa: versão 1.").wait_for()
         panel.get_by_role("button", name="Desativar").click()
         panel.get_by_text("Nenhuma versão ativa").wait_for()
         self.assertEqual(self.api(page, "/api/extensions/run", {"projectId": self.demo.info["isolated"]})["reason"], "disabled")
@@ -400,14 +430,26 @@ class LabE2E(unittest.TestCase):
         for index in (1, 2, 3):
             self.assertIn("Desconhecido", cards.nth(index).inner_text())
         dummy = "dummy-e2e-not-a-real-key-7Q2Z"
-        page.locator(".usage-keys input[type=password]").fill(dummy)
-        page.get_by_role("button", name="Guardar no cofre do Windows").click()
-        page.get_by_text("••••7Q2Z").wait_for(timeout=20000)
-        self.assertNotIn(dummy, page.content())
-        evidence(page, "usage-keys")
-        page.get_by_role("button", name="Remover chave jev terminada em 7Q2Z").click()
-        page.get_by_text("Nenhuma chave guardada.").wait_for(timeout=20000)
-        context.close()
+        try:
+            page.locator(".usage-keys input[type=password]").fill(dummy)
+            page.get_by_role("button", name="Guardar no cofre do Windows").click()
+            page.get_by_text("••••7Q2Z").wait_for(timeout=20000)
+            self.assertNotIn(dummy, page.content())
+            evidence(page, "usage-keys")
+            page.get_by_role("button", name="Remover chave jev terminada em 7Q2Z").click()
+            page.get_by_role("button", name="Confirmar remoção da chave jev terminada em 7Q2Z").click()
+            page.get_by_text("Nenhuma chave guardada.").wait_for(timeout=20000)
+        finally:
+            # The demo writes to the real Windows vault: never leave the dummy credential behind if the UI path fails.
+            # Cleanup errors must not hide the original failure, and the context always closes.
+            try:
+                for key in self.api(page, "/api/keys").get("keys", []):
+                    if key["suffix"] == "7Q2Z":
+                        self.api(page, "/api/keys/remove", {"ref": key["ref"]})
+            except Exception as cleanup:  # noqa: BLE001 - reported, not raised
+                print(f"vault cleanup failed: {cleanup}", file=sys.stderr)
+            finally:
+                context.close()
 
     def test_tasks_show_the_owner_session_replan_after_a_blocked_prerequisite_and_record_a_handoff(self):
         context, page = self.open()
@@ -416,15 +458,34 @@ class LabE2E(unittest.TestCase):
         define, build, review = self.demo.info["tasks"]
         titles = {t["id"]: t["title"] for t in self.api(page, "/api/state")["tasks"]}
         item = page.locator(f"select[aria-label='Estado de {titles[build]}']").locator("xpath=ancestor::article[1]")
-        item.locator("select[aria-label^='Sessão responsável']").select_option(self.demo.info["sessions"][0])
+        owner = item.locator("select[aria-label^='Sessão responsável']")
+        owner.focus()
+        owner.select_option(self.demo.info["sessions"][0])
         item.get_by_text("Em Build").wait_for()
+        page.wait_for_function("k => document.activeElement?.dataset.focusKey === k", arg=f"task:{build}:owner")
         page.locator(f"select[aria-label='Estado de {titles[define]}']").select_option("blocked")
         page.locator(f"select[aria-label='Estado de {titles[review]}']").locator("xpath=ancestor::article[1]").get_by_text("Bloqueada automaticamente").wait_for()
         item = page.locator(f"select[aria-label='Estado de {titles[build]}']").locator("xpath=ancestor::article[1]")
         item.locator("summary", has_text="Registrar handoff").click()
-        item.locator(".task-handoff-form input").fill("Teste vermelho pronto; falta a correção.")
-        item.get_by_role("button", name="Registrar handoff").click()
-        page.locator(f"select[aria-label='Estado de {titles[build]}']").locator("xpath=ancestor::article[1]").get_by_text("Último handoff → codex").wait_for()
+        item.locator(".task-handoff-form select").select_option("claude")
+        note = "Teste vermelho pronto; falta a correção."
+        item.locator(".task-handoff-form input").fill(note)
+        # A task created by another client broadcasts a state event that rebuilds the task list.
+        self.api(page, "/api/tasks", {"projectId": self.demo.info["main"], "title": "Tarefa criada por outra janela"})
+        page.locator("#task-list").get_by_text("Tarefa criada por outra janela").wait_for()
+        self.assertTrue(item.locator("details.task-handoff").evaluate("d => d.open"), "the handoff form stays open")
+        self.assertEqual(item.locator(".task-handoff-form input").input_value(), note)
+        self.assertEqual(item.locator(".task-handoff-form select").input_value(), "claude")
+        self.assertEqual(page.evaluate("document.activeElement.dataset.focusKey"), f"task:{build}:handoff-note")
+        handoffs = lambda: len(next(t for t in self.api(page, "/api/state")["tasks"] if t["id"] == build).get("handoffs", []))
+        before = handoffs()
+        # A quick double Enter must record one handoff: the kept draft must not re-arm a rebuilt form mid-request.
+        page.keyboard.press("Enter")
+        page.keyboard.press("Enter")
+        item.get_by_text("Último handoff → claude").wait_for()
+        page.wait_for_timeout(400)
+        self.assertEqual(handoffs(), before + 1)
+        page.wait_for_function("k => document.activeElement?.dataset.focusKey === k", arg=f"task:{build}:handoff")
         page.locator(f"select[aria-label='Estado de {titles[define]}']").select_option("open")
         page.wait_for_function("t => ![...document.querySelectorAll('#task-list .list-item')].some(i => i.textContent.includes(t) && i.textContent.includes('Bloqueada automaticamente'))", arg=titles[review])
         evidence(page, "tasks-owner-handoff")
