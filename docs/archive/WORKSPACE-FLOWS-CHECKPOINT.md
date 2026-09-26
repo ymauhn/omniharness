@@ -2,7 +2,7 @@
 
 September 25, 2026. **Implemented and source/behavior validated; visual/product acceptance deferred**, base `17230c093f933c8cd943216a80bc02eea4530079` after [PR #5](https://github.com/ymauhn/omniharness/pull/5); integration branch `codex/mvp-workspace-flows`. The previous reviewed implementation commit is `fcef707743aa03d24448a28364b1659a037afe0f`. Full MVP task approval covers these changes; no new plan decision or provider call is needed.
 
-Frozen reference: [PLAN](PLAN.md) SHA-256 `d7904fee2050478681f9a8bd90da11c1a22c50487e9b3651974dddb1f238ab2f`; [release contract](V1-RELEASE-CONTRACT.md) `ceda9e8ee45ce06f30c99f673c84c9e387f381f98930ab3dedb6a19dc782eb23`. The owner permits unavailable visual/provider/human checks in the final validation round; this does not certify failed or unverified managed execution.
+Frozen reference: [PLAN](../omniforge/PLAN.md) SHA-256 `d7904fee2050478681f9a8bd90da11c1a22c50487e9b3651974dddb1f238ab2f`; [release contract](../omniforge/V1-RELEASE-CONTRACT.md) `ceda9e8ee45ce06f30c99f673c84c9e387f381f98930ab3dedb6a19dc782eb23`. The owner permits unavailable visual/provider/human checks in the final validation round; this does not certify failed or unverified managed execution.
 
 ## Bounded acceptance before implementation
 
@@ -17,7 +17,7 @@ Visual applicability: **required**, deferred as V-01 under the owner's amendment
 
 Initial evidence: replay API red `404 !== 200` before route integration; then eight combined replay/server cases passed, zero skips. The initial replay unit run failed on the absent module before implementation. Memory controller's first four functional cases passed; no failing-test-first claim is made for that module. Final evidence and reviewer identities will replace this provisional status after integration.
 
-Managed-agent admission, whole-tree cancellation, full usage accounting, JEV live access and clean-user packaging remain separate gates in [VALIDATION-PENDING](VALIDATION-PENDING.md). No claims about them are expanded by these workspace controls.
+Managed-agent admission, whole-tree cancellation, full usage accounting, JEV live access and clean-user packaging remain separate gates in [VALIDATION-PENDING](../omniforge/VALIDATION-PENDING.md). No claims about them are expanded by these workspace controls.
 
 ## Review/repair journal — initial attempts retained
 
@@ -39,4 +39,4 @@ All root runtime sources are integrated. Final `pwsh -NoProfile -File ./scripts/
 - Final root integration reviewers: `/root/codex_tool_bridge` and `/root/workspace_final_review`, each supplied root diffs plus the previously reviewed grid index as comparison. Both reviewed mounts, navigation, callbacks, shared revisions, scope/history and static routes; each independently ran 18/18 integration checks with no blocker. Neither edited this integration.
 - A combined documentation patch failed to match one old paragraph; it applied no changes and was reapplied in smaller verified edits. No runtime/test outcome was changed by that documentation mistake.
 
-Exact final runtime SHA-256 identities are in the current entry of [T13 validation](../t13/VALIDATION.md). Native review/delegate token and monetary usage remain unavailable. Visual acceptance, host execution certification and all remaining MVP requirements are preserved in [LATEST-CHECKPOINT](LATEST-CHECKPOINT.md).
+Exact final runtime SHA-256 identities are in the current entry of [T13 validation](../t13/VALIDATION.md). Native review/delegate token and monetary usage remain unavailable. Visual acceptance, host execution certification and all remaining MVP requirements are preserved in [LATEST-CHECKPOINT](../omniforge/LATEST-CHECKPOINT.md).

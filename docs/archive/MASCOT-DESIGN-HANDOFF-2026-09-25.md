@@ -6,9 +6,9 @@ Owner amendment, later September 25: the owner selected this deliverable as the 
 
 ## Read first
 
-- [Prompt Copilot and OS design intake](PROMPT-COPILOT-AND-OS-EXTENSIONS-2026-09-25.md): behavior, privacy, selection action and performance gates.
+- [Prompt Copilot and OS design intake](../omniforge/PROMPT-COPILOT-AND-OS-EXTENSIONS-2026-09-25.md): behavior, privacy, selection action and performance gates.
 - [Lab source](../../omniforge-lab/index.html): current three themes and layout. The user praised this aesthetic; retain its compact command-center feel. Theme tokens are `--bg`, `--surface`, `--text`, `--muted`, `--accent`, etc. `operations` is dark violet, `atelier` is pale teal, `bridge` is dark cyan. Do not assume the mascot must be purple in every theme.
-- [V1 contract](V1-RELEASE-CONTRACT.md): the local app is a prototype; do not imply that a mascot mockup certifies agent behavior.
+- [V1 contract](../omniforge/V1-RELEASE-CONTRACT.md): the local app is a prototype; do not imply that a mascot mockup certifies agent behavior.
 - Existing visual-directions sheet: `C:/Users/Yeonatan/.codex/visualizations/2026/09/21/01a0c19a-ec42-7c51-9d09-678ba9e45e19/omniforge-ui-directions.html` (reference only; a separate session should avoid editing it unless the owner asks).
 
 ## Character and interaction brief
