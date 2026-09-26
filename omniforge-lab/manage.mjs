@@ -11,6 +11,8 @@ import { parseArgs } from 'node:util';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP = path.resolve(HERE, '..');
 const MANIFEST = 'omniforge-build.json';
+// Written into data\ only when install creates it: a reinstall over kept data knows the folder is its own.
+const DATA_MARK = '.omniforge-install';
 const TIMEOUT = 10_000;
 // What the installed Lab reads at runtime: server/demo/services here, skills and catalog tables for
 // listSkills and harness.catalog_api, the arsenal bridge, and the Laya classifier worker and manifest.
@@ -30,11 +32,27 @@ for (const file of ['@xterm/xterm/lib/xterm.mjs', '@xterm/xterm/css/xterm.css', 
 const { resolvePtyShell } = await import(pathToFileURL('pty.mjs'));
 console.log(JSON.stringify({ pty: JSON.parse(fs.readFileSync('node_modules/node-pty/package.json', 'utf8')).version, shell: resolvePtyShell() }));`;
 
+// Windows (libuv and cmd.exe alike) looks in the current folder before PATH, so a stray git.exe or
+// claude.cmd next to a downloaded zip would run. Programs are resolved from absolute PATH entries only.
+function which(name, env = process.env) {
+  if (path.isAbsolute(name)) return name;
+  const exts = process.platform === 'win32' ? (env.PATHEXT || '.COM;.EXE;.BAT;.CMD').toLowerCase().split(';').filter(Boolean) : [];
+  const names = !exts.length || exts.includes(path.extname(name).toLowerCase()) ? [name] : exts.map(ext => name + ext);
+  for (const dir of (env.PATH || '').split(path.delimiter).map(entry => entry.replaceAll('"', '')).filter(entry => path.isAbsolute(entry))) {
+    // lstat: a Store app alias is a reparse point that stat cannot open.
+    for (const file of names.map(item => path.join(dir, item))) if (fs.lstatSync(file, { throwIfNoEntry: false })?.isDirectory() === false) return file;
+  }
+  return null;
+}
+
 export function run(file, args = [], { cwd, shell = false, timeout = TIMEOUT } = {}) {
   // shell only for fixed host-CLI commands (npm/claude/codex may be .cmd shims), never with caller input.
-  const result = shell
-    ? spawnSync([file, ...args].join(' '), { cwd, shell: true, encoding: 'utf8', timeout, windowsHide: true })
-    : spawnSync(file, args, { cwd, encoding: 'utf8', timeout, windowsHide: true });
+  const [name, ...rest] = shell ? file.split(' ') : [file];
+  const exe = which(name);
+  if (!exe) return { status: null, stdout: '', stderr: '', error: Object.assign(new Error(`${name} is not on PATH`), { code: 'ENOENT' }) };
+  // The opt-out also covers what a child runs by name, such as the node an npm shim starts.
+  const options = { cwd, encoding: 'utf8', timeout, windowsHide: true, env: { ...process.env, NoDefaultCurrentDirectoryInExePath: '1' } };
+  const result = shell ? spawnSync([`"${exe}"`, ...rest, ...args].join(' '), { ...options, shell: true }) : spawnSync(exe, args, options);
   return { status: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '', error: result.error };
 }
 
@@ -292,6 +310,7 @@ function unpack(zip, sha256, prefix, record) {
   mark(record, copy, 'file');
   mark(record, `${copy}.sha256`, 'file');
   record.versions[id] ??= { zip: copy, sha256, installedAt: new Date().toISOString() };
+  ensureDir(record, path.join(prefix, 'run'), 'tree');
   return id;
 }
 
@@ -305,20 +324,35 @@ function activate(prefix, record, id, previous, backup = null) {
   mark(record, launcher, 'file');
 }
 
+// A {pid} file; unknown counts as live. ponytail: pid only, so a reused pid reads as live until its file is removed.
+function ownerStatus(file, label) {
+  let owner;
+  try { owner = readJson(file); }
+  catch (error) { return error.code === 'ENOENT' ? { live: false } : { live: true, reason: `${label} is unreadable` }; }
+  if (!Number.isSafeInteger(owner?.pid) || owner.pid <= 0) return { live: true, reason: `${label} has no valid pid` };
+  try { process.kill(owner.pid, 0); return { live: true, reason: `pid ${owner.pid} holds ${label}` }; }
+  catch (error) { return error.code === 'ESRCH' ? { live: false, deadPid: owner.pid } : { live: true, reason: `pid ${owner.pid}: ${error.code}` }; }
+}
+
 /** Read-only view of the Lab's WorkspaceStore lock (core.mjs); unknown counts as live. */
 export function lockStatus(dataDir) {
   if (fs.existsSync(path.join(dataDir, 'state.recovery.lock'))) return { live: true, reason: 'state.recovery.lock is present' };
-  let owner;
-  try { owner = readJson(path.join(dataDir, 'state.lock')); }
-  catch (error) { return error.code === 'ENOENT' ? { live: false } : { live: true, reason: 'state.lock is unreadable' }; }
-  if (!Number.isSafeInteger(owner?.pid) || owner.pid <= 0) return { live: true, reason: 'state.lock has no valid pid' };
-  try { process.kill(owner.pid, 0); return { live: true, reason: `pid ${owner.pid} holds state.lock` }; }
-  catch (error) { return error.code === 'ESRCH' ? { live: false, deadPid: owner.pid } : { live: true, reason: `pid ${owner.pid}: ${error.code}` }; }
+  return ownerStatus(path.join(dataDir, 'state.lock'), 'state.lock');
 }
 
 function refuseLive(prefix) {
   const lock = lockStatus(path.join(prefix, 'data'));
   if (lock.live) throw new Error(`OmniForge is running or its data lock is uncertain (${lock.reason}); stop it first`);
+}
+
+// start writes run\<pid>.json: a demo, or a Lab on another data folder, holds no data lock but keeps app files loaded.
+function refuseStarted(prefix) {
+  let names = [];
+  try { names = fs.readdirSync(path.join(prefix, 'run')).filter(name => /^\d+\.json$/.test(name)); } catch { names = []; }
+  for (const name of names) {
+    const status = ownerStatus(path.join(prefix, 'run', name), `run\\${name}`);
+    if (status.live) throw new Error(`a Lab or demo started from ${prefix} is running (${status.reason}); stop it first`);
+  }
 }
 
 const launcherHint = prefix => `"${path.join(prefix, 'omniforge.cmd')}"`;
@@ -333,10 +367,15 @@ export function install({ from, prefix = defaultPrefix(), exec = run, env = proc
   if (current && current.version !== id) throw new Error(`OmniForge ${current.version} is installed in ${prefix}; use: omniforge update --from ${zip}`);
   const record = loadRecord(prefix);
   unpack(zip, sha256, prefix, record);
-  // Recorded on every install, also when an uninstall that kept the data left it behind.
-  fs.mkdirSync(path.join(prefix, 'data'), { recursive: true });
-  mark(record, path.join(prefix, 'data'), 'tree');
-  activate(prefix, record, id, current?.previous ?? null);
+  const data = path.join(prefix, 'data');
+  if (!fs.existsSync(data)) {
+    fs.mkdirSync(data);
+    fs.writeFileSync(path.join(data, DATA_MARK), 'Created by OmniForge install; uninstall --apply --remove-data removes this folder.\n');
+  }
+  // The mark also covers data that an uninstall without --remove-data kept; a folder without it was never ours.
+  if (fs.existsSync(path.join(data, DATA_MARK))) mark(record, data, 'tree');
+  else if (!record.created.some(item => same(item.path, data))) out(`${data} existed before install: the Lab uses it, and uninstall never removes it.`);
+  activate(prefix, record, id, current?.previous ?? null, current?.backup ?? null);
   saveRecord(prefix, record);
   out(`Installed OmniForge ${id} in ${prefix} (data: ${path.join(prefix, 'data')})`);
   const report = doctor({ appDir: path.join(prefix, 'app', id), exec, env });
@@ -446,6 +485,7 @@ function describe(item, prefix) {
   const data = path.join(prefix, 'data');
   if (!fs.existsSync(item.path)) return 'recorded by install; already absent';
   if (same(item.path, data)) return `user data, removed only with --remove-data; ${fs.readdirSync(data).length} entries, the Lab's OMNIFORGE_DATA_DIR`;
+  if (same(item.path, path.join(prefix, 'run'))) return `pid records of started Labs and demos; --apply refuses while one is running; ${fs.readdirSync(item.path).length} entries`;
   if (item.kind === 'tree') return `installed app ${path.basename(item.path)}; recorded in install.json, ${listFiles(item.path).length} files`;
   if (item.kind === 'dir') return 'install folder, removed only when empty; recorded in install.json';
   return `install file (${path.basename(item.path)}); recorded in install.json, ${fs.statSync(item.path).size} bytes`;
@@ -466,13 +506,17 @@ export function uninstall({ prefix = defaultPrefix(), apply = false, removeData 
     return 0;
   }
   refuseLive(prefix);
+  refuseStarted(prefix);
   const installFile = path.join(prefix, 'install.json');
-  const removable = ours.filter(item => !same(item.path, data) || removeData);
-  for (const item of removable.filter(entry => entry.kind !== 'dir' && !same(entry.path, installFile))) {
+  // Containment, not string equality: nothing inside data\ goes on its own, data\ only with --remove-data,
+  // and a folder above data\ (the prefix, whatever its recorded kind) is removed only when empty.
+  const removable = ours.filter(item => !contains(data, item.path) && (removeData || !same(item.path, data)));
+  const asDir = item => item.kind === 'dir' || contains(item.path, data);
+  for (const item of removable.filter(entry => !asDir(entry) && !same(entry.path, installFile))) {
     fs.rmSync(item.path, { recursive: item.kind === 'tree', force: true });
   }
   fs.rmSync(installFile, { force: true });
-  for (const item of removable.filter(entry => entry.kind === 'dir').sort((a, b) => b.path.length - a.path.length)) {
+  for (const item of removable.filter(asDir).sort((a, b) => b.path.length - a.path.length)) {
     try { fs.rmdirSync(item.path); }
     catch (error) { if (!['ENOTEMPTY', 'ENOENT', 'EEXIST', 'EBUSY', 'EPERM'].includes(error.code)) throw error; }
   }
@@ -501,6 +545,11 @@ export async function start({ prefix = defaultPrefix(), demo = false, stopOnEof 
   if (!current) throw new Error(`OmniForge is not installed in ${prefix}; run: omniforge install --from <zip>`);
   const lab = path.join(prefix, 'app', current.version, 'omniforge-lab');
   const dataDir = path.join(prefix, 'data');
+  // uninstall --apply refuses while this pid is alive; a killed process leaves a record that reads as stopped.
+  const runFile = path.join(prefix, 'run', `${process.pid}.json`);
+  fs.mkdirSync(path.dirname(runFile), { recursive: true });
+  writeJson(runFile, { pid: process.pid, version: current.version, demo, startedAt: new Date().toISOString() });
+  process.once('exit', () => fs.rmSync(runFile, { force: true }));
   env.OMNIFORGE_DATA_DIR = dataDir;
   if (!env.OMNIHARNESS_PYTHON) {
     const python = findPython({ env });

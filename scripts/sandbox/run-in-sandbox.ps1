@@ -7,15 +7,19 @@ param(
     [Parameter(Mandatory = $true)][string]$Release,
     [Parameter(Mandatory = $true)][string]$Output,
     [string]$Prefix = (Join-Path $env:TEMP ('omniforge-acceptance-' + [guid]::NewGuid().ToString('N'))),
-    [switch]$PortableNode
+    [switch]$PortableNode,
+    [int]$StartTimeoutSeconds = 90
 )
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+# One absolute prefix for the guard, the report and every cmd step: a relative path would resolve against the
+# PowerShell location here but against the process directory in the children, which Set-Location does not move.
+$Prefix = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Prefix)
 New-Item -ItemType Directory -Force -Path $Output | Out-Null
 $tar = Join-Path $env:SystemRoot 'System32\tar.exe'
 $steps = New-Object System.Collections.ArrayList
 $report = [ordered]@{ startedAt = (Get-Date).ToString('o'); computer = $env:COMPUTERNAME; user = $env:USERNAME
-    windows = [Environment]::OSVersion.VersionString; prefix = $Prefix; steps = $steps; passed = $false }
+    windows = [Environment]::OSVersion.VersionString; prefix = $Prefix; steps = $steps; residue = @(); passed = $false }
 
 function Hide-Token([string]$Text) { return ($Text -replace 'token=[0-9a-f]+', 'token=<redacted>') }
 
@@ -29,6 +33,14 @@ function New-CmdProcess([string]$CommandLine, [switch]$Stdin) {
     $psi.RedirectStandardInput = [bool]$Stdin
     $psi.StandardOutputEncoding = [Text.Encoding]::UTF8
     return [Diagnostics.Process]::Start($psi)
+}
+
+# .NET Framework's Process.Kill ends cmd.exe only; the node Lab under it would keep its port, lock and pipe.
+function Stop-Tree($Process) {
+    if ($Process.HasExited) { return }
+    $kill = New-CmdProcess ('"' + (Join-Path $env:SystemRoot 'System32\taskkill.exe') + '" /T /F /PID ' + $Process.Id)
+    [void]$kill.StandardOutput.ReadToEnd()
+    $kill.WaitForExit()
 }
 
 function Invoke-Step([string]$Name, [string]$CommandLine) {
@@ -97,7 +109,7 @@ try {
     $server = New-CmdProcess ('"' + $launcher + '" start --stop-on-eof') -Stdin
     $lines = New-Object System.Collections.ArrayList
     $url = $null
-    $deadline = (Get-Date).AddSeconds(90)
+    $deadline = (Get-Date).AddSeconds($StartTimeoutSeconds)
     while (-not $url -and (Get-Date) -lt $deadline) {
         $read = $server.StandardOutput.ReadLineAsync()
         if (-not $read.Wait([int][Math]::Max(1, ($deadline - (Get-Date)).TotalMilliseconds)) -or $null -eq $read.Result) { break }
@@ -105,9 +117,9 @@ try {
         if ($read.Result -match 'OmniForge Lab: (http://127\.0\.0\.1:\d+)/\?token=([0-9a-f]+)') { $url = $Matches[1]; $token = $Matches[2] }
     }
     if (-not $url) {
-        if (-not $server.HasExited) { $server.Kill() }
+        Stop-Tree $server
         $report.start = [ordered]@{ output = @($lines | ForEach-Object { Hide-Token $_ }) }
-        throw 'the installed Lab did not print its URL within 90 s'
+        throw "the installed Lab did not print its URL within $StartTimeoutSeconds s"
     }
     $auth = @{ 'X-OmniForge-Token' = $token }
     $root = Get-Status "$url/" @{}
@@ -122,7 +134,7 @@ try {
 
     $server.StandardInput.Close()
     $stopped = $server.WaitForExit(60000)
-    if (-not $stopped) { $server.Kill() }
+    if (-not $stopped) { Stop-Tree $server }
     foreach ($line in ($server.StandardOutput.ReadToEnd() -split "`r?`n")) { if ($line) { [void]$lines.Add($line) } }
     $report.start = [ordered]@{ exit = $(if ($stopped) { $server.ExitCode } else { $null }); stoppedByStdinEof = $stopped
         lockLeft = (Test-Path -LiteralPath (Join-Path $Prefix 'data\state.lock')); output = @($lines | ForEach-Object { Hide-Token $_ }) }
@@ -141,6 +153,7 @@ try {
     $report.error = $_.Exception.Message
     Write-Host "ERROR: $($_.Exception.Message)"
 } finally {
+    if ($nodeRoot) { $report.residue = @($report.residue) + ($nodeRoot + ': portable Node.js this run unpacked; listed for triage, never deleted by the run') }
     $report.finishedAt = (Get-Date).ToString('o')
     $report | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $Output 'report.json') -Encoding UTF8
     Write-Host "Report: $(Join-Path $Output 'report.json') (passed: $($report.passed))"

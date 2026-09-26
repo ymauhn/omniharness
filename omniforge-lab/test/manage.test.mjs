@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { doctor, pack, archive, install, update, rollback, repair, uninstall } from '../manage.mjs';
+import { doctor, pack, archive, install, update, rollback, repair, uninstall, run } from '../manage.mjs';
 
 const PINNED = '1.2.0-beta.15';
 
@@ -18,7 +18,7 @@ function tmp(t, name) {
 
 // A tiny release: the real layout with stand-in files, zipped and hashed by the production archive().
 // With real = true it carries the real manager and entry script, so the installed launcher works.
-function tinyZip(dir, version, sha, { real = false } = {}) {
+function tinyZip(dir, version, sha, { real = false, files = {} } = {}) {
   const root = path.join(dir, `root-${version}`);
   fs.mkdirSync(path.join(root, 'omniforge-lab'), { recursive: true });
   fs.mkdirSync(path.join(root, 'scripts'));
@@ -30,6 +30,7 @@ function tinyZip(dir, version, sha, { real = false } = {}) {
     fs.copyFileSync(new URL('../manage.mjs', import.meta.url), path.join(root, 'omniforge-lab', 'manage.mjs'));
     fs.copyFileSync(new URL('../../scripts/omniforge.cmd', import.meta.url), path.join(root, 'scripts', 'omniforge.cmd'));
   }
+  for (const [relative, text] of Object.entries(files)) fs.writeFileSync(path.join(root, relative), text);
   return archive(root, dir, { version, sha });
 }
 
@@ -112,6 +113,29 @@ test('doctor fails required rows with one actionable line and keeps host CLIs op
   assert.match(row(broken, 'lab').detail, /1\.1\.0/);
   assert.match(row(broken, 'lab').action, /npm ci --prefix omniforge-lab/);
   for (const item of broken.rows) if (item.status !== 'ok') assert.ok(item.action && !item.action.includes('\n'), item.name);
+});
+
+test('run and the launcher resolve programs from PATH, never from the current folder', t => {
+  // The host may export the opt-out; without it Windows looks in the current folder before PATH.
+  const saved = { optOut: process.env.NoDefaultCurrentDirectoryInExePath, path: process.env.PATH };
+  delete process.env.NoDefaultCurrentDirectoryInExePath;
+  const dir = tmp(t, 'planted');
+  const shims = tmp(t, 'shims');
+  process.env.PATH = `${path.dirname(process.execPath)};${shims};${saved.path}`;
+  t.after(() => {
+    process.env.PATH = saved.path;
+    if (saved.optOut !== undefined) process.env.NoDefaultCurrentDirectoryInExePath = saved.optOut;
+  });
+  // A stray download next to the zip: stand-ins that print a host name instead of doing the real job.
+  for (const name of ['where.exe', 'node.exe']) fs.copyFileSync(path.join(process.env.SystemRoot, 'System32', 'hostname.exe'), path.join(dir, name));
+  // Like an npm shim (claude.cmd, codex.cmd) that calls node by name.
+  fs.writeFileSync(path.join(shims, 'ofshim.cmd'), '@node --version\r\n');
+  assert.match(run('where.exe', ['cmd.exe'], { cwd: dir }).stdout, /cmd\.exe/i);
+  assert.equal(run('node --version', [], { cwd: dir, shell: true }).stdout.trim(), process.version);
+  assert.equal(run('ofshim', [], { cwd: dir, shell: true }).stdout.trim(), process.version);
+  const launcher = fileURLToPath(new URL('../../scripts/omniforge.cmd', import.meta.url));
+  const usage = spawnSync(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `""${launcher}""`], { encoding: 'utf8', windowsVerbatimArguments: true, cwd: dir });
+  assert.match(usage.stdout, /Usage: omniforge/, usage.stdout + usage.stderr);
 });
 
 test('pack refuses a dirty tree before building anything', async t => {
@@ -310,8 +334,85 @@ test('a reinstall over kept data records it, so a later --remove-data removes it
   assert.ok(!lines.some(line => /no --remove-data/.test(line)), lines.join('\n'));
 });
 
+test('a data folder that existed before install is never recorded, and --remove-data leaves it', t => {
+  const dir = tmp(t, 'foreign');
+  const prefix = path.join(dir, 'Tools');
+  const data = path.join(prefix, 'data');
+  fs.mkdirSync(data, { recursive: true });
+  fs.writeFileSync(path.join(data, 'my-dataset.csv'), 'a,b\n');
+  const release = tinyZip(dir, '0.1.0', '8'.repeat(40));
+  install({ from: release.zip, prefix, exec: fakeExec(), out: () => {} });
+  install({ from: release.zip, prefix, exec: fakeExec(), out: () => {} });
+  const created = JSON.parse(fs.readFileSync(path.join(prefix, 'install.json'), 'utf8')).created;
+  assert.ok(!created.some(item => path.relative(item.path, data) === ''), JSON.stringify(created));
+  const lines = [];
+  assert.equal(uninstall({ prefix, apply: true, removeData: true, tempDir: dir, out: line => lines.push(line) }), 0);
+  assert.equal(fs.readFileSync(path.join(data, 'my-dataset.csv'), 'utf8'), 'a,b\n');
+  const residue = lines.slice(lines.findIndex(line => /Residue/.test(line)));
+  assert.ok(residue.some(line => line.includes(`${data}: user data not recorded by install`)), lines.join('\n'));
+});
+
+test('the data guard covers paths inside data and never removes an ancestor of data recursively', t => {
+  const dir = tmp(t, 'guard');
+  const prefix = path.join(dir, 'OmniForge');
+  const data = path.join(prefix, 'data');
+  const release = tinyZip(dir, '0.1.0', '9'.repeat(40));
+  install({ from: release.zip, prefix, exec: fakeExec(), out: () => {} });
+  fs.writeFileSync(path.join(data, 'state.json'), '{"schema":1}');
+  // A hand-edited or future-format record: the prefix as a tree, a file inside data, data with a trailing separator.
+  const recordFile = path.join(prefix, 'install.json');
+  const record = JSON.parse(fs.readFileSync(recordFile, 'utf8'));
+  record.created.push({ path: prefix, kind: 'tree' }, { path: path.join(data, 'state.json'), kind: 'file' }, { path: `${data}${path.sep}`, kind: 'tree' });
+  fs.writeFileSync(recordFile, JSON.stringify(record));
+  assert.equal(uninstall({ prefix, apply: true, tempDir: dir, out: () => {} }), 0);
+  assert.equal(fs.readFileSync(path.join(data, 'state.json'), 'utf8'), '{"schema":1}');
+  assert.ok(!fs.existsSync(path.join(prefix, 'app')));
+});
+
+test('reinstalling the current build keeps the backup that rollback names', t => {
+  const dir = tmp(t, 'rebackup');
+  const prefix = path.join(dir, 'OmniForge');
+  const first = tinyZip(dir, '0.1.0', 'ab'.repeat(20));
+  const second = tinyZip(path.join(dir, 'next'), '0.2.0', 'cd'.repeat(20));
+  install({ from: first.zip, prefix, exec: fakeExec(), out: () => {} });
+  fs.writeFileSync(path.join(prefix, 'data', 'state.json'), '{"schema":1}');
+  update({ from: second.zip, prefix, exec: fakeExec(), out: () => {} });
+  install({ from: second.zip, prefix, exec: fakeExec(), out: () => {} });
+  const hint = [];
+  assert.equal(rollback({ prefix, out: line => hint.push(line) }), 0);
+  assert.ok(hint.some(line => line.includes(`state.json.pre-${second.id} `)), hint.join('\n'));
+});
+
+test('uninstall --apply refuses while a demo started from this install runs', async t => {
+  const dir = tmp(t, 'live-demo');
+  const prefix = path.join(dir, 'OmniForge');
+  // A demo holds no data lock; the real one keeps conpty.node from the app folder loaded.
+  const demo = "export async function startDemo() { return { app: { close: async () => {} }, dataDir: 'none', url: 'http://127.0.0.1:9/?token=0' }; }\n";
+  const release = tinyZip(dir, '0.1.0', 'ef'.repeat(20), { real: true, files: { 'omniforge-lab/demo.mjs': demo } });
+  install({ from: release.zip, prefix, exec: fakeExec(), out: () => {} });
+  const manager = path.join(prefix, 'app', release.id, 'omniforge-lab', 'manage.mjs');
+  const child = spawn(process.execPath, [manager, 'start', '--demo', '--stop-on-eof', '--prefix', prefix],
+    { env: { ...process.env, OMNIHARNESS_PYTHON: 'python' }, windowsHide: true });
+  t.after(() => child.kill());
+  const exited = new Promise(resolve => child.once('exit', resolve));
+  let text = '';
+  await new Promise((resolve, reject) => {
+    child.stdout.on('data', chunk => { text += chunk; if (/OmniForge Demo:/.test(text)) resolve(); });
+    exited.then(code => reject(new Error(`start exited ${code}: ${text}`)));
+  });
+  assert.throws(() => uninstall({ prefix, apply: true, tempDir: dir, out: () => {} }), /running/);
+  assert.ok(fs.existsSync(manager), 'nothing removed while the demo runs');
+  child.stdin.end();
+  assert.equal(await exited, 0);
+  // A record left by a killed start names a dead pid and does not block.
+  const dead = spawnSync(process.execPath, ['-e', '']).pid;
+  fs.writeFileSync(path.join(prefix, 'run', `${dead}.json`), JSON.stringify({ pid: dead }));
+  assert.equal(uninstall({ prefix, apply: true, removeData: true, tempDir: dir, out: () => {} }), 0);
+  assert.ok(!fs.existsSync(prefix));
+});
+
 // The acceptance script ends with uninstall --apply --remove-data, so it must never reach an existing install.
-function acceptance(t, args) {
+function acceptance(t, args, { location, cwd } = {}) {
   const dir = tmp(t, 'acceptance');
   const env = { ...process.env, TEMP: path.join(dir, 'temp'), TMP: path.join(dir, 'temp'), LOCALAPPDATA: path.join(dir, 'local') };
   env.Path = `${path.dirname(process.execPath)};${process.env.Path ?? process.env.PATH ?? ''}`;
@@ -319,8 +420,13 @@ function acceptance(t, args) {
   fs.mkdirSync(env.LOCALAPPDATA);
   const output = path.join(dir, 'out');
   const script = fileURLToPath(new URL('../../scripts/sandbox/run-in-sandbox.ps1', import.meta.url));
-  const result = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-Output', output, ...args(dir)],
-    { encoding: 'utf8', env, timeout: 180_000 });
+  const argv = ['-Output', output, ...args(dir)];
+  // With a location it runs like an interactive session: Set-Location moves PowerShell, not the process directory.
+  const shell = location
+    ? ['-Command', `Set-Location -LiteralPath '${location(dir)}'; & '${script}' ${argv.map(arg => arg.startsWith('-') ? arg : `'${arg}'`).join(' ')}; exit $LASTEXITCODE`]
+    : ['-File', script, ...argv];
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', ...shell],
+    { encoding: 'utf8', env, cwd: cwd?.(dir), timeout: 180_000 });
   const report = JSON.parse(fs.readFileSync(path.join(output, 'report.json'), 'utf8').replace(/^﻿/, ''));
   return { dir, env, result, report };
 }
@@ -344,6 +450,42 @@ test('the acceptance script refuses an existing prefix before installing anythin
   assert.match(report.error, /already exists/);
   assert.deepEqual([].concat(report.steps ?? []), [], JSON.stringify(report.steps));
   assert.equal(fs.readFileSync(path.join(prefix, 'data', 'state.json'), 'utf8'), '{"schema":1}');
+});
+
+test('the acceptance script resolves a relative -Prefix once, where PowerShell stands', t => {
+  let before;
+  const { dir, report } = acceptance(t, dir => {
+    const release = tinyZip(path.join(dir, 'release'), '0.1.0', '12'.repeat(20), { real: true });
+    fs.mkdirSync(path.join(dir, 'here'));
+    // An install where the process directory, not the PowerShell location, would put "rel".
+    install({ from: release.zip, prefix: path.join(dir, 'proc', 'rel'), exec: fakeExec(), out: () => {} });
+    before = fs.readFileSync(path.join(dir, 'proc', 'rel', 'current.json'), 'utf8');
+    return ['-Release', path.dirname(release.zip), '-Prefix', 'rel'];
+  }, { location: dir => path.join(dir, 'here'), cwd: dir => path.join(dir, 'proc') });
+  assert.equal(report.prefix, path.join(dir, 'here', 'rel'));
+  assert.equal(fs.readFileSync(path.join(dir, 'proc', 'rel', 'current.json'), 'utf8'), before);
+});
+
+test('the acceptance script kills the whole start tree on timeout and reports the portable Node folder', t => {
+  const { env, report } = acceptance(t, dir => {
+    // A Lab that never prints its URL; it leaves its pid so the test can see whether it outlived the run.
+    const server = "import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';\n" +
+      "export function createOmniForgeServer() { fs.writeFileSync(path.join(os.tmpdir(), 'hung-lab.pid'), String(process.pid)); setInterval(() => {}, 1000); return { listen: () => new Promise(() => {}), close: async () => {} }; }\n";
+    const release = tinyZip(path.join(dir, 'release'), '0.1.0', '34'.repeat(20), { real: true, files: { 'omniforge-lab/server.mjs': server } });
+    const name = 'node-v99.0.0-win-x64';
+    fs.mkdirSync(path.join(dir, 'node', name), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'node', name, 'README.md'), 'stand-in for the portable Node folder\n');
+    const nodeZip = path.join(path.dirname(release.zip), `${name}.zip`);
+    assert.equal(spawnSync(path.join(process.env.SystemRoot, 'System32', 'tar.exe'), ['-a', '-c', '-f', nodeZip, '-C', path.join(dir, 'node'), name]).status, 0);
+    fs.writeFileSync(path.join(path.dirname(release.zip), 'SHASUMS256.txt'), `${createHash('sha256').update(fs.readFileSync(nodeZip)).digest('hex')}  ${name}.zip\n`);
+    return ['-Release', path.dirname(release.zip), '-PortableNode', '-StartTimeoutSeconds', '10'];
+  });
+  const pid = Number(fs.readFileSync(path.join(env.TEMP, 'hung-lab.pid'), 'utf8'));
+  t.after(() => { try { process.kill(pid); } catch { /* already gone */ } });
+  assert.match(report.error, /did not print its URL/);
+  assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' }, `the hung Lab (pid ${pid}) outlived the run`);
+  const residue = [].concat(report.residue ?? []);
+  assert.ok(residue.some(line => line.startsWith(`${path.join(env.TEMP, 'omniforge-portable-node')}:`)), JSON.stringify(residue));
 });
 
 test('the installed launcher survives uninstall deleting its own folder', t => {

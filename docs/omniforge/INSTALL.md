@@ -2,7 +2,7 @@
 
 Status: **V1 hard gate 1 tooling, 2026-09-26.** Pack, install, start, update, rollback, repair and uninstall are implemented in `omniforge-lab/manage.mjs` and covered by `omniforge-lab/test/manage.test.mjs`. A real smoke on the development host is recorded under [Evidence](#evidence). The clean-user run in Windows Sandbox is **pending**: the feature is not enabled on the owner's machine yet (see [Windows Sandbox](#windows-sandbox-clean-user-run)). This is not a signed installer, an MSI or a release certificate.
 
-Every command goes through `scripts\omniforge.cmd <command>`, which runs `node omniforge-lab\manage.mjs <command>`. It works from a source checkout, from an extracted release zip and from an install.
+Every command goes through `scripts\omniforge.cmd <command>`, which runs `omniforge-lab\manage.mjs <command>` with the `node.exe` it finds in the PATH folders, never one in the current folder. It works from a source checkout, from an extracted release zip and from an install.
 
 ## What a release is
 
@@ -37,6 +37,8 @@ The host rows are read-only. Doctor never opens a credential file and never prin
 
 `start` passes the Python that doctor found to the Lab as `OMNIHARNESS_PYTHON`, so `py -3` works even when `python` on PATH is only the Store alias.
 
+Doctor, `pack` and every other program the manager starts are resolved from the PATH folders and run by absolute path. Windows would otherwise try the current folder first, so a stray `git.exe`, `py.exe` or `claude.cmd` in the folder that holds the download would run. The children also get `NoDefaultCurrentDirectoryInExePath=1`, so an npm shim such as `claude.cmd` that starts `node` by name does not pick one from the current folder either.
+
 ## Build a release (maintainer)
 
 ```powershell
@@ -52,13 +54,16 @@ scripts\omniforge.cmd pack --out dist
    `mkdir $env:TEMP\omniforge-setup; tar -x -f .\omniforge-0.1.0-<sha>-win-x64.zip -C $env:TEMP\omniforge-setup scripts/omniforge.cmd omniforge-lab/manage.mjs`
 3. `& "$env:TEMP\omniforge-setup\scripts\omniforge.cmd" install --from .\omniforge-0.1.0-<sha>-win-x64.zip`
 
-The default prefix is `%LOCALAPPDATA%\OmniForge`; `--prefix <dir>` changes it. `install` verifies the `.sha256` and extracts into a temporary folder. It checks every file against the manifest before moving the folder into place, then runs doctor. Installing the same zip again changes nothing. A different version must go through `update`.
+The default prefix is `%LOCALAPPDATA%\OmniForge`; `--prefix <dir>` changes it. `install` verifies the `.sha256` and extracts into a temporary folder. It hashes every file that the manifest lists before moving the folder into place, then runs doctor. A file in the zip that the manifest does not list is not hashed on its own; only the zip's `.sha256` covers it. Installing the same zip again keeps the installed files, the previous version and the recorded state backup. A different version must go through `update`.
+
+`install` creates `data\` with a marker file, `.omniforge-install`, and records it. A `data\` folder that already existed without that marker, for example under `--prefix D:\Tools`, is used by the Lab but never recorded, so no uninstall removes it. Install says so when it finds one.
 
 | Path under the prefix | What it is |
 |---|---|
 | `app\<version>-<shortsha>\` | one folder per installed version, side by side |
 | `releases\<zip>` and `.sha256` | verified copy used by `repair` |
-| `data\` | Lab state (`OMNIFORGE_DATA_DIR`), kept outside every app folder |
+| `data\` | Lab state (`OMNIFORGE_DATA_DIR`), kept outside every app folder; `.omniforge-install` marks a folder the install created |
+| `run\` | `<pid>.json` for each running `start`, Lab or demo; removed when that process exits |
 | `current.json` | active version and the previous one |
 | `install.json` | every path the install created, with its kind |
 | `omniforge.cmd` | launcher that forwards to the active version |
@@ -70,7 +75,7 @@ The default prefix is `%LOCALAPPDATA%\OmniForge`; `--prefix <dir>` changes it. `
 & "$env:LOCALAPPDATA\OmniForge\omniforge.cmd" start --demo   # disposable synthetic demo in %TEMP%\omniforge-demo-*
 ```
 
-Open the exact printed URL. Opening `index.html` as a file does not work. `OMNIFORGE_PORT` fixes the port; the default is a random free port. Ctrl+C closes the sessions and the server, which releases `data\state.lock`. `start --stop-on-eof` also stops when its standard input closes. Supervisors and the acceptance script use that, because Windows cannot deliver Ctrl+C to a process that does not share a console with the sender.
+Open the exact printed URL. Opening `index.html` as a file does not work. `start` writes `run\<pid>.json` before it loads the Lab or demo and removes it on exit, so `uninstall --apply` can see a demo that holds no data lock. `OMNIFORGE_PORT` fixes the port; the default is a random free port. Ctrl+C closes the sessions and the server, which releases `data\state.lock`. `start --stop-on-eof` also stops when its standard input closes. Supervisors and the acceptance script use that, because Windows cannot deliver Ctrl+C to a process that does not share a console with the sender.
 
 ## Update and roll back
 
@@ -82,11 +87,11 @@ Open the exact printed URL. Opening `index.html` as a file does not work. `OMNIF
 
 The manager you run is the one that performs the update. The new release's copy therefore brings its own update fixes. `"%LOCALAPPDATA%\OmniForge\omniforge.cmd" update --from ...` also works, but it runs the installed, older manager (see Evidence: a fix made in `ab7195f` applies only when that version's manager runs the update).
 
-`update` refuses while a running Lab holds `data\state.lock`. It uses the Lab's own lock semantics read-only: a live pid, an unreadable lock or a `state.recovery.lock` all count as running. It copies `data\state.json` to `state.json.pre-<new version>` and never overwrites a backup: an update after a rollback that finds different content writes `state.json.pre-<new version>.1`, `.2` and so on. It then installs the new version next to the old one, switches `current.json` and the launcher, runs doctor and prints the rollback command. `current.json` records the exact backup this update took. `rollback` switches back to the previous version and names that file, not an older `.pre-*` from an earlier cycle. It never overwrites data by itself.
+`update` refuses while a running Lab holds `data\state.lock`. It uses the Lab's own lock semantics read-only: a live pid, an unreadable lock or a `state.recovery.lock` all count as running. It copies `data\state.json` to `state.json.pre-<new version>` and never overwrites a backup: an update after a rollback that finds different content writes `state.json.pre-<new version>.1`, `.2` and so on. It then installs the new version next to the old one, switches `current.json` and the launcher, runs doctor and prints the rollback command. `current.json` records the exact backup this update took, and reinstalling the same zip keeps that record. `rollback` switches back to the previous version and names that file, not an older `.pre-*` from an earlier cycle. It never overwrites data by itself.
 
 ## Repair
 
-`repair` hashes every file of the active version against the build manifest. If any file differs or is missing, it re-verifies the recorded zip under `releases\` and restores only those files. Files outside the manifest are ignored, for example the `harness\__pycache__` that Python writes when the catalog runs; uninstall removes them with the app folder. It then lists stale lock files for triage: a `state.lock` whose pid is gone, preserved `state.lock.stale-*` files and a leftover `state.recovery.lock`. It never deletes them.
+`repair` hashes every file that the active version's installed `omniforge-build.json` lists and compares it with the hash recorded there. This first pass trusts the installed manifest: a file changed together with its hash in that manifest passes. If a listed file differs or is missing, or the manifest cannot be read, it checks the recorded zip under `releases\` against the `.sha256` copied next to it, takes the manifest from that zip and restores the listed files that differ from it, plus the manifest itself. Files outside the manifest are ignored, for example the `harness\__pycache__` that Python writes when the catalog runs; uninstall removes them with the app folder. It then lists stale lock files for triage: a `state.lock` whose pid is gone, preserved `state.lock.stale-*` files and a leftover `state.recovery.lock`. It never deletes them.
 
 ## Uninstall
 
@@ -96,7 +101,7 @@ The manager you run is the one that performs the update. The new release's copy 
 & "$env:LOCALAPPDATA\OmniForge\omniforge.cmd" uninstall --apply --remove-data      # also remove data\
 ```
 
-Without `--apply`, uninstall prints the numbered list `N. <path>: <reason>; <evidence>` and removes nothing. `--apply` refuses while the Lab is running. It removes only paths that `install.json` records inside the prefix. Folders are removed only when empty, and `data\` only with `--remove-data`. Every install records `data\`, including a folder that an earlier `uninstall --apply` kept. Paths are compared the way Windows does, ignoring case, so `--prefix c:\users\me\...\omniforge` still recognises `data\` and keeps it. It then rescans and prints a residue report. `%TEMP%\omniforge-demo-*` folders from past demos are listed for triage and never deleted. Node.js, Python, Git and the host CLIs are never touched.
+Without `--apply`, uninstall prints the numbered list `N. <path>: <reason>; <evidence>` and removes nothing. `--apply` refuses while a Lab holds `data\state.lock` and while any `start` from this install, Lab or demo, is alive according to its `run\<pid>.json`; a record whose pid is gone does not block. A reused pid reads as running until its record is deleted by hand. It removes only paths that `install.json` records inside the prefix. Folders are removed only when empty, and `data\` only with `--remove-data`. Install records `data\` only when the marker shows it created the folder, which includes a folder that an earlier `uninstall --apply` kept. A `data\` folder that existed before the install survives `--remove-data` and appears in the residue report. The data guard works by containment: a recorded path inside `data\` is never removed on its own, and a recorded folder above it, such as the prefix, is removed only when empty. Paths are compared the way Windows does, ignoring case, so `--prefix c:\users\me\...\omniforge` still recognises `data\` and keeps it. It then rescans and prints a residue report. `%TEMP%\omniforge-demo-*` folders from past demos are listed for triage and never deleted. Node.js, Python, Git and the host CLIs are never touched.
 
 ## Troubleshooting
 
@@ -116,7 +121,7 @@ Without `--apply`, uninstall prints the numbered list `N. <path>: <reason>; <evi
 
 Expected in a stock sandbox: the doctor `python` row is `missing` (no Python ships with Windows), so `install` and `doctor` exit 1 with the winget line. `/api/skills` then answers 503, and `doctorOk` is false. `passed` covers the lifecycle only: install, verified files, launch, authenticated probe, token refusal, clean stop, uninstall and an empty prefix. A fully green doctor needs Python installed in the sandbox first, and that step is not automated.
 
-The run ends with `uninstall --apply --remove-data`. `-Prefix` therefore defaults to a fresh `%TEMP%\omniforge-acceptance-<guid>`, and the script refuses any prefix that already exists before it installs anything. It also stops when `install` does not print `Installed OmniForge`. A real install, such as `%LOCALAPPDATA%\OmniForge`, is therefore never reused. The same script ran on the development host for the evidence below.
+The run ends with `uninstall --apply --remove-data`. `-Prefix` therefore defaults to a fresh `%TEMP%\omniforge-acceptance-<guid>`, and the script refuses any prefix that already exists before it installs anything. A relative `-Prefix` is resolved once, against the PowerShell location, and that absolute path is used by the guard, the report and every step. The script also stops when `install` does not print `Installed OmniForge`. A real install, such as `%LOCALAPPDATA%\OmniForge`, is therefore never reused. If the Lab does not print its URL within `-StartTimeoutSeconds` (default 90) or does not stop within 60 s, the script ends the whole process tree with `taskkill /T /F`, not only `cmd.exe`. When it unpacked the portable Node into `%TEMP%\omniforge-portable-node`, `report.json` lists that folder under `residue`; the script never deletes it. The same script ran on the development host for the evidence below.
 
 ## Known limits
 
