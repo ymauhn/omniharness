@@ -9,12 +9,15 @@ import { once } from 'node:events';
 import { WorkspaceStore } from '../core.mjs';
 import { PtyCoordinator, resolvePtyShell } from '../pty.mjs';
 
+// Canonical, as the store keeps project roots: TEMP may be an 8.3 or junction spelling of this folder.
+const TMP = fs.realpathSync.native(os.tmpdir());
+
 function fixture(t) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-pty-test-'));
+  const root = fs.mkdtempSync(path.join(TMP, 'omniforge-pty-test-'));
   const store = new WorkspaceStore(path.join(root, 'data'));
   t.after(() => {
     store.close();
-    const relative = path.relative(os.tmpdir(), root);
+    const relative = path.relative(TMP, root);
     if (relative.startsWith('omniforge-pty-test-') && !relative.includes(path.sep)) fs.rmSync(root, { recursive: true, force: true });
   });
   const projectRoot = path.join(root, 'projeto-café');

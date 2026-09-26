@@ -9,9 +9,11 @@ import { fileURLToPath } from 'node:url';
 import { doctor, pack, archive, install, update, rollback, repair, uninstall, run, RUNTIME } from '../manage.mjs';
 
 const PINNED = '1.2.0-beta.15';
+// Canonical, as install records paths: TEMP may be an 8.3 or junction spelling of this folder.
+const TMP = fs.realpathSync.native(os.tmpdir());
 
 function tmp(t, name) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `omniforge-manage-${name}-`));
+  const dir = fs.mkdtempSync(path.join(TMP, `omniforge-manage-${name}-`));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   return dir;
 }
@@ -371,6 +373,90 @@ test('the data guard covers paths inside data and never removes an ancestor of d
   assert.ok(!fs.existsSync(path.join(prefix, 'app')));
 });
 
+// <dir>\alias is a junction to <dir>\real: the prefix has two spellings, as with an 8.3 or junction %TEMP%.
+function aliased(t, name) {
+  const dir = tmp(t, name);
+  const real = path.join(dir, 'real');
+  fs.mkdirSync(real);
+  fs.symlinkSync(real, path.join(dir, 'alias'), 'junction');
+  return { dir, real, alias: path.join(dir, 'alias'), release: tinyZip(dir, '0.1.0', '0f'.repeat(20)) };
+}
+
+const installed = ['app', 'releases', 'run', 'current.json', 'install.json', 'omniforge.cmd'];
+
+test('install through a junction records canonical paths, and uninstall --apply by either spelling removes exactly them', t => {
+  const { dir, real, alias, release } = aliased(t, 'alias');
+  const prefix = path.join(real, 'OmniForge');
+  install({ from: release.zip, prefix: path.join(alias, 'OmniForge'), exec: fakeExec(), out: () => {} });
+  const recordFile = path.join(prefix, 'install.json');
+  const record = JSON.parse(fs.readFileSync(recordFile, 'utf8'));
+  assert.ok(record.created.every(item => contained(real, item.path)), JSON.stringify(record.created));
+  // A record written before canonical recording keeps the alias spelling install was given; the launcher
+  // resolves its prefix from its own real path.
+  record.created = record.created.map(item => ({ ...item, path: path.join(alias, path.relative(real, item.path)) }));
+  fs.writeFileSync(recordFile, JSON.stringify(record));
+  fs.writeFileSync(path.join(prefix, 'notes.txt'), 'mine, never recorded');
+  const lines = [];
+  assert.equal(uninstall({ prefix, apply: true, tempDir: dir, out: line => lines.push(line) }), 0);
+  for (const gone of installed) assert.ok(!fs.existsSync(path.join(prefix, gone)), `${gone}\n${lines.join('\n')}`);
+  assert.deepEqual(fs.readdirSync(prefix).sort(), ['data', 'notes.txt'], lines.join('\n'));
+  assert.ok(!lines.some(line => /ignored/.test(line)), lines.join('\n'));
+});
+
+test('a recorded path that is inside the prefix only as text, through a junction it holds, is never removed', t => {
+  const { dir, real, alias, release } = aliased(t, 'escape');
+  const prefix = path.join(real, 'OmniForge');
+  install({ from: release.zip, prefix, exec: fakeExec(), out: () => {} });
+  const victim = path.join(dir, 'victim');
+  fs.mkdirSync(victim);
+  fs.writeFileSync(path.join(victim, 'keep.txt'), 'not ours');
+  fs.symlinkSync(victim, path.join(prefix, 'escape'), 'junction');
+  const recordFile = path.join(prefix, 'install.json');
+  const record = JSON.parse(fs.readFileSync(recordFile, 'utf8'));
+  // Spelled like the prefix uninstall is given: contained as text, outside on disk.
+  const tampered = path.join(alias, 'OmniForge', 'escape', 'keep.txt');
+  record.created.push({ path: tampered, kind: 'file' }, { path: path.join(alias, 'OmniForge', 'escape'), kind: 'tree' });
+  fs.writeFileSync(recordFile, JSON.stringify(record));
+  const lines = [];
+  assert.equal(uninstall({ prefix: path.join(alias, 'OmniForge'), apply: true, removeData: true, tempDir: dir, out: line => lines.push(line) }), 0);
+  assert.equal(fs.readFileSync(path.join(victim, 'keep.txt'), 'utf8'), 'not ours');
+  for (const gone of [...installed, 'data']) assert.ok(!fs.existsSync(path.join(prefix, gone)), `${gone}\n${lines.join('\n')}`);
+  assert.deepEqual(fs.readdirSync(prefix), ['escape'], lines.join('\n'));
+  assert.ok(lines.some(line => line.includes(`. ${path.join(victim, 'keep.txt')}: outside `) && /; ignored, never removed$/.test(line)), lines.join('\n'));
+  assert.ok(lines.some(line => line.includes(`. ${path.join(prefix, 'escape')}: a link, not what install created; left in place`)), lines.join('\n'));
+});
+
+test('a recorded folder replaced by a link inside the prefix is left in place, and so is what it points to', t => {
+  for (const removeData of [false, true]) {
+    const dir = tmp(t, `link-${removeData}`);
+    const prefix = path.join(dir, 'OmniForge');
+    // data\ existed before install, so it is not recorded; notes\ is the user's own folder.
+    const data = path.join(prefix, 'data');
+    const notes = path.join(prefix, 'notes');
+    fs.mkdirSync(data, { recursive: true });
+    fs.writeFileSync(path.join(data, 'state.json'), '{"schema":1}');
+    install({ from: tinyZip(dir, '0.1.0', 'ab'.repeat(20)).zip, prefix, exec: fakeExec(), out: () => {} });
+    fs.mkdirSync(notes);
+    fs.writeFileSync(path.join(notes, 'mine.txt'), 'mine');
+    const app = path.join(prefix, 'app', JSON.parse(fs.readFileSync(path.join(prefix, 'current.json'), 'utf8')).version);
+    const links = [[app, data], [path.join(prefix, 'run'), notes]];
+    for (const [link, target] of links) {
+      fs.rmSync(link, { recursive: true, force: true });
+      fs.symlinkSync(target, link, 'junction');
+    }
+    const lines = [];
+    assert.equal(uninstall({ prefix, apply: true, removeData, tempDir: dir, out: line => lines.push(line) }), 0);
+    const log = `--remove-data ${removeData}\n${lines.join('\n')}`;
+    assert.equal(fs.readFileSync(path.join(data, 'state.json'), 'utf8'), '{"schema":1}', log);
+    assert.equal(fs.readFileSync(path.join(notes, 'mine.txt'), 'utf8'), 'mine', log);
+    for (const [link] of links) {
+      assert.ok(fs.lstatSync(link).isSymbolicLink(), log);
+      assert.ok(lines.some(line => line.includes(`. ${link}: a link, not what install created; left in place`)), log);
+    }
+    assert.ok(!fs.existsSync(path.join(prefix, 'releases')), log);
+  }
+});
+
 test('reinstalling the current build keeps the backup that rollback names', t => {
   const dir = tmp(t, 'rebackup');
   const prefix = path.join(dir, 'OmniForge');
@@ -418,6 +504,16 @@ function acceptance(t, args, { location, cwd } = {}) {
   const dir = tmp(t, 'acceptance');
   const env = { ...process.env, TEMP: path.join(dir, 'temp'), TMP: path.join(dir, 'temp'), LOCALAPPDATA: path.join(dir, 'local') };
   env.Path = `${path.dirname(process.execPath)};${process.env.Path ?? process.env.PATH ?? ''}`;
+  // As on CI, where the step shell is PowerShell 7: it puts its own Microsoft.PowerShell.Utility first on
+  // PSModulePath, Windows PowerShell inherits that through npm and node and cannot load it. Stand-in for that
+  // Core-only manifest, exporting the Utility cmdlets the script calls as the real one does.
+  const ps7 = path.join(dir, 'ps7-modules', 'Microsoft.PowerShell.Utility');
+  fs.mkdirSync(ps7, { recursive: true });
+  const cmdlets = ['Get-Date', 'New-Object', 'Sort-Object', 'Select-Object', 'Get-FileHash', 'Select-String', 'Write-Host',
+    'Invoke-WebRequest', 'ConvertFrom-Json', 'ConvertTo-Json'].map(name => `'${name}'`).join(', ');
+  fs.writeFileSync(path.join(ps7, 'Microsoft.PowerShell.Utility.psd1'), `@{ ModuleVersion = '7.0.0.0'; CompatiblePSEditions = @('Core'); ` +
+    `CmdletsToExport = @(${cmdlets}); NestedModules = @('Microsoft.PowerShell.Commands.Utility.dll') }\n`);
+  env.PSModulePath = `${path.dirname(ps7)};${process.env.PSModulePath ?? ''}`;
   fs.mkdirSync(env.TEMP);
   fs.mkdirSync(env.LOCALAPPDATA);
   const output = path.join(dir, 'out');
@@ -429,8 +525,13 @@ function acceptance(t, args, { location, cwd } = {}) {
     : ['-File', script, ...argv];
   const result = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', ...shell],
     { encoding: 'utf8', env, cwd: cwd?.(dir), timeout: 180_000 });
-  const report = JSON.parse(fs.readFileSync(path.join(output, 'report.json'), 'utf8').replace(/^﻿/, ''));
-  return { dir, env, result, report };
+  // Where the run stopped, for an assertion message: no env, the start token redacted as the script does.
+  const trail = report => JSON.stringify({ exit: result.status, spawn: result.error?.message, error: report?.error, steps: report?.steps,
+    stdout: String(result.stdout ?? '').slice(-3000) }, null, 1).replace(/token=[0-9a-f]+/g, 'token=<redacted>');
+  let report;
+  try { report = JSON.parse(fs.readFileSync(path.join(output, 'report.json'), 'utf8').replace(/^﻿/, '')); }
+  catch (error) { assert.fail(`no readable report.json (${error.code ?? error.message}): ${trail()}`); }
+  return { dir, env, result, report, trail: () => trail(report) };
 }
 
 test('the acceptance script defaults to a fresh TEMP prefix, never %LOCALAPPDATA%', t => {
@@ -469,7 +570,7 @@ test('the acceptance script resolves a relative -Prefix once, where PowerShell s
 });
 
 test('the acceptance script kills the whole start tree on timeout and reports the portable Node folder', t => {
-  const { env, report } = acceptance(t, dir => {
+  const { env, report, trail } = acceptance(t, dir => {
     // A Lab that never prints its URL; it leaves its pid so the test can see whether it outlived the run.
     const server = "import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';\n" +
       "export function createOmniForgeServer() { fs.writeFileSync(path.join(os.tmpdir(), 'hung-lab.pid'), String(process.pid)); setInterval(() => {}, 1000); return { listen: () => new Promise(() => {}), close: async () => {} }; }\n";
@@ -482,9 +583,11 @@ test('the acceptance script kills the whole start tree on timeout and reports th
     fs.writeFileSync(path.join(path.dirname(release.zip), 'SHASUMS256.txt'), `${createHash('sha256').update(fs.readFileSync(nodeZip)).digest('hex')}  ${name}.zip\n`);
     return ['-Release', path.dirname(release.zip), '-PortableNode', '-StartTimeoutSeconds', '10'];
   });
-  const pid = Number(fs.readFileSync(path.join(env.TEMP, 'hung-lab.pid'), 'utf8'));
+  const pidFile = path.join(env.TEMP, 'hung-lab.pid');
+  assert.ok(fs.existsSync(pidFile), `the run stopped before the Lab started: ${trail()}`);
+  const pid = Number(fs.readFileSync(pidFile, 'utf8'));
   t.after(() => { try { process.kill(pid); } catch { /* already gone */ } });
-  assert.match(report.error, /did not print its URL/);
+  assert.match(report.error, /did not print its URL/, trail());
   assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' }, `the hung Lab (pid ${pid}) outlived the run`);
   const residue = [].concat(report.residue ?? []);
   assert.ok(residue.some(line => line.startsWith(`${path.join(env.TEMP, 'omniforge-portable-node')}:`)), JSON.stringify(residue));
