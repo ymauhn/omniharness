@@ -396,6 +396,7 @@ test('PowerShell 7 preserves a non-ASCII project path in terminal output', async
   try {
     shells.start(session.id);
     const readyBy = Date.now() + 10000;
+    while (Date.now() < readyBy && store.session(session.id).status !== 'running') await new Promise(resolve => setTimeout(resolve, 25));
     while (Date.now() < readyBy && !output.includes('PS ')) await new Promise(resolve => setTimeout(resolve, 25));
     assert.ok(output.includes('PS '), output);
     shells.command(session.id, "Write-Output ('UNICODE_MARK ' + $PWD.Path)");

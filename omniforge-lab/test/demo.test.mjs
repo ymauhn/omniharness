@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { createOmniForgeServer } from '../server.mjs';
 import { seedDemo, startDemo } from '../demo.mjs';
 
@@ -121,4 +122,13 @@ test('startup plus shutdown failure retains data path and both underlying errors
     assert.deepEqual(error.errors.map(item => item.message), ['second PTY unavailable', 'shutdown PID 123 unconfirmed']);
     return true;
   });
+});
+
+test('the demo launcher parses and keeps Portuguese text under the built-in Windows PowerShell 5.1', t => {
+  if (process.platform !== 'win32') return;
+  const script = path.resolve(import.meta.dirname, '..', '..', 'scripts', 'start_omniforge_demo.ps1');
+  const probe = `$tokens=$null; $errors=$null; [void][System.Management.Automation.Language.Parser]::ParseFile('${script.replaceAll("'", "''")}', [ref]$tokens, [ref]$errors); if ($errors.Count) { 'PARSE ' + $errors[0].Message; exit 2 }; $text = ($tokens | Where-Object { $_.Kind -eq 'StringLiteral' } | ForEach-Object Value) -join '|'; [Console]::OutputEncoding = [Text.Encoding]::UTF8; $text`;
+  const output = execFileSync(path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', probe], { encoding: 'utf8', windowsHide: true });
+  assert.match(output, /Node\.js 22 ou mais recente é necessário/);
+  assert.doesNotMatch(output, /PowerShell 7/);
 });

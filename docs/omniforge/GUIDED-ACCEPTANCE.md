@@ -5,10 +5,10 @@ Status: **procedure, not a test result**. Use this with a permitted interactive 
 ## Preparation and evidence boundary
 
 1. From the repository root, read `AGENTS.md`, [the T13 handoff](../t13/TICKET-HANDOFF-CLAUDE.md), and the current Git status. Record `git rev-parse HEAD`, branch, dirty paths, Windows/browser versions, date, display scale, viewport dimensions and whether the browser supports reduced motion. Test the actual checked-out source; a result from an older SHA cannot certify later edits.
-2. Launch the isolated fixture in a foreground PowerShell 7 terminal:
+2. Launch the isolated fixture in a foreground PowerShell terminal (built-in Windows PowerShell 5.1 or PowerShell 7):
 
    ```powershell
-   pwsh -NoProfile -File .\scripts\start_omniforge_demo.ps1
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start_omniforge_demo.ps1
    ```
 
    The helper should print a **new** temporary `omniforge-demo-*` data directory and the exact loopback launch URL. Verify both before opening the browser. Do not point it at the owner's existing `.omniforge-lab` directory. Keep the terminal open for the round; stop disposable shells in the UI, then use Ctrl+C to request server shutdown. A real smoke observed exit 1 with PTY shutdown unconfirmed; both recorded PIDs were absent but sessions remained `interrupted`. If this repeats, preserve the data, verify exact processes before acknowledging, and record a failure for shutdown rather than assuming cancellation. If the helper is missing, fails, or prints a non-loopback URL, record a blocker instead of reusing personal Lab data. Do not commit the temporary state, token URL, screenshots containing private text, or raw browser profile data.

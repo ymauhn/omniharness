@@ -10,13 +10,14 @@ $Python = (Resolve-Path -LiteralPath $Python).Path
 if ($LASTEXITCODE -ne 0) { throw 'Python 3.12 or newer is required.' }
 
 # Set PATH inside Python: the bundled runtime can rebuild it during startup.
+# Single quotes only: Windows PowerShell 5.1 strips double quotes from native-command arguments.
 $testBootstrap = @'
 import os, pathlib, sys, unittest
-os.environ["PATH"] = str(pathlib.Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", "")
-suite = unittest.defaultTestLoader.discover("tests")
-result = unittest.TextTestRunner(verbosity=2, warnings="default").run(suite)
+os.environ['PATH'] = str(pathlib.Path(sys.executable).parent) + os.pathsep + os.environ.get('PATH', '')
+suite = unittest.defaultTestLoader.discover('tests')
+result = unittest.TextTestRunner(verbosity=2, warnings='default').run(suite)
 if result.skipped:
-    print("Incomplete coverage: skipped tests are not accepted.", file=sys.stderr)
+    print('Incomplete coverage: skipped tests are not accepted.', file=sys.stderr)
 sys.exit(0 if result.wasSuccessful() and not result.skipped else 1)
 '@
 Push-Location (Split-Path $PSScriptRoot -Parent)
@@ -33,9 +34,10 @@ try {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     & $Python evals/run.py selftest
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    & $Python scripts/install.py --check
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     & $Python .agents/skills/skills-graph/scripts/skills_graph.py check
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    # Last: accepted owner settings drift makes this row fail without hiding the checks above.
+    & $Python scripts/install.py --check
     exit $LASTEXITCODE
 } finally {
     Pop-Location

@@ -24,6 +24,12 @@ function fixture(t) {
   return { root, store, projectRoot, project, session };
 }
 
+async function running(store, ...ids) {
+  const deadline = Date.now() + 12000;
+  while (Date.now() < deadline && !ids.every(id => store.session(id).status === 'running')) await new Promise(resolve => setTimeout(resolve, 20));
+  assert.deepEqual(ids.map(id => store.session(id).status), ids.map(() => 'running'));
+}
+
 function fakePty() {
   const calls = { writes: [], sizes: [], killed: 0 };
   const child = {
@@ -42,9 +48,23 @@ test('shell resolution uses an existing absolute executable and fails closed', t
   assert.equal(resolvePtyShell(process.execPath), fs.realpathSync.native(process.execPath));
   const coordinator = new PtyCoordinator(store, { env: { PATH: path.join(root, 'missing') } });
   assert.throws(() => coordinator.start(session.id), /Shell local indisponível/);
-  assert.equal(store.session(session.id).status, 'interrupted');
+  // Nothing was spawned, so the session is not uncertain and does not block the project.
+  assert.equal(store.session(session.id).status, 'stopped');
   assert.equal(coordinator.processes.size, 0);
   assert.throws(() => coordinator.start(session.id), /não está pronta/);
+  assert.equal(store.addSession({ projectId: store.session(session.id).projectId, name: 'Depois de instalar o shell' }).status, 'starting');
+});
+
+test('Windows default shell prefers PowerShell 7 and falls back to the built-in Windows PowerShell', t => {
+  if (process.platform !== 'win32') return;
+  const { root } = fixture(t);
+  const [builtIn, seven, empty] = ['v1.0', 'seven', 'empty'].map(name => { const dir = path.join(root, name); fs.mkdirSync(dir); return dir; });
+  fs.writeFileSync(path.join(builtIn, 'powershell.exe'), '');
+  fs.writeFileSync(path.join(seven, 'pwsh.exe'), '');
+  const resolve = (...dirs) => resolvePtyShell(undefined, { Path: dirs.join(path.delimiter) });
+  assert.equal(resolve(builtIn), fs.realpathSync.native(path.join(builtIn, 'powershell.exe')));
+  assert.equal(resolve(builtIn, seven), fs.realpathSync.native(path.join(seven, 'pwsh.exe')));
+  assert.throws(() => resolve(empty), /Shell local indisponível/);
 });
 
 test('adapter preserves input and Unicode output, bounds chunks, and reports the observed exit', async t => {
@@ -95,6 +115,64 @@ test('adapter preserves input and Unicode output, bounds chunks, and reports the
   assert.equal(coordinator.processes.size, 0);
   await coordinator.closeAll();
   assert.equal(calls.killed, process.platform === 'win32' ? 1 : 0);
+});
+
+test('a PID reported after ConPTY connects commits the session; a launch without PID fails closed', async t => {
+  const { store, session, project } = fixture(t);
+  const late = fakePty();
+  late.child.pid = undefined;
+  const coordinator = new PtyCoordinator(store, { shell: process.execPath, spawnPty: () => late.child, killTree: async () => true, launchTimeoutMs: 200 });
+  const running = new Promise(resolve => coordinator.on('state', event => { if (event.status === 'running') resolve(event); }));
+  coordinator.start(session.id);
+  assert.equal(store.session(session.id).status, 'starting');
+  assert.throws(() => coordinator.command(session.id, 'echo cedo'), /não está ativa/);
+  late.child.pid = 4242;
+  assert.deepEqual(await running, { sessionId: session.id, status: 'running' });
+  assert.equal(store.session(session.id).pid, 4242);
+  assert.equal(coordinator.command(session.id, 'echo pronto').accepted, true);
+  const closing = coordinator.closeAll();
+  late.child.exit({ exitCode: 0 });
+  await closing;
+
+  const silent = fakePty();
+  silent.child.pid = undefined;
+  const second = store.addSession({ projectId: project.id, name: 'Sem PID' });
+  const other = new PtyCoordinator(store, { shell: process.execPath, spawnPty: () => silent.child, killTree: async () => { throw new Error('no PID to kill'); }, launchTimeoutMs: 30 });
+  const closed = once(other, 'closed');
+  other.start(second.id);
+  await closed;
+  assert.equal(store.session(second.id).status, 'interrupted');
+  assert.equal(silent.calls.killed, 1);
+  assert.equal(other.processes.size, 0);
+});
+
+test('disposal after exit never lets node-pty kill by a shell PID that Windows may have reused', async t => {
+  const { store, session, project } = fixture(t);
+  const exited = fakePty();
+  exited.child._agent = { _innerPid: 12345 };
+  const seen = [];
+  const kill = exited.child.kill;
+  exited.child.kill = function () { seen.push(this._agent._innerPid); return kill.call(this); };
+  const coordinator = new PtyCoordinator(store, { shell: process.execPath, spawnPty: () => exited.child, killTree: async () => true });
+  coordinator.start(session.id);
+  const closed = once(coordinator, 'closed');
+  coordinator.stop(session.id);
+  exited.child.exit({ exitCode: 0 });
+  await closed;
+  assert.deepEqual(seen, process.platform === 'win32' ? [0] : []);
+
+  const hung = fakePty();
+  hung.child._agent = { _innerPid: 777 };
+  const hungSeen = [];
+  hung.child.kill = function () { hungSeen.push(this._agent._innerPid); };
+  const second = store.addSession({ projectId: project.id, name: 'Travado' });
+  const other = new PtyCoordinator(store, { shell: process.execPath, spawnPty: () => hung.child, killTree: async () => true, terminationTimeoutMs: 20 });
+  other.start(second.id);
+  other.stop(second.id);
+  await new Promise(resolve => setTimeout(resolve, 60));
+  // Before exit the PID still names the live shell, so node-pty may enumerate its console.
+  assert.deepEqual(hungSeen, process.platform === 'win32' ? [777] : []);
+  hung.child.exit({ exitCode: 1 });
 });
 
 test('restart cannot attach a new PTY to an interrupted session', t => {
@@ -229,6 +307,9 @@ test('two real PTYs keep their project directories and Unicode output separate',
   try {
     coordinator.start(session.id);
     coordinator.start(second.id);
+    await running(store, session.id, second.id);
+    // The PID-reuse guard in disposePty depends on this private node-pty field; fail loudly if it moves.
+    if (process.platform === 'win32') assert.equal(coordinator.processes.get(session.id)._agent._innerPid, store.session(session.id).pid);
     const command = process.platform === 'win32' ? "Write-Output ('MARCADOR café ' + $PWD.Path)" : "printf 'MARCADOR café %s\\n' \"$PWD\"";
     coordinator.command(session.id, command);
     coordinator.command(second.id, command);
@@ -275,6 +356,7 @@ if (process.platform === 'win32' && process.env.OMNIFORGE_PTY_DESCENDANT_CANARY 
     coordinator.on('terminal', event => { if (event.sessionId === session.id) output += event.text; });
     try {
       coordinator.start(session.id);
+      await running(store, session.id);
       shellPid = coordinator.processes.get(session.id).pid;
       const childCommand = `Start-Sleep -Seconds 120; # ${token}`;
       const startCommand = `$p = Start-Process -FilePath '${shell.replaceAll("'", "''")}' -ArgumentList '-NoLogo -NoProfile -Command "${childCommand}"' -PassThru; Set-Content -LiteralPath '${pidFile.replaceAll("'", "''")}' -Value $p.Id; Write-Output ('OMNI_CHILD_PID=' + $p.Id)`;

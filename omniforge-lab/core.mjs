@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { StringDecoder } from 'node:string_decoder';
+import { resolvePtyShell } from './pty.mjs';
 
 const MAX_NOTE = 4000;
 const MAX_CONTEXT_NOTES = 24;
@@ -345,7 +346,7 @@ export class WorkspaceStore {
 }
 
 export class ShellCoordinator extends EventEmitter {
-  constructor(store, { shell = process.platform === 'win32' ? 'pwsh' : 'sh', spawnProcess = spawn } = {}) {
+  constructor(store, { shell, spawnProcess = spawn } = {}) {
     super();
     this.store = store;
     this.shell = shell;
@@ -358,8 +359,9 @@ export class ShellCoordinator extends EventEmitter {
     if (this.processes.has(sessionId)) fail('Sessão já iniciada');
     const session = this.store.session(sessionId);
     const project = this.store.project(session.projectId);
-    const args = process.platform === 'win32' ? (path.basename(this.shell).toLowerCase() === 'cmd.exe' ? ['/Q', '/K'] : ['-NoLogo', '-NoProfile', '-Command', '-']) : [];
-    const child = this.spawnProcess(this.shell, args, { cwd: project.root, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, detached: process.platform !== 'win32', env: { ...process.env, OMNIFORGE_PROJECT_ID: project.id, OMNIFORGE_SESSION_ID: session.id } });
+    const shell = this.shell ?? resolvePtyShell();
+    const args = process.platform === 'win32' ? (path.basename(shell).toLowerCase() === 'cmd.exe' ? ['/Q', '/K'] : ['-NoLogo', '-NoProfile', '-Command', '-']) : [];
+    const child = this.spawnProcess(shell, args, { cwd: project.root, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, detached: process.platform !== 'win32', env: { ...process.env, OMNIFORGE_PROJECT_ID: project.id, OMNIFORGE_SESSION_ID: session.id } });
     let launchFailed = false;
     child.on('error', error => {
       launchFailed = true;

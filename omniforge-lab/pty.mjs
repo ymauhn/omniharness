@@ -9,6 +9,8 @@ const MAX_WRITE = 65536;
 const MAX_OUTPUT_CHUNK = 8192;
 const EXIT_TIMEOUT_MS = 5000;
 const KILL_TIMEOUT_MS = 5000;
+const LAUNCH_TIMEOUT_MS = 10000;
+const validPid = pid => Number.isSafeInteger(pid) && pid > 0;
 
 function fail(message, status = 400) {
   const error = new Error(message);
@@ -27,7 +29,15 @@ function executable(file) {
   }
 }
 
-export function resolvePtyShell(shell = process.platform === 'win32' ? 'pwsh.exe' : 'sh', env = process.env) {
+export function resolvePtyShell(shell, env = process.env) {
+  if (shell === undefined) {
+    if (process.platform !== 'win32') return resolvePtyShell('sh', env);
+    // PowerShell 7 when installed; Windows PowerShell 5.1 ships with every supported Windows.
+    for (const candidate of ['pwsh.exe', 'powershell.exe']) {
+      try { return resolvePtyShell(candidate, env); } catch { /* try the next shell */ }
+    }
+    fail('Shell local indisponível', 503);
+  }
   if (typeof shell !== 'string' || !shell || shell.includes('\0')) fail('Shell local indisponível', 503);
   if (path.isAbsolute(shell)) {
     const found = executable(shell);
@@ -69,7 +79,7 @@ function defaultKillTree(pid) {
 }
 
 export class PtyCoordinator extends EventEmitter {
-  constructor(store, { shell, spawnPty = pty.spawn, killTree = defaultKillTree, env = process.env, cols = 80, rows = 24, terminationTimeoutMs = KILL_TIMEOUT_MS + EXIT_TIMEOUT_MS } = {}) {
+  constructor(store, { shell, spawnPty = pty.spawn, killTree = defaultKillTree, env = process.env, cols = 80, rows = 24, terminationTimeoutMs = KILL_TIMEOUT_MS + EXIT_TIMEOUT_MS, launchTimeoutMs = LAUNCH_TIMEOUT_MS } = {}) {
     super();
     this.store = store;
     this.shell = shell;
@@ -79,6 +89,7 @@ export class PtyCoordinator extends EventEmitter {
     this.cols = cols;
     this.rows = rows;
     this.terminationTimeoutMs = terminationTimeoutMs;
+    this.launchTimeoutMs = launchTimeoutMs;
     this.processes = new Map();
     this.records = new Map();
     this.sealed = false;
@@ -91,9 +102,15 @@ export class PtyCoordinator extends EventEmitter {
     const session = this.store.session(sessionId);
     if (session.status !== 'starting') fail('Sessão não está pronta para iniciar; verifique a sessão interrompida', 409);
     const project = this.store.project(session.projectId);
+    let shell;
+    try { shell = resolvePtyShell(this.shell, this.env); }
+    catch (error) {
+      // Nothing was spawned: record a plain stop so the project is not blocked by an uncertain session.
+      this.store.setSessionStatus(sessionId, 'stopped');
+      throw error;
+    }
     let child;
     try {
-      const shell = resolvePtyShell(this.shell, this.env);
       child = this.spawnPty(shell, process.platform === 'win32' ? ['-NoLogo', '-NoProfile', '-NoExit', '-Command', 'Set-PSReadLineOption -HistorySaveStyle SaveNothing'] : [], {
         cwd: project.root,
         cols: this.cols,
@@ -106,10 +123,10 @@ export class PtyCoordinator extends EventEmitter {
       if (error.status) throw error;
       fail(`Shell local indisponível: ${error.message}`, 503);
     }
-    if (!Number.isSafeInteger(child?.pid) || child.pid <= 0) {
+    if (typeof child?.onData !== 'function' || typeof child.onExit !== 'function') {
       try { child?.kill(); } catch { /* launch outcome is unknown */ }
       this.store.setSessionStatus(sessionId, 'interrupted');
-      fail('Shell local indisponível: PID inválido', 503);
+      fail('Shell local indisponível: PTY inválido', 503);
     }
     let resolveDone;
     const done = new Promise(resolve => { resolveDone = resolve; });
@@ -124,8 +141,15 @@ export class PtyCoordinator extends EventEmitter {
       record.signal = Number.isInteger(event?.signal) ? event.signal : null;
       this.finishIfReady(sessionId, record);
     });
+    // node-pty 1.2 reports the shell PID only after ConPTY connects.
+    if (validPid(child.pid)) this.commit(sessionId, record);
+    else void this.awaitPid(sessionId, record);
+    return session;
+  }
+
+  commit(sessionId, record) {
     try {
-      this.store.setSessionStatus(sessionId, 'running', child.pid);
+      this.store.setSessionStatus(sessionId, 'running', record.child.pid);
       record.committed = true;
     } catch (error) {
       // Keep the handle until the exact process tree request and PTY exit are
@@ -134,7 +158,24 @@ export class PtyCoordinator extends EventEmitter {
       this.beginStop(sessionId, record);
       throw error;
     }
-    return session;
+  }
+
+  async awaitPid(sessionId, record) {
+    const deadline = Date.now() + this.launchTimeoutMs;
+    while (!validPid(record.child.pid) && !record.exitObserved && !record.stopRequested && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    if (record.exitObserved || record.stopRequested || this.records.get(sessionId) !== record) return;
+    if (!validPid(record.child.pid)) {
+      // No PID means no exact tree to stop: close the PTY and keep the session interrupted.
+      record.uncertain = true;
+      this.markInterrupted(sessionId, record);
+      this.disposePty(record);
+      return;
+    }
+    try { this.commit(sessionId, record); }
+    catch { /* commit flagged the session uncertain and began the stop */ }
+    this.emit('state', { sessionId, status: this.store.session(sessionId).status });
   }
 
   active(sessionId) {
@@ -176,6 +217,10 @@ export class PtyCoordinator extends EventEmitter {
   disposePty(record) {
     if (process.platform !== 'win32' || record.disposed) return;
     record.disposed = true;
+    // ponytail: after exit, node-pty's kill() still lists the console of the old shell PID and kills every
+    // process in it; Windows may already have reused that PID. Clear node-pty's private copy (pinned
+    // 1.2.0-beta.15) so kill() only releases the ConPTY sockets and worker. Drop when upstream skips it.
+    if (record.exitObserved && record.child._agent && '_innerPid' in record.child._agent) record.child._agent._innerPid = 0;
     try { record.child.kill(); }
     catch (error) { record.killError ||= error; record.uncertain = true; }
   }
@@ -217,7 +262,8 @@ export class PtyCoordinator extends EventEmitter {
       this.disposePty(record);
     }, this.terminationTimeoutMs);
     record.deadline.unref?.();
-    record.killPromise = Promise.resolve().then(() => this.killTree(record.child.pid)).then(
+    if (!validPid(record.child.pid)) this.disposePty(record);
+    record.killPromise = Promise.resolve().then(() => validPid(record.child.pid) && this.killTree(record.child.pid)).then(
       result => {
         record.killResult = result === true;
         if (!record.killResult) this.markInterrupted(sessionId, record);

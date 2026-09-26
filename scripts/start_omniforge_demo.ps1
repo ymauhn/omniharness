@@ -1,6 +1,6 @@
-# Foreground, disposable-data OmniForge Lab demonstration.
+﻿# Foreground, disposable-data OmniForge Lab demonstration.
+# Runs on the built-in Windows PowerShell 5.1 or PowerShell 7; the UTF-8 BOM keeps 5.1 from misreading accents.
 $ErrorActionPreference = 'Stop'
-if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 ou mais recente é necessário.' }
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $lab = Join-Path $repoRoot 'omniforge-lab'
 $node = Get-Command node -ErrorAction Stop
