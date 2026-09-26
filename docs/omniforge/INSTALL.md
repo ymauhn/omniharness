@@ -127,6 +127,73 @@ The run ends with `uninstall --apply --remove-data`. `-Prefix` therefore default
 
 ## Evidence
 
+### Review repairs at `3129bfc`
+
+Host run on 2026-09-26, source **`3129bfcc01646defef796a240da05f3759c82e0c`** (branch `claude/installer`), same host and toolchain as below. Every prefix was a fresh `%TEMP%` folder; `%LOCALAPPDATA%\OmniForge` and the owner's `.omniforge-lab` data were not touched. This is the development host, **not** the clean-user gate.
+
+Tests at that SHA: `node --test omniforge-lab/test/manage.test.mjs` 12/12, including 4 new regression tests and an extended update test (5 failed before the fix). `npm --prefix omniforge-lab test` 167/167 and `python -m unittest discover tests` 303 OK, all with 0 skipped.
+
+```text
+> scripts\omniforge.cmd pack --out %TEMP%\ofs-3129bfc\release
+Built C:\Users\Yeonatan\AppData\Local\Temp\ofs-3129bfc\release\omniforge-0.1.0-3129bfc-win-x64.zip (305 files)
+sha256 4678a68ec5e1766b349b425257fbca4673d6845eac26b7aed843fc2098e3f10b
+> powershell -File scripts\sandbox\prepare-release.ps1 -Release %TEMP%\ofs-3129bfc\release -Output %TEMP%\ofs-3129bfc\out
+Verified node-v24.19.0-win-x64.zip sha256 57f71ab3652e797d84acddc79c81cc9ff1c6ddb2a1974cdb83f00fee9bff4c73
+
+> run-in-sandbox.ps1 -Release ... -Output ...\out-refuse -Prefix %TEMP%\ofs-3129bfc\Existing     (holds data\state.json)
+ERROR: ...\ofs-3129bfc\Existing already exists; this run ends with uninstall --apply --remove-data, so pass a -Prefix that does not exist yet
+(exit 1, no step ran, state.json unchanged)
+
+> run-in-sandbox.ps1 -Release ... -Output ...\out -PortableNode                                  (no -Prefix)
+== install (exit 0)
+Installed OmniForge 0.1.0-3129bfc in C:\Users\Yeonatan\AppData\Local\Temp\omniforge-acceptance-6fb7433e8ea04aa3b2f94a577b620731 (data: ...\data)
+== doctor (exit 0) / == repair (exit 0) All 305 files of 0.1.0-3129bfc match the build manifest.
+start --stop-on-eof           OmniForge Lab: http://127.0.0.1:64503/?token=<redacted>
+== uninstall (exit 0) / == uninstall --apply --remove-data (exit 0)
+Report: ...\ofs-3129bfc\out\report.json (passed: True)
+```
+
+`report.json`: `passed: true`, `doctorOk: true`, portable Node v24.19.0 verified against SHASUMS256.txt. The probe returned `GET /` 200 (the Lab page), `GET /api/state` 200 with the token (0 projects, 9 skills), 403 without it and `/api/skills` 200. The stdin-EOF stop exited 0 with no `state.lock` left, and `prefixLeft: false`. The run took 16 s. Residue: nothing under the prefix; 13 older `%TEMP%\omniforge-demo-*` folders listed for triage and left in place.
+
+Update and rollback between two real builds (`ab7195f` installed by its own manager, then `3129bfc`). `state.json` held hand-written markers, not Lab state; the Lab was not started in this run:
+
+```text
+> bootB update --from omniforge-0.1.0-3129bfc-win-x64.zip --prefix ...        (exit 0)
+State backup: ...\data\state.json.pre-0.1.0-3129bfc
+> omniforge rollback                                                          (exit 0)
+State from before 0.1.0-3129bfc: ...\data\state.json.pre-0.1.0-3129bfc (restore it by hand only if ...)
+state.json rewritten as {"marker":"after-rollback"}
+> bootB update ... (again)                                                    (exit 0)
+State backup: ...\data\state.json.pre-0.1.0-3129bfc.1
+> omniforge rollback (again)                                                  (exit 0)
+State from before 0.1.0-3129bfc: ...\data\state.json.pre-0.1.0-3129bfc.1 (restore it by hand only if ...)
+state.json.pre-0.1.0-3129bfc: {"marker":"first"}
+state.json.pre-0.1.0-3129bfc.1: {"marker":"after-rollback"}
+> bootB uninstall --apply --remove-data --prefix ...                          (exit 0)
+prefix exists after uninstall: False
+```
+
+Prefix casing and a reinstall over kept data, through the `3129bfc` manager:
+
+```text
+> uninstall --apply --prefix c:\users\yeonatan\appdata\local\temp\ofs-3129bfc\case\omniforge
+7. C:\...\case\OmniForge\data: user data, removed only with --remove-data; 1 entries, the Lab's OMNIFORGE_DATA_DIR
+1. c:\...\case\omniforge\data: user data kept (no --remove-data); left in place                 (residue, exit 0)
+state.json after: {"marker":"keep-me"}
+> install again, then uninstall --apply --remove-data --prefix c:\...\case\omniforge
+6. C:\...\case\OmniForge\data: user data, removed only with --remove-data; 1 entries, the Lab's OMNIFORGE_DATA_DIR
+1. c:\...\case\omniforge: empty folder not recorded as created by install, or in use; left in place   (residue, exit 0)
+```
+
+**Defects fixed in `3129bfc`** (from review, each reproduced by a failing test first):
+
+1. `uninstall --apply` compared paths case-sensitively. With a differently cased `--prefix`, it did not recognise `data\` and deleted it recursively without `--remove-data`. The fixed manager compares paths through `path.relative`, which ignores case on Windows.
+2. A reinstall over data kept by `uninstall --apply` did not record `data\`, so a later `--remove-data` silently kept it. Every install now records it. The residue label now reflects the flag, and an empty prefix left behind is listed.
+3. `rollback` named `state.json.pre-<version>`, the oldest backup, not the one taken before the update being undone. `update` now records its backup in `current.json`, and `rollback` names exactly that file.
+4. `run-in-sandbox.ps1` defaulted `-Prefix` to `%LOCALAPPDATA%\OmniForge`, did not gate on the install result and ended with `uninstall --apply --remove-data`. It now defaults to a fresh `%TEMP%` folder, refuses an existing prefix and stops unless install printed `Installed OmniForge`.
+
+### First host run at `ab7195f`
+
 Host run on 2026-09-26, source **`ab7195fbc9965e25561109186f7311fc5851fc6b`** (branch `claude/installer`). Host: Windows 11 Pro 10.0.26200, Windows PowerShell 5.1.26100.9444, Node v24.19.0 and the bundled Codex Python 3.12. Every prefix was a disposable `%TEMP%` folder; `%LOCALAPPDATA%\OmniForge` and the owner's `.omniforge-lab` data were not touched. This is the development host, **not** the clean-user gate.
 
 Tests at that SHA: `node --test omniforge-lab/test/manage.test.mjs` 8/8, and `npm --prefix omniforge-lab test` 163/163 with 0 skipped.
