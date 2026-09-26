@@ -7,11 +7,20 @@ import os
 import subprocess
 import time
 import unittest
+from unittest import mock
 
 from test_omniforge_e2e import LabCase, evidence
 
+# Stands in for a real credential in the runner's environment, which must never reach the page, a capture or the repo.
+SENTINEL = "sk-ant-e2e-sentinel-not-a-key"
+
 
 class ReviewE2E(LabCase):
+    @classmethod
+    def setUpClass(cls):
+        with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": SENTINEL}):
+            super().setUpClass()
+
     def finished_task(self, page, project, title):
         """Create a task, run it with the fake Claude, answer its permission prompt and wait for it to finish."""
         task = self.api(page, "/api/tasks", {"projectId": project["id"], "title": title})
@@ -63,6 +72,8 @@ class ReviewE2E(LabCase):
         self.assertIn("Nota: Recusa esperada", attempt.inner_text())
         recorded = self.api(page, f"/api/tasks/{task['id']}/evidence")["attempts"]
         self.assertEqual([a["refused"]["reason"] for a in recorded], [refusal])
+        # assertFalse, not assertNotIn: a failure must not print the page, and with it the environment, into the log.
+        self.assertFalse(SENTINEL in page.content(), "the runner's environment is shown in the review")
         evidence(page, "review-refused")
 
         panel.get_by_label("Comando de teste (opcional)").fill("exit 0")
@@ -76,6 +87,7 @@ class ReviewE2E(LabCase):
         self.assertEqual(merged.inner_text(), f"Merge concluído: {head}")
         self.assertEqual(len(git("rev-list", "--parents", "-n", "1", head).split()), 3, "main's head is a merge commit")
         self.assertTrue(os.path.isfile(os.path.join(root, "agent-call.json")), "the agent's file reached the root")
+        self.assertFalse(SENTINEL in git("show", "main:agent-call.json"), "the runner's environment was merged")
         page.wait_for_function("id => document.querySelector(`#task-list [data-focus-key='task:${id}:status']`)?.value === 'done'", arg=task["id"])
         self.assertEqual(next(t for t in self.api(page, "/api/state")["tasks"] if t["id"] == task["id"])["status"], "done")
         panel.locator(".review-attempt").nth(1).wait_for()
