@@ -121,6 +121,9 @@ export class ExtensionService {
   async preview(projectId, number, { expectedRevision } = {}) {
     const registry = this.list(projectId);
     const row = this.version(registry, number);
+    // Refuse a stale or missing revision before paying for a sandbox run; save() re-checks after it.
+    if (!Number.isSafeInteger(expectedRevision)) fail('Revisão esperada inválida');
+    if (expectedRevision !== registry.revision) fail('Registro de extensões mudou; atualize e confirme a revisão', 409);
     const verdict = await this.execute(row, { files: PREVIEW.files });
     const got = verdict.ok ? (verdict.result.missing ?? []).map(item => `${item.file}:${item.line}:${item.ref}`).sort() : null;
     const ok = verdict.ok && JSON.stringify(got) === JSON.stringify([...PREVIEW.missing].sort());
@@ -153,6 +156,8 @@ export class ExtensionService {
   /** `previous` is a stack of the versions that were active before each enable or disable; rollback pops it. */
   async rollback(projectId, { expectedRevision } = {}) {
     const registry = this.list(projectId);
+    // Re-enabling after a disable leaves the active version on top; restoring it would change nothing.
+    while (registry.previous?.length && registry.previous.at(-1) === registry.enabled?.version) registry.previous.pop();
     const previous = registry.previous?.pop();
     if (previous === undefined) fail('Não há versão ativada anterior para restaurar', 409);
     registry.enabled = { id: EXTENSION_ID, version: previous };

@@ -62,6 +62,25 @@ test('mutations need the registry revision, rollback walks back and a run re-che
   assert.deepEqual(Object.values(await running).slice(0, 2), [false, 'disabled']);
 });
 
+test('rollback skips stack entries equal to the version already enabled', async t => {
+  const { service } = fixture(t);
+  const projectId = 'p7';
+  const revision = () => ({ expectedRevision: service.list(projectId).revision });
+  const enable = version => service.enable(projectId, version, { reviewed: true, ...revision() });
+  for (let version = 1; version <= 2; version++) {
+    await service.generate(projectId, 'verificador de links de assets');
+    await service.preview(projectId, version, revision());
+  }
+  await enable(1); await enable(2);
+  await service.disable(projectId, revision());
+  await enable(2);
+  await service.rollback(projectId, revision());
+  assert.equal(service.list(projectId).enabled.version, 1);
+  await service.disable(projectId, revision());
+  await enable(1);
+  await assert.rejects(service.rollback(projectId, revision()), /Não há versão/);
+});
+
 test('the runner executes the bytes whose hash was verified, not a later edit of the module', async t => {
   const { service } = fixture(t);
   const row = await service.generate('p6', 'verificador de links de assets');
