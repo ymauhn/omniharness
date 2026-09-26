@@ -382,6 +382,25 @@ test('a file the root stopped tracking since the base is not in the way of a tas
   assert.equal(fs.readFileSync(path.join(f.root, 'hello.txt'), 'utf8'), 'hi\n');
 });
 
+test('a file the root stopped tracking since the base is in the way of a task that changed it', async t => {
+  const f = await fixture(t);
+  f.setRun();
+  // The owner untracks README.md and keeps an ignored copy of their own; the task modifies README.md (modify/delete).
+  git(f.root, 'rm', '-q', '--cached', 'README.md');
+  write(f.root, '.gitignore', 'ignored.txt\nREADME.md\n');
+  git(f.root, 'commit', '-q', '-am', 'untrack README');
+  write(f.root, 'README.md', 'OWNER_SECRET=keep-me\n');
+  const ownerHead = git(f.root, 'rev-parse', 'HEAD');
+  write(f.worktree, 'README.md', 'base\nfrom the agent\n');
+  const response = await f.merge({});
+  const { error } = await response.json();
+  assert.equal(response.status, 409, error);
+  assert.match(error, /onde o merge escreveria: README\.md;/);
+  assert.equal(fs.readFileSync(path.join(f.root, 'README.md'), 'utf8'), 'OWNER_SECRET=keep-me\n');
+  assert.equal(git(f.root, 'rev-parse', 'HEAD'), ownerHead);
+  assert.equal(mergeHead(f.root), false);
+});
+
 test('a file the root and the task both added is tracked in the root, so git merges it itself', async t => {
   const f = await fixture(t);
   f.setRun();
@@ -605,6 +624,9 @@ test('a merge git stops partway is not reported as restored while it left files 
   f.setRun({ baseSha: base });
   fs.appendFileSync(path.join(f.worktree, 'aaa-tool.exe'), Buffer.from([0]));
   write(f.worktree, 'bbb-new.txt', 'new\n');
+  // Ignored in the root: `git status` never lists it there, so only a check of the merge's own paths sees it.
+  write(f.worktree, 'ignored.txt', 'EXAMPLE=1\n');
+  git(f.worktree, 'add', '-f', 'ignored.txt');
   const running = spawn(path.join(f.root, 'aaa-tool.exe'), ['-n', '60', '127.0.0.1'], { stdio: 'ignore', windowsHide: true });
   let response;
   try {
@@ -620,4 +642,6 @@ test('a merge git stops partway is not reported as restored while it left files 
   assert.equal(mergeHead(f.root), false);
   assert.match(error, /NÃO voltou/);
   assert.match(error, /bbb-new\.txt/);
+  assert.equal(fs.readFileSync(path.join(f.root, 'ignored.txt'), 'utf8'), 'EXAMPLE=1\n', 'the stopped merge wrote the ignored file');
+  assert.match(error, /ignored\.txt/);
 });

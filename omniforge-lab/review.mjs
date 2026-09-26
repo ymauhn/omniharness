@@ -165,24 +165,23 @@ const validRun = run => /^[0-9a-f]{40,64}$/.test(run.baseSha) && run.branch !== 
   [run.branch, run.baseBranch].every(name => typeof name === 'string' && name && !name.startsWith('-')) &&
   [run.root, run.worktree].every(dir => typeof dir === 'string' && path.isAbsolute(dir));
 
-// Paths the task adds since the merge base (rows of `git diff --name-status -z --no-renames`) that something untracked
-// in the root already occupies, or whose parent folder is an untracked file there. Git treats ignored files as
-// expendable, so the merge would overwrite them, or `merge --abort` delete them. `rootAdded` (-z names) is what the
-// root added since the merge base.
-function untrackedInTheWay(root, nameStatus, rootAdded) {
-  // Tracked files git handles itself: one the root added, or one the task removes (a folder may go where it stood).
-  const rows = nameStatus.split('\0'), tracked = new Set(rootAdded.split('\0')), found = [];
-  for (let i = 0; i + 1 < rows.length; i += 2) if (rows[i] === 'D') tracked.add(rows[i + 1]);
-  for (let i = 0; i + 1 < rows.length; i += 2) {
-    if (rows[i] !== 'A') continue;
-    const parts = rows[i + 1].split('/');
+// Of `paths` (the ones the merge writes that the root's HEAD does not track), those something untracked in the root
+// already occupies, or whose parent folder is an untracked file there. Git treats ignored files as expendable: the
+// merge would overwrite them, or `merge --abort` delete them. A parent in `replaced` is a file the root's HEAD tracks
+// and the task turned into a folder: git replaces it itself.
+function untrackedInTheWay(root, paths, replaced) {
+  const found = new Set();
+  for (const name of paths) {
+    const parts = name.split('/');
     for (let n = 1; n <= parts.length; n++) {
-      const name = parts.slice(0, n).join('/');
-      const stat = fs.lstatSync(path.join(root, name), { throwIfNoEntry: false });
-      if (stat && (n === parts.length || !stat.isDirectory()) && !tracked.has(name)) { found.push(name); break; }
+      const prefix = parts.slice(0, n).join('/');
+      const stat = fs.lstatSync(path.join(root, prefix), { throwIfNoEntry: false });
+      if (stat?.isDirectory() && n < parts.length) continue;
+      if (stat && !replaced.has(prefix)) found.add(prefix);
+      break; // nothing on disk here, or not a folder: nothing below it either
     }
   }
-  return [...new Set(found)];
+  return [...found];
 }
 
 /** Severity counts of a Gauntlet Phase 3 report ("🔴 ALTA (n)", gauntlet/SKILL.md), or 'desconhecido' when it states
@@ -297,14 +296,15 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     const before = (await gitOk(run.root, ['rev-parse', 'HEAD'])).trim();
     const status = async () => new Set((await gitOk(run.root, ['status', '--porcelain', '-z'])).split('\0').filter(Boolean));
     const statusBefore = await status();
-    // Each side's changes since the merge base (A...B): against the root's HEAD, the root's own deletions would read
-    // as task additions and refuse the merge over files it never writes.
-    const [changes, rootAdded] = await Promise.all([
-      gitOk(run.root, ['diff', '--name-status', '-z', '--no-renames', `${before}...${attempt.headSha}`, '--']),
-      gitOk(run.root, ['diff', '--name-only', '-z', '--no-renames', '--diff-filter=A', `${attempt.headSha}...${before}`, '--']),
-    ]);
+    // The paths the merge writes that the root's HEAD does not track: the task's own changes since the merge base
+    // (before...head), deletions aside, that are new against the root's HEAD. A file the root stopped tracking counts
+    // only when the task changed it; the root's own deletions the task never touched are not written.
+    const names = async (...range) => (await gitOk(run.root, ['diff', '--name-only', '-z', '--no-renames', ...range, '--'])).split('\0').filter(Boolean);
+    const [touched, untracked, replaced] = await Promise.all([names('--diff-filter=d', `${before}...${attempt.headSha}`),
+      names('--diff-filter=A', before, attempt.headSha), names('--diff-filter=D', before, attempt.headSha)]);
+    const unowned = new Set(untracked), written = touched.filter(name => unowned.has(name));
     // Nothing awaits from here to the merge's spawn, so the task cannot change in between.
-    const inTheWay = untrackedInTheWay(run.root, changes, rootAdded);
+    const inTheWay = untrackedInTheWay(run.root, written, new Set(replaced));
     if (inTheWay.length) refuse(`A raiz tem arquivos não rastreados ou ignorados onde o merge escreveria: ${inTheWay.slice(0, 20).join(', ')}; mova-os antes do merge`);
     taskCurrent(task.id, expectedRevision);
     // The tested commit, not the branch name: the branch may have moved while the test ran.
@@ -313,8 +313,11 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
       // Not gitOk: nothing may skip the abort below.
       const conflicts = (await git(run.root, ['diff', '--name-only', '--diff-filter=U', '-z'])).out.split('\0').filter(Boolean);
       if (await hasMergeHead(run.root)) await git(run.root, ['merge', '--abort']);
-      // A merge git stopped partway (a file in use on Windows) leaves no MERGE_HEAD but may have written files.
-      const leftovers = [...await status()].filter(entry => !statusBefore.has(entry)).map(entry => entry.slice(3));
+      // A merge git stopped partway (a file in use on Windows) leaves no MERGE_HEAD but may have written files. `git status`
+      // lists no ignored file, so the merge's own untracked paths are looked up on disk too: none was there before, or
+      // the gate above would have refused.
+      const onDisk = name => { try { return Boolean(fs.lstatSync(path.join(run.root, name), { throwIfNoEntry: false })); } catch (error) { return error.code !== 'ENOTDIR'; } };
+      const leftovers = [...new Set([...[...await status()].filter(entry => !statusBefore.has(entry)).map(entry => entry.slice(3)), ...written.filter(onDisk)])];
       const restored = (await gitOk(run.root, ['rev-parse', 'HEAD'])).trim() === before && !(await hasMergeHead(run.root)) && !leftovers.length;
       const cause = conflicts.length ? `Conflito de merge em ${conflicts.length} arquivo(s): ${conflicts.slice(0, 20).join(', ')}` : `O git recusou o merge: ${firstLine(merged.err || merged.out)}`;
       refuse(`${cause}. ` +
