@@ -225,7 +225,9 @@ export class AgentEngine extends EventEmitter {
 
     const id = randomUUID();
     // A short folder keeps Claude's transcript path (~/.claude/projects/<cwd as name>/<session>.jsonl) under 260 characters.
-    const worktreeDir = base.worktree ?? path.join(this.store.dataDir, 'worktrees', id.slice(0, 8));
+    // Canonical (realpath) like run.worktree: a session's folder is compared as text by the uncertainty guard, and an
+    // alias of the data folder (8.3 short name, junction) would otherwise let a review in the same worktree bypass it.
+    const worktreeDir = base.worktree ?? path.join(fs.realpathSync.native(this.store.dataDir), 'worktrees', id.slice(0, 8));
     const session = this.store.addSession({ projectId: task.projectId, name: `${LABEL[host]}${kind ? ` (${kind})` : ''} · ${task.title}`.slice(0, 120), cwd: worktreeDir });
     const { root, baseBranch, baseSha } = base;
     let { worktree, branch } = base;

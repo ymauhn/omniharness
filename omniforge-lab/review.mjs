@@ -285,7 +285,7 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     }
     await rootReady(run); // the owner may have used the root while the test ran
     const before = (await gitOk(run.root, ['rev-parse', 'HEAD'])).trim();
-    const status = async () => new Set((await gitOk(run.root, ['status', '--porcelain', '-z'])).split(' ').filter(Boolean));
+    const status = async () => new Set((await gitOk(run.root, ['status', '--porcelain', '-z'])).split('\0').filter(Boolean));
     const statusBefore = await status();
     const changes = await gitOk(run.root, ['diff', '--name-status', '-z', '--no-renames', before, attempt.headSha, '--']);
     // Nothing awaits from here to the merge's spawn, so the task cannot change in between.

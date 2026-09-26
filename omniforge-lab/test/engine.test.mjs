@@ -526,3 +526,21 @@ test('the Gauntlet runs only on its own request, report-only in the finished run
   await waitFor(() => fs.existsSync(path.join(smuggled.worktree, 'agent-call.json')), 'fake Claude started');
   assert.equal(call(smuggled).args.at(-1), 'Tarefa: Revisar com Gauntlet');
 });
+
+test('a review in a finished run\'s worktree still sees that run\'s uncertain session when the data folder is an alias', t => {
+  const temp = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-engine-')));
+  const real = path.join(temp, 'real'), alias = path.join(temp, 'alias');
+  fs.mkdirSync(real);
+  // Another spelling of the same folder, like the 8.3 short name of %TEMP% on a CI runner.
+  fs.symlinkSync(real, alias, 'junction');
+  const store = new WorkspaceStore(path.join(alias, 'data'));
+  t.after(() => { store.close(); fs.rmSync(temp, { recursive: true, force: true, maxRetries: 5 }); });
+  const shells = Object.assign(new EventEmitter(), { start() {} });
+  const engine = new AgentEngine({ store, shells, hookUrl: () => 'http://127.0.0.1:9/api/agent-events', homeDir: path.join(temp, 'home'), hosts: { claude: { file: process.execPath, args: [] } } });
+  const project = store.addProject({ name: 'Repo', root: repo(path.join(temp, 'repo')) });
+  const task = store.addTask({ projectId: project.id, title: 'Revisar' });
+  const run = engine.run(task.id, { host: 'claude', expectedRevision: 1 });
+  shells.emit('closed', { sessionId: run.sessionId, code: 0, signal: null });
+  store.setSessionStatus(run.sessionId, 'interrupted'); // what the PTY layer records when an agent exits on its own
+  assert.throws(() => engine.run(task.id, { host: 'claude', expectedRevision: store.task(task.id).revision, kind: 'gauntlet', prompt: '/gauntlet-loop rapido' }), /sessão incerta/);
+});
