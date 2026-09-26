@@ -46,8 +46,9 @@ function dom() {
   return { doc, ids, $: selector => ids.get(selector) };
 }
 function graphPage(local, api) {
-  const page = dom(), calls = [];
+  const page = dom(), calls = [], opened = [];
   const context = vm.createContext({ local, document: page.doc, window: { innerWidth: 800, innerHeight: 420 }, $: page.$, URLSearchParams, catalogResponse,
+    catalog: { search: ring => opened.push(['search', page.$('#skill-search').value, ring]) }, showView: view => opened.push(['view', view]),
     api: (route, options) => { calls.push(route); return api(route, options); },
     one: (parent, tag, className, content) => { const element = page.doc.createElement(tag); element.className = className; if (content !== undefined) element.textContent = content; parent.append(element); return element; },
     asArray: value => Array.isArray(value) ? value : [],
@@ -57,7 +58,7 @@ function graphPage(local, api) {
   });
   vm.runInContext(block('    function visibleNotes()', '    function renderMemory()') + block('    function makeNode(', '    const catalog=mountCatalog('), context);
   const buttons = () => page.$('#graph-canvas').querySelectorAll('.graph-node');
-  return { ...page, context, calls, buttons, byLabel: label => [...buttons()].find(button => button.textContent === label), help: page.$('#graph-help') };
+  return { ...page, context, calls, opened, buttons, byLabel: label => [...buttons()].find(button => button.textContent === label), help: page.$('#graph-help') };
 }
 const row = (ring, name, extra = {}) => ({ skill_id: `${ring}:${name}`, name, ring, hosts: [], availability: ring === 'installed' ? 'installed' : 'not_installed',
   source_key: `repo:.agents/skills/${name}/SKILL.md`, curation: 'missing', description: `${name} sem curadoria.`, metadata: {}, ...extra });
@@ -78,7 +79,7 @@ test('capability graph comes from the catalog snapshot, labels ring and hosts, a
   ]);
   const local = { view: 'graphs', graph: 'capability', graphNode: null, graphModels: {}, projectId: 'a', capability: null, capabilityRequest: 0,
     state: { projects: [{ id: 'a', name: 'Projeto A', root: 'A' }], sessions: [], tasks: [], skills: [{ id: 'startup', name: 'STARTUP ONLY', source: '.agents/skills/startup/SKILL.md' }] }, notes: [] };
-  const { doc, $, context, calls, buttons, byLabel, help } = graphPage(local, serve(() => current));
+  const { doc, $, context, calls, opened, buttons, byLabel, help } = graphPage(local, serve(() => current));
   context.renderGraph();
   assert.match($('#graph-intro').textContent, /Consultando o índice de skills/);
   await context.loadCapabilities();
@@ -88,6 +89,8 @@ test('capability graph comes from the catalog snapshot, labels ring and hosts, a
   byLabel('candidate · catálogo').fire('click');
   assert.equal($('#graph-scope').textContent, 'Catálogo · host não informado');
   assert.match($('#graph-relation').textContent, /Disponibilidade: não instalada/);
+  $('#graph-open').onclick();
+  assert.deepEqual(opened, [['search', 'candidate', 'catalog'], ['view', 'skills']], 'Abrir item searches the ring of the node, not the installed default');
   const skill = byLabel('skill-a · instalada · claude / codex');
   skill.fire('click');
   assert.match($('#graph-scope').textContent, /^Instalada · claude \/ codex$/);

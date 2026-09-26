@@ -37,7 +37,7 @@ test('request epoch rejects edit-selection and A to B to A project races', () =>
 function stubDocument() {
   const doc = {};
   class Element {
-    constructor(tag) { this.tagName = tag.toUpperCase(); this.children = []; this.events = {}; this.parent = null; this._text = ''; this.attributes = {}; this.style = {}; this.classList = { add: value => this.className = value }; }
+    constructor(tag) { this.tagName = tag.toUpperCase(); this.children = []; this.events = {}; this.parent = null; this._text = ''; this.attributes = {}; this.dataset = {}; this.style = {}; this.classList = { add: value => this.className = value }; }
     append(child) { child.parent = this; this.children.push(child); }
     contains(element) { return this === element || this.children.some(child => child.contains(element)); }
     replaceChildren() { if (this.children.some(child => child.contains(doc.activeElement))) doc.activeElement = doc.body; this.children.forEach(child => child.parent = null); this.children = []; this._text = ''; }
@@ -203,4 +203,17 @@ test('delayed workflow history preserves focus after the user returns to the com
   assert.equal(doc.activeElement, draft, 'history must not interrupt typing elsewhere');
   await findButton(root, 'Ver versões e tarefas').click();
   assert.equal(doc.activeElement.tagName, 'SUMMARY', 'explicit action still focuses its loaded history');
+});
+
+test('a library reload (another window saved a workflow) keeps keyboard focus on the same saved or suggested item', async t => {
+  const preset = workflowPresets()[0], row = { id: 'w1', projectId: 'a', version: 1, revision: 1, archivedAt: null, definition: { ...preset.definition, title: 'Saved flow' } };
+  const { root, controller, doc } = ui(t, async url => ({ projectId: 'a', rows: url.includes('/presets') ? [preset] : [row], runs: [] }));
+  await tick();
+  const library = root.querySelector('aside');
+  for (const title of ['Saved flow', preset.definition.title]) {
+    const before = findButton(library, title); before.focus();
+    await controller.load();
+    assert.notEqual(doc.activeElement, before, 'the library was rebuilt');
+    assert.ok(library.contains(doc.activeElement) && doc.activeElement.textContent.startsWith(title), `focus returns to ${title}`);
+  }
 });

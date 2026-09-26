@@ -176,3 +176,17 @@ test('catalog detail retains its focused heading across success/error and never 
     }
   } finally {globalThis.document=previous;}
 });
+
+test('opening a known item searches its own ring, not the installed default of the Anel select', async () => {
+  const previous = globalThis.document;
+  try {
+    const doc=stubDocument();globalThis.document=doc;
+    const root=doc.createElement('section'),list=doc.createElement('div'),search=doc.createElement('input'),count=doc.createElement('span'),paths=[];
+    doc.body.append(root);root.append(list);search.value='candidate';
+    const controller=mountCatalog({root,list,search,count,fallback:()=>[],api:async path=>{paths.push(path);return {snapshot_id:'s',coverage:{complete:true},issues:[],rows:[],total:0};}});
+    await controller.load();assert.match(paths.at(-1),/ring=installed/);
+    await controller.search('catalog');assert.match(paths.at(-1),/ring=catalog/,'a catalog candidate is searched in the catalog ring');
+    await controller.search('missing');assert.match(paths.at(-1),/ring=all/,'a ring the select cannot show falls back to all rings');
+    await controller.search();assert.match(paths.at(-1),/ring=all/,'a plain search keeps the current ring');
+  } finally {globalThis.document=previous;}
+});

@@ -204,7 +204,8 @@ export function mountCatalog({root,search,list,count,api,fallback,getProjectId=(
   }
   function changed() { offset = 0; sequence++; closeDetail(); clearTimeout(timer); timer = setTimeout(()=>load(true),220); }
   search.addEventListener('input',changed); ring.addEventListener('change',changed); host.addEventListener('change',changed);
-  return { sync, load, search:()=>{offset=0;load(true);} };
+  // An item opened elsewhere (graph node, Copilot card) names its ring; the Anel select must not hide it.
+  return { sync, load, search:itemRing=>{if(itemRing)ring.value=['installed','catalog','remote'].includes(itemRing)?itemRing:'all';offset=0;load(true);} };
 }
 
 export function mountCopilot({root,draft,api,getProjectId,getNotes,openSkills}) {
