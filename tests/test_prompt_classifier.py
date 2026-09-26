@@ -139,6 +139,33 @@ class PromptClassifierTests(unittest.TestCase):
         self.assertEqual(self.select(response(pc.NONE, {"source:review": 0.1, "source:commit": 0.1, pc.NONE: 0.8})).reason, "none")
         self.assertEqual(self.select(response(probabilities={"source:review": 0.45, "source:commit": 0.4, pc.NONE: 0.15})).reason, "below_threshold")
 
+    def test_every_valid_answer_reports_its_top_option_probability_for_display(self):
+        self.assertEqual(self.select().probability, 0.8)
+        self.assertEqual(self.select(response(pc.NONE, {"source:review": 0.1, "source:commit": 0.1, pc.NONE: 0.8})).probability, 0.8)
+        self.assertEqual(self.select(response(probabilities={"source:review": 0.45, "source:commit": 0.4, pc.NONE: 0.15})).probability, 0.45)
+        self.assertEqual(self.select(response(fits=(0.1, 0.99))).probability, 0.8)
+        self.assertIsNone(self.select(b"[").probability)
+
+    def test_main_asks_each_question_with_the_stdin_key_and_prints_only_selections(self):
+        calls, output = [], io.StringIO()
+        request = {"api_key": "SECRET_CALLER_KEY", "prompt": "Revise o código",
+                   "questions": {"skill": [asdict(c) for c in CANDIDATES], "effort": [asdict(CANDIDATES[0])]}}
+        stdin = io.TextIOWrapper(io.BytesIO(json.dumps(request).encode()))
+        with patch.object(pc, "_post_jev", lambda *args: calls.append(args) or response()), patch("sys.stdin", stdin), contextlib.redirect_stdout(output):
+            self.assertEqual(pc.main(), 0)
+        answers = json.loads(output.getvalue())
+        self.assertEqual(set(answers), {"skill", "effort"})
+        self.assertEqual((answers["skill"]["source_id"], answers["skill"]["probability"]), ("source:review", 0.8))
+        self.assertEqual(answers["effort"]["reason"], "invalid_response")  # fit_1 answers a question it was not asked
+        self.assertEqual([call[1] for call in calls], ["SECRET_CALLER_KEY"] * 2)
+        self.assertNotIn("SECRET", output.getvalue())
+        for invalid in [{**request, "extra": 1}, {**request, "questions": []}, {**request, "questions": {"skill": [{"source_id": "x"}]}}]:
+            output = io.StringIO()
+            with patch.object(pc, "_post_jev", Mock(side_effect=AssertionError("no request"))), contextlib.redirect_stdout(output), \
+                 patch("sys.stdin", io.TextIOWrapper(io.BytesIO(json.dumps(invalid).encode()))):
+                self.assertEqual(pc.main(), 2)
+            self.assertEqual(output.getvalue(), "")
+
     def test_fit_must_belong_to_selected_candidate_not_unrelated_maximum(self):
         result = self.select(response(fits=(0.1, 0.99)))
         self.assertEqual(result.reason, "selected_fit_failed")

@@ -17,6 +17,7 @@ import { ExtensionService } from './extensions.mjs';
 import { KeyVault } from './key-vault.mjs';
 import { readCodexRateLimits, usageFigures } from './usage.mjs';
 import { createReview } from './review.mjs';
+import { routeTask, jevBridge } from './router.mjs';
 
 // Windows otherwise resolves a bare program name (python, powershell.exe, taskkill.exe) in the current folder
 // first, so a file planted where the Lab was launched could run in its place.
@@ -58,7 +59,7 @@ async function body(request, limit = MAX_BODY) {
 // The installed Codex CLI (quota read and agent runs): PATH first, then the Codex app's own copy.
 
 // `engineOptions` is a test seam (fake agent hosts, home folder for usage files); production passes none.
-export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omniforge-lab'), repoRoot = REPO_ROOT, token = randomBytes(24).toString('hex'), catalog = new CatalogService({ repoRoot, dataDir }), classifier = new ClassifierService({ repoRoot }), arsenalService = null, observeArsenalHosts, keyVault = null, readQuota = readCodexRateLimits, codexPath = findCodex(), engineOptions = {}, getRun, runTest } = {}) {
+export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omniforge-lab'), repoRoot = REPO_ROOT, token = randomBytes(24).toString('hex'), catalog = new CatalogService({ repoRoot, dataDir }), classifier = new ClassifierService({ repoRoot }), arsenalService = null, observeArsenalHosts, keyVault = null, readQuota = readCodexRateLimits, codexPath = findCodex(), engineOptions = {}, getRun, runTest, jevSelect = jevBridge({ repoRoot }) } = {}) {
   const expectedToken = Buffer.from(token);
   const sameToken = value => {
     if (typeof value !== 'string') return false;
@@ -298,11 +299,13 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
         const taskStatus = url.pathname.match(/^\/api\/tasks\/([^/]+)\/status$/);
         const taskOwner = url.pathname.match(/^\/api\/tasks\/([^/]+)\/(assign|handoff)$/);
         const taskRun = url.pathname.match(/^\/api\/tasks\/([^/]+)\/run$/);
+        const taskRoute = url.pathname.match(/^\/api\/tasks\/([^/]+)\/route$/);
         const memoryUpdate = url.pathname.match(/^\/api\/memory\/([^/]+)\/(update|archive|forget)$/);
         if (command) { output = shells.command(command[1], input.command); engine.input(command[1], '\r'); changed = false; }
         else if (write) { output = shells.write(write[1], input.data); engine.input(write[1], input.data); changed = false; }
         // Only host and revision: a review kind and its prompt come from the gauntlet route, never from the page.
         else if (taskRun) output = engine.run(taskRun[1], { host: input.host, expectedRevision: input.expectedRevision });
+        else if (taskRoute) { output = await routeTask({ task: store.task(taskRoute[1]), input }, { catalog, classifier, keys, jevSelect }); changed = false; }
         else if (resize) { output = shells.resize(resize[1], input.cols, input.rows); changed = false; }
         else if (stop) { output = shells.stop(stop[1]); changed = false; }
         else if (recovery) output = store.acknowledgeInterruptedSession(recovery[1], input.verification);

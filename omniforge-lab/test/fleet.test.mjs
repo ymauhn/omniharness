@@ -213,6 +213,71 @@ test('a Gauntlet run from the agent SSE is named as such, exposed for the review
   assert.equal(find(card(), 'Rodar com Codex').disabled, true);
 });
 
+test('"Sugerir host e skill" shows source, probability and latency, marks the suggested run and never starts one', async () => {
+  const env = environment(), { $, fleet, server, find } = env;
+  fleet.sync(); await tick(); await tick();
+  const card = () => $('#task-list').children.find(item => item.textContent.includes('Revisar testes'));
+  const routes = () => env.requests.filter(request => request.path.endsWith('/route'));
+  const jevBox = () => card().querySelectorAll('input').find(node => node.type === 'checkbox');
+  const suggestion = fields => ({ taskId: 'u', provider: 'laya', runnable: false, latencyMs: 212, jevAvailable: false,
+    host: { value: 'codex', source: 'laya', probability: 0.82, reason: 'selected' },
+    skill: { value: 'skill:tdd', name: 'tdd', source: 'lexical', probability: 0.41, reason: 'below_threshold' },
+    effort: { value: 'médio', source: 'laya', probability: 0.7, reason: 'selected' }, ...fields });
+  let reply = suggestion();
+  const base = server.respond;
+  server.respond = async (path, options) => {
+    if (!path.endsWith('/route')) return base(path, options);
+    await server.hold;
+    return reply.error ? { ok: false, status: 409, json: async () => reply } : { ok: true, status: 200, json: async () => reply };
+  };
+  find(card(), 'Sugerir host e skill').focus();
+  await find(card(), 'Sugerir host e skill').fire('click');
+  assert.deepEqual(routes(), [{ path: '/api/tasks/u/route', body: { jev: false } }]);
+  const text = card().textContent;
+  assert.match(text, /Sugestão de Laya em 212 ms · probabilidades não calibradas · nada foi executado\./);
+  assert.match(text, /Host: Codex · Laya · p 0,82/);
+  assert.match(text, /Skill: tdd · busca lexical \(Laya: confiança insuficiente · p 0,41\)/);
+  assert.match(text, /Esforço: médio · Laya · p 0,70/);
+  assert.equal(find(card(), 'Rodar com Codex').className, 'button', 'the suggested host is preselected');
+  assert.equal(find(card(), 'Rodar com Claude').className, 'secondary');
+  assert.equal(find(card(), 'Rodar com Codex').getAttribute('aria-describedby'), 'route-u');
+  assert.equal(doc.activeElement?.dataset.focusKey, 'task:u:route', 'focus stays on Sugerir; a keystroke never reaches a run button');
+  assert.equal(env.requests.some(request => request.path.endsWith('/run')), false, 'a suggestion never dispatches');
+  assert.equal(jevBox(), undefined, 'no Jev control without a vault key');
+
+  // The owner moves on while the answer is in flight: focus stays where they went.
+  const held = deferred(), title = $('#task-title');
+  server.hold = held.promise;
+  const click = find(card(), 'Sugerir host e skill').fire('click');
+  title.focus(); held.resolve(); await click; server.hold = null;
+  assert.equal(doc.activeElement, title, 'a late answer never pulls focus onto a run button');
+
+  // With a vault key, Jev is one opt-in per request, cleared after it.
+  reply = suggestion({ jevAvailable: true });
+  await find(card(), 'Sugerir host e skill').fire('click');
+  const box = jevBox();
+  assert.match(box.parent.textContent, /usa créditos da sua conta Jev/);
+  box.checked = true; await box.fire('change');
+  reply = suggestion({ jevAvailable: true, provider: 'jev', host: { value: 'claude', source: 'jev', probability: 0.9, reason: 'selected' } });
+  await find(card(), 'Sugerir host e skill').fire('click');
+  assert.deepEqual(routes().map(request => request.body), [{ jev: false }, { jev: false }, { jev: false }, { jev: true }]);
+  assert.match(card().textContent, /Host: Claude · Jev · p 0,90/);
+  assert.equal(find(card(), 'Rodar com Claude').className, 'button');
+  assert.equal(jevBox().checked, false, 'the opt-in covered that one request');
+
+  // Laya unloaded: lexical skill only. A refusal is shown and clears the preselection.
+  const none = { value: null, source: 'lexical', probability: null, reason: null };
+  reply = suggestion({ provider: null, host: none, effort: none, skill: { ...none, value: 'skill:tdd', name: 'tdd' } });
+  await find(card(), 'Sugerir host e skill').fire('click');
+  assert.match(card().textContent, /Sugestão por busca lexical \(Laya descarregado\) em 212 ms/);
+  assert.match(card().textContent, /Host: sem sugestão.*Skill: tdd · busca lexical.*Esforço: sem sugestão/);
+  assert.equal(find(card(), 'Rodar com Claude').className, 'secondary');
+  reply = { error: 'Nenhuma chave Jev no cofre do Windows.' };
+  await find(card(), 'Sugerir host e skill').fire('click');
+  assert.match(card().textContent, /Sugestão indisponível: Nenhuma chave Jev no cofre do Windows\./);
+  assert.doesNotMatch(card().textContent, /Host:/);
+});
+
 test('prompt codes from the engine read as pt-BR text; an unknown code stays as sent', async () => {
   const { detailText } = await import('../app/fleet.mjs');
   assert.deepEqual(['permission_prompt', 'trust_prompt', 'hooks_review', 'rate_limit_prompt', 'approval_prompt', 'saiu com código 3'].map(detailText),

@@ -60,7 +60,10 @@ class WorkerTests(unittest.TestCase):
         self.warm()
         self.model.select.return_value=Selection('laya',reason='none')
         self.assertEqual(self.worker.handle(self.request())['selection']['usage'],{'input_tokens':None,'output_tokens':None})
-        for result in [Selection('laya',reason='provider_failed'), Selection('laya','outside','selected'), Selection('laya','source:a','selected',runnable=True)]:
+        self.model.select.return_value=Selection('laya','source:a','selected',probability=0.7)
+        self.assertEqual(self.worker.handle(self.request())['selection']['probability'],0.7)
+        for result in [Selection('laya',reason='provider_failed'), Selection('laya','outside','selected'), Selection('laya','source:a','selected',runnable=True),
+                       Selection('laya','source:a','selected',probability=1.5), Selection('laya','source:a','selected',probability=True)]:
             self.model.select.return_value=result
             self.assertFalse(self.worker.handle(self.request())['ok'])
 

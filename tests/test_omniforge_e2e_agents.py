@@ -129,6 +129,45 @@ class AgentsE2E(LabCase):
         self.assertEqual(page.locator("#fleet-runs .fleet-run").count(), 0)
         context.close()
 
+    def test_a_host_and_skill_suggestion_names_its_source_and_starts_nothing(self):
+        """The demo never loads Laya and has no vault key: the suggestion is the lexical catalog match, shown with its latency."""
+        from playwright.sync_api import expect
+        context, page = self.open()
+        self.project, self.tasks = self.scratch_repo(page, "Repo sugestão"), {}
+        title = "Revisar o código e escrever testes de regressão"
+        self.add_task(page, title)
+        self.select_project(page, "Repo sugestão")
+        self.view(page, "tasks")
+        item = page.locator(f"select[aria-label='Estado de {title}']").locator("xpath=ancestor::article[1]")
+        item.get_by_role("button", name="Sugerir host e skill").click()
+        suggestion = item.locator(".route-suggestion")
+        expect(suggestion).to_contain_text("nada foi executado", timeout=60000)
+        text = suggestion.inner_text()
+        self.assertRegex(text, r"Sugestão por busca lexical \(Laya descarregado\) em \d+ ms")
+        self.assertIn("Host: sem sugestão", text)
+        self.assertIn("Skill: ", text)
+        self.assertEqual(item.locator("input[type=checkbox]").count(), 0, "no Jev opt-in without a vault key")
+        for name in ("Claude", "Codex"):
+            expect(item.get_by_role("button", name=f"Rodar com {name}")).to_be_enabled()
+        self.assertEqual(self.api(page, f"/api/agents?projectId={self.project['id']}")["runs"], [], "a suggestion never starts a run")
+        evidence(page, "route-suggestion")
+
+        # A Laya-shaped answer (the only fake) lands while the owner types a title: focus stays there, so no keystroke runs Codex.
+        held = []
+        page.route("**/api/tasks/*/route", lambda route: held.append(route))
+        item.get_by_role("button", name="Sugerir host e skill").click()
+        page.locator("#task-title").click()
+        page.keyboard.type("Corrigir")
+        self.assertEqual(len(held), 1)
+        pick = {"value": "codex", "source": "laya", "probability": 0.82, "reason": "selected"}
+        held[0].fulfill(json={"taskId": self.tasks[title], "provider": "laya", "runnable": False, "latencyMs": 1300, "jevAvailable": False,
+                              "host": pick, "effort": {**pick, "value": "médio"}, "skill": {**pick, "value": None, "source": "lexical", "reason": None}})
+        expect(suggestion).to_contain_text("Host: Codex · Laya")
+        page.keyboard.type(" o bug")
+        expect(page.locator("#task-title")).to_have_value("Corrigir o bug")
+        self.assertEqual(self.api(page, f"/api/agents?projectId={self.project['id']}")["runs"], [], "a late suggestion never starts a run")
+        context.close()
+
     def test_the_agents_view_fits_a_phone_in_every_theme(self):
         context, page = self.open(viewport=(390, 844))
         self.project, self.tasks = self.scratch_repo(page, "Repo telefone"), {}

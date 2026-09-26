@@ -31,6 +31,21 @@ export function usageText(usage) {
   return `Tokens observados: ${parts.join(' · ')}`;
 }
 
+// The router's suggestion as text lines: each field's value and source, and why a model answer was not used, with its score.
+const SOURCE = { laya: 'Laya', jev: 'Jev', lexical: 'busca lexical' };
+const ABSTAIN = { below_threshold: 'confiança insuficiente', none: 'nenhuma opção direta', selected_fit_failed: 'adequação não confirmada' };
+const score = probability => (probability === null ? '' : ` · p ${probability.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+export function suggestionLines(result) {
+  const provider = SOURCE[result.provider];
+  const field = (label, { value, source, probability, reason }, shown = value) => {
+    if (source !== 'lexical') return `${label}: ${shown} · ${SOURCE[source]}${score(probability)}`;
+    const why = reason === 'no_candidates' ? ' (sem candidatas no catálogo)' : reason ? ` (${provider}: ${ABSTAIN[reason] ?? 'sem resposta válida'}${score(probability)})` : '';
+    return `${label}: ${value === null ? 'sem sugestão' : `${shown} · ${SOURCE.lexical}`}${why}`;
+  };
+  return [`Sugestão ${provider ? `de ${provider}` : 'por busca lexical (Laya descarregado)'} em ${result.latencyMs} ms · probabilidades não calibradas · nada foi executado.`,
+    field('Host', result.host, hostName(result.host.value)), field('Skill', result.skill, result.skill.name ?? result.skill.value), field('Esforço', result.effort)];
+}
+
 function elapsedText(run, now = Date.now()) {
   const start = Date.parse(run.startedAt);
   if (Number.isNaN(start)) return '';
@@ -50,6 +65,9 @@ function runBadge(parent, run, withHost = false) {
 export function createFleet({ openSession, onChange = () => {} }) {
   let runs = [], projectId, request = 0, loadError = '', notify = false, elapsedNodes = new Map();
   const pending = new Set(), toggle = $('#fleet-notify');
+  // Router suggestions by task id ({ pending, result, error, jev, jevAvailable }): they survive every re-render.
+  const suggestions = new Map();
+  const focusTask = key => [...$('#task-list').querySelectorAll('[data-focus-key]')].find(node => node.dataset.focusKey === key)?.focus();
   const latestRun = taskId => runs.find(run => run.taskId === taskId) ?? null;
   const changed = () => { render(); onChange(); };
 
@@ -153,15 +171,43 @@ export function createFleet({ openSession, onChange = () => {} }) {
   ticker.unref?.();
 
   // Tarefas view: "Rodar com …" per host, disabled while any run of the task (agent or Gauntlet) is active, as the engine
-  // refuses, and the latest run's state.
+  // refuses, and the latest run's state. "Sugerir host e skill" marks the suggested host's run button; it never runs anything.
   function taskControls(item, task) {
     const row = one(item, 'div', 'task-run'), run = latestRun(task.id), busy = runs.some(other => other.taskId === task.id && ACTIVE.has(other.state));
+    const entry = suggestions.get(task.id) ?? {};
     for (const host of Object.keys(HOST)) {
-      const button = one(row, 'button', 'secondary', `Rodar com ${hostName(host)}`);
+      const suggested = entry.result?.host.value === host;
+      const button = one(row, 'button', suggested ? 'button' : 'secondary', `Rodar com ${hostName(host)}`);
       button.type = 'button'; button.dataset.focusKey = `task:${task.id}:run-${host}`; button.disabled = busy;
+      if (suggested) button.setAttribute('aria-describedby', `route-${task.id}`);
       button.addEventListener('click', () => start(task, host));
     }
     if (run) Object.assign(runBadge(row, run, true), { tabIndex: -1 }).dataset.focusKey = `task:${task.id}:run-state`;
+    const ask = one(row, 'button', 'secondary', 'Sugerir host e skill');
+    ask.type = 'button'; ask.dataset.focusKey = `task:${task.id}:route`; ask.addEventListener('click', () => suggest(task));
+    // Shown only once the server reports a Jev key in the vault; one tick covers one request.
+    if (entry.jevAvailable) {
+      const label = one(row, 'label'), box = one(label, 'input');
+      box.type = 'checkbox'; box.checked = Boolean(entry.jev); box.dataset.focusKey = `task:${task.id}:route-jev`;
+      box.addEventListener('change', () => { entry.jev = box.checked; });
+      one(label, 'span', '', ' Usar Jev nesta sugestão (usa créditos da sua conta Jev; até 3 chamadas)');
+    }
+    const lines = entry.pending ? ['Sugerindo host e skill…'] : entry.error ? [entry.error] : entry.result ? suggestionLines(entry.result) : [];
+    if (lines.length) { const box = one(item, 'div', 'route-suggestion'); box.id = `route-${task.id}`; for (const line of lines) one(box, 'p', 'meta', line); }
+  }
+
+  // A second click while one is in flight is ignored. Focus never moves: the answer can arrive seconds later, and a
+  // keystroke meant for another control must not land on a run button. The styling and aria-describedby mark the host.
+  async function suggest(task) {
+    const entry = suggestions.get(task.id) ?? {};
+    if (entry.pending) return;
+    suggestions.set(task.id, { ...entry, pending: true });
+    onChange();
+    let result = null, error = null;
+    try { result = await api(`/api/tasks/${encodeURIComponent(task.id)}/route`, { method: 'POST', body: { jev: Boolean(entry.jev) } }); }
+    catch (failure) { error = `Sugestão indisponível: ${failure.message}`; }
+    suggestions.set(task.id, { result, error, jev: false, jevAvailable: result ? result.jevAvailable : entry.jevAvailable });
+    onChange();
   }
 
   // Not disabled while in flight (focus would drop to the page); a second click is ignored instead.
@@ -173,7 +219,7 @@ export function createFleet({ openSession, onChange = () => {} }) {
       const result = await action(`/api/tasks/${encodeURIComponent(task.id)}/run`, { host, expectedRevision: task.revision }, `${hostName(host)} iniciado em “${task.title}”.`);
       if (!result) return;
       await load();
-      [...$('#task-list').querySelectorAll('[data-focus-key]')].find(node => node.dataset.focusKey === `task:${task.id}:run-state`)?.focus();
+      focusTask(`task:${task.id}:run-state`);
     } finally { pending.delete(task.id); }
   }
 
