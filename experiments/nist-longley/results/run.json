@@ -17,6 +17,7 @@
     "data/Longley.dat": "fc4b0c824f8f0b834eb8e7d1c4c7e0b3cebdd7987bcb085e8f5e1007582480ea"
   },
   "outputs": {
-    "results/results.csv": "80f062d73d9858fab5c51650a382410a9d83e931250811307920a354809cda57"
+    "results/lstsq.csv": "990efb973f01d0beda579b8264b9793575d8db6274c0fc490be45975aab019e2",
+    "results/normal-equations.csv": "bee6e9f371eb7a997f95ec43ff60514f9587dbab4d4150220919d855c9246aab"
   }
 }

@@ -19,9 +19,12 @@ CHAPTER = re.compile(r"\\chapter\*?\{([^}]*)\}")
 LABEL = re.compile(r"\\label\{([^}]*)\}")
 REF = re.compile(r"\\(?:ref|eqref|pageref|autoref|cite\w*)\*?(?:\[[^\]]*\])?\{([^}]*)\}")
 HEADING = re.compile(r"\\(?:chapter|section|subsection|subsubsection)\*?\{([^}]*)\}")
-# decimal (point or comma fraction) or integer >= 1000 with optional thousands groups
-NUMERAL = re.compile(r"(?<![\d.,])(?:\d+[.,]\d+|\d{1,3}(?:[.,]\d{3})+|\d{4,})(?![\d.,])")
-THOUSANDS = re.compile(r"^[1-9]\d{0,2}(?:[.,]\d{3})+$")
+# decimal (point or comma fraction) or integer >= 1000 with optional thousands groups; a leading
+# minus (ASCII or U+2212) is part of the numeral unless it follows a word, a closing bracket or
+# another dash (subtraction, a hyphen, a 10--20 range); "." or "," not followed by a digit ends it
+NUMERAL = re.compile(r"(?:(?<![\w)\]}\-\u2212])[-\u2212])?(?<![\d.,])"
+                     r"(?:\d+[.,]\d+|\d{1,3}(?:[.,]\d{3})+|\d{4,})(?!\d|[.,]\d)")
+THOUSANDS = re.compile(r"^[-\u2212]?[1-9]\d{0,2}(?:[.,]\d{3})+$")
 
 
 def read(path):
@@ -92,7 +95,7 @@ def csv_values(paths, precision, smin_precision, smin_columns, decimal):
 
 def cmd_facts(a):
     values = csv_values(a.csv, a.precision, a.smin_precision, set(a.smin_columns), a.decimal)
-    numerals = NUMERAL.findall(clean(read(a.tex)))
+    numerals = [n.replace("\u2212", "-") for n in NUMERAL.findall(clean(read(a.tex)))]
     unmatched = sorted({n for n in numerals if n not in values and n.replace(",", ".") not in values})
     return {"unmatched": unmatched, "checked": len(numerals), "csv_values": len(values)}, bool(unmatched)
 

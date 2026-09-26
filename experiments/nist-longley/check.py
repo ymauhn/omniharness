@@ -35,8 +35,8 @@ def main(argv=None):
     a = ap.parse_args(argv)
     threshold = json.loads((HERE / "manifest.json").read_text(encoding="utf-8"))["threshold_lre"]
     certified = json.loads((HERE / "certified.json").read_text(encoding="utf-8"))["values"]
-    with open(HERE / "results/results.csv", newline="", encoding="utf-8") as f:
-        got = {r["name"]: float(r["value"]) for r in csv.DictReader(f) if r["method"] == a.method}
+    with open(HERE / f"results/{a.method}.csv", newline="", encoding="utf-8") as f:
+        got = {r["name"]: float(r["value"]) for r in csv.DictReader(f)}
     scores = {k: lre(got[k], float(c)) for k, c in certified.items()}
     worst = min(scores.values())
     out = {

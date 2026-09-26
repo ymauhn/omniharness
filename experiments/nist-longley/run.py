@@ -1,9 +1,9 @@
 """Fit the NIST StRD Longley model two ways and record what ran.
 
-Usage: python run.py   (writes results/results.csv and results/run.json next to this file)
+Usage: python run.py   (writes results/<method>.csv and results/run.json next to this file)
 
 lstsq             numpy.linalg.lstsq (LAPACK SVD); standard deviations from the same SVD.
-normal-equations  the naive (X'X)^-1 X'y in float64, kept as the failed-check case.
+normal-equations  the naive (X'X)^-1 X'y in float64, a control: informational, never an acceptance verdict.
 """
 import csv
 import hashlib
@@ -16,7 +16,7 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 DATA = "data/Longley.dat"
-RESULTS = "results/results.csv"
+METHODS = ("lstsq", "normal-equations")  # one results file each, so no gate can pool the control
 
 
 def sha256(path):
@@ -49,11 +49,11 @@ def fit(X, y, method):
 def main():
     X, y = load()
     (HERE / "results").mkdir(exist_ok=True)
-    with open(HERE / RESULTS, "w", newline="", encoding="utf-8") as f:
-        w = csv.writer(f, lineterminator="\n")
-        w.writerow(["method", "name", "value"])
-        for method in ("lstsq", "normal-equations"):
-            w.writerows([method, k, repr(float(v))] for k, v in fit(X, y, method).items())
+    for method in METHODS:
+        with open(HERE / f"results/{method}.csv", "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f, lineterminator="\n")
+            w.writerow(["name", "value"])
+            w.writerows([k, repr(float(v))] for k, v in fit(X, y, method).items())
     deps = np.show_config(mode="dicts")["Build Dependencies"]
     run = {
         "command": " ".join(["python", *sys.argv]),
@@ -64,7 +64,7 @@ def main():
         "platform": platform.platform(),
         "cond2_X": float(np.linalg.cond(X)),
         "inputs": {DATA: sha256(HERE / DATA)},
-        "outputs": {RESULTS: sha256(HERE / RESULTS)},
+        "outputs": {f"results/{m}.csv": sha256(HERE / f"results/{m}.csv") for m in METHODS},
     }
     (HERE / "results/run.json").write_bytes((json.dumps(run, indent=2) + "\n").encode())
 
