@@ -339,6 +339,20 @@ class LabE2E(LabCase):
         evidence(second, "memory-conflict")
         context.close()
 
+    def test_a_long_project_root_never_widens_the_page(self):
+        # A deep folder, like a OneDrive or scratch path: the header shows it and must ellipsize, not widen the grid.
+        root = os.path.join(self.demo.temp, "OneDrive", "Documentos", "Projetos da agencia de turismo", "clientes-e-reservas", "repositorio-principal")
+        os.makedirs(root)
+        context, page = self.open(viewport=(1024, 800))
+        self.api(page, "/api/projects", {"name": "Raiz longa", "root": root})
+        page.locator("#project-list .rail-item", has_text="Raiz longa").click()
+        page.wait_for_function("() => document.querySelector('#top-context').textContent.includes('repositorio-principal')")
+        for view in ("workspace", "tasks", "fleet", "graphs"):
+            self.view(page, view)
+            overflow = page.evaluate("() => document.documentElement.scrollWidth - document.documentElement.clientWidth")
+            self.assertEqual(overflow, 0, f"{view}@1024 with a long project root: horizontal overflow {overflow}px")
+        context.close()
+
     def test_accessibility_names_keyboard_navigation_and_no_overflow_in_every_theme(self):
         for width, height in ((390, 844), (1024, 768), (1440, 900)):
             context, page = self.open(viewport=(width, height))

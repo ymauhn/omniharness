@@ -20,13 +20,13 @@
     button { cursor: pointer; }
     button:disabled { cursor: not-allowed; opacity: .5; }
     :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .app { min-height: 100vh; display: grid; grid-template-rows: auto minmax(0,1fr); }
+    .app { min-height: 100vh; display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: auto minmax(0,1fr); }
     .topbar { display:flex; justify-content:space-between; align-items:center; gap:16px; min-height:68px; padding:10px 22px; border-bottom:1px solid var(--line); background:var(--surface); }
-    .brand { display:flex; align-items:center; gap:12px; min-width:0; }
+    .brand { display:flex; align-items:center; gap:12px; flex:none; }
     .mark { display:grid; place-items:center; width:38px; height:38px; border-radius:11px; background:var(--accent); color:var(--accentText); font-weight:800; letter-spacing:-.1em; }
     .brand-name { font-size:18px; font-weight:750; letter-spacing:-.035em; line-height:1.1; }
     .brand-sub { display:block; margin-top:3px; color:var(--muted); font-size:11px; font-weight:600; letter-spacing:.15em; text-transform:uppercase; }
-    .top-context { min-width:0; color:var(--muted); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .top-context { flex:1 1 auto; min-width:0; color:var(--muted); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .top-context strong { color:var(--text); font-weight:600; }
     .top-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
     .theme-select { border:1px solid var(--field); background:var(--surface2); border-radius:var(--radius); padding:7px 9px; max-width:190px; }
