@@ -208,8 +208,9 @@ test('a Claude task runs in its own worktree and branch, reports hook states and
   assert.equal(git(root, 'status', '--porcelain'), '');
   await waitFor(() => events.some(event => event.runId === run.id && event.state === 'done'), 'SSE agent done');
   const mine = events.filter(event => event.runId === run.id);
+  // The fake's PreToolUse (tool Bash) while already working is a no-op: no runs.json write, no broadcast per tool switch.
   assert.deepEqual(mine.map(event => [event.state, event.detail]), [
-    ['starting', ''], ['working', ''], ['working', 'Bash'], ['blocked', 'permission_prompt'], ['working', ''], ['idle', ''], ['done', ''],
+    ['starting', ''], ['working', ''], ['blocked', 'permission_prompt'], ['working', ''], ['idle', ''], ['done', ''],
   ]);
   assert.deepEqual(Object.keys(mine[0]), ['taskId', 'projectId', 'runId', 'sessionId', 'host', 'state', 'detail', 'at']);
   assert.deepEqual([mine[0].taskId, mine[0].projectId, mine[0].sessionId, mine[0].host], [task.id, project.id, run.sessionId, 'claude']);

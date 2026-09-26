@@ -300,7 +300,9 @@ export class AgentEngine extends EventEmitter {
     if (!EVENTS.has(event)) fail('Evento de agente inválido', 400);
     detail = typeof detail === 'string' ? detail.slice(0, 200) : '';
     let state;
-    if (event === 'UserPromptSubmit' || event === 'PreToolUse') state = 'working';
+    // Working with no detail: the tool name would make every tool switch a runs.json write (fsync) and a broadcast that
+    // reloads every window; a repeated working event is then a no-op set.
+    if (event === 'UserPromptSubmit' || event === 'PreToolUse') [state, detail] = ['working', ''];
     // Claude's notification_type: permission_prompt/elicitation_dialog wait on the owner, idle_prompt waits for a
     // new prompt; older versions send only the message text. Anything else (auth_success) changes nothing.
     else if (event === 'Notification') state = /permission|elicitation/i.test(detail) ? 'blocked' : /idle|waiting/i.test(detail) ? 'idle' : null;
