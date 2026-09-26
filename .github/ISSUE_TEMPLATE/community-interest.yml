@@ -7,7 +7,7 @@ body:
       value: |
         **This issue is public.** Anyone can read it. Do not include private data, email addresses, API keys, tokens, passwords or other credentials.
 
-        OmniForge is a local, Windows-first workspace in active development; V1 is not complete. The skills, templates and tutorials already live in this repository. Nothing is for sale yet: this form only records interest. Member access is not granted through an issue, so never post an email address, an account name or a share link here, not even in a reply.
+        OmniForge is a local, Windows-first workspace in active development; V1 is not complete. The skills, templates and tutorials already live in this repository. Nothing is for sale yet: this form only records interest. Member access is not granted through an issue, so never post an email address, a claude.ai account name or a share link here, not even in a reply.
   - type: input
     id: handle
     attributes:

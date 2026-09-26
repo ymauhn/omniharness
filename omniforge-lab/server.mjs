@@ -16,6 +16,10 @@ import { ExtensionService } from './extensions.mjs';
 import { KeyVault } from './key-vault.mjs';
 import { readCodexRateLimits, usageFigures } from './usage.mjs';
 
+// Windows otherwise resolves a bare program name (python, powershell.exe, taskkill.exe) in the current folder
+// first, so a file planted where the Lab was launched could run in its place.
+if (process.platform === 'win32') process.env.NoDefaultCurrentDirectoryInExePath = '1';
+
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
 const MAX_BODY = 32 * 1024;

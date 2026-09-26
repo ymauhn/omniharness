@@ -122,6 +122,14 @@ class Gates(unittest.TestCase):
         code, out, _ = facts(tex, csv)
         self.assertEqual((code, out["unmatched"]), (1, ["-0.5869", "0.0143", "0.5870"]))
 
+    def test_facts_reads_a_unicode_minus_thousands_cell_without_crashing(self):
+        csv = self.tmp / "minus.csv"
+        csv.write_text("run,total\nx,\u22121,234\n".replace(",\u22121,234", ",\"\u22121,234\""), encoding="utf-8")
+        tex = self.tmp / "minus.tex"
+        tex.write_text("The balance fell by \u22121,234 units.\n", encoding="utf-8")
+        code, out, err = run("facts", "--csv", csv, "--tex", tex, "--decimal", "point")
+        self.assertEqual((code, out.get("unmatched")), (0, []), err)
+
     def test_score(self):
         code, out, _ = run("score", "--scores", "90,80,70,60", "--facts-unmatched", "2")
         self.assertEqual((code, out["df"], out["composite"]), (0, 59, 67.7))

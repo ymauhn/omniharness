@@ -10,7 +10,7 @@ On the Codex Windows host, `./scripts/check.ps1` selects the already-installed b
 
 Visual coverage is required. With the runner's Python, install `-m pip install -r tests/visual/requirements.txt`, then `-m playwright install chromium` (network installation requires authorisation). Invoke Playwright as a Python module, so its Scripts directory need not be on PATH. `check.ps1` rejects skipped tests. The screenshot suite uses Chromium, not an external ffmpeg command; Playwright manages its own downloaded browser/media binaries. The pillar 3 experiment test (`tests/test_nist_longley.py`) needs numpy: with the same Python, `-m pip install -r experiments/nist-longley/requirements.txt`.
 
-- Python 3.12+ (`python --version`; the reference machine has 3.12.10; the installer uses `os.path.isjunction`, new in 3.12). Stdlib only, no pip packages.
+- Python 3.12+ (`python --version`; the reference machine has 3.12.10; the installer uses `os.path.isjunction`, new in 3.12). The installer itself is stdlib only; the repository test run also needs Playwright with Chromium and numpy (`experiments/nist-longley/requirements.txt`).
 - Node 22+ (`node --version`; reference 24.19). The harness drivers need plain Node; the OmniForge Lab (`omniforge-lab/`, see [its installer](omniforge/INSTALL.md)) needs Node 22 or newer and its locked npm packages.
 - git on PATH.
 - Claude Code (reference 2.1.267) for the Gauntlet and the enforced gate. Codex and Hermes get the portable skills and the prose gate; see their sections.

@@ -305,3 +305,18 @@ test('memory API versions competing writes, denies mismatched scopes and explici
   for (const invalid of ['limit=0', 'limit=51', 'offset=-1', 'offset=1.5']) assert.equal((await get(`${pageRoute}&${invalid}`)).status, 400);
   assert.equal(app.store.noteHistory(other.id, { scope: 'project', projectId: b.id }).length, 46, 'pagination preserves durable audit history');
 });
+
+test('the Lab process never runs a program planted in the current folder', async t => {
+  if (process.platform !== 'win32') return;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-cwd-plant-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.copyFileSync(path.join(process.env.SystemRoot, 'System32', 'hostname.exe'), path.join(dir, 'omni-planted-probe.exe'));
+  // A child without the variable reproduces the default Windows search order; importing the server must harden it.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => key.toLowerCase() !== 'nodefaultcurrentdirectoryinexepath'));
+  const server = new URL('../server.mjs', import.meta.url).href;
+  const probe = `import { spawnSync } from 'node:child_process'; await import(${JSON.stringify(server)}); const r = spawnSync('omni-planted-probe.exe', [], { encoding: 'utf8' }); console.log(JSON.stringify({ code: r.error?.code ?? null, ran: Boolean(r.stdout) }));`;
+  const baseline = spawnSync(process.execPath, ['-e', "const r = require('child_process').spawnSync('omni-planted-probe.exe', [], { encoding: 'utf8' }); console.log(Boolean(r.stdout));"], { cwd: dir, env, encoding: 'utf8' });
+  assert.equal(baseline.stdout.trim(), 'true', 'without hardening Windows runs the planted copy (test precondition)');
+  const hardened = spawnSync(process.execPath, ['--input-type=module', '-e', probe], { cwd: dir, env, encoding: 'utf8' });
+  assert.deepEqual(JSON.parse(hardened.stdout.trim().split(/\r?\n/).at(-1)), { code: 'ENOENT', ran: false }, hardened.stderr);
+});

@@ -34,9 +34,10 @@ console.log(JSON.stringify({ pty: JSON.parse(fs.readFileSync('node_modules/node-
 
 // Windows (libuv and cmd.exe alike) looks in the current folder before PATH, so a stray git.exe or
 // claude.cmd next to a downloaded zip would run. Programs are resolved from absolute PATH entries only.
-function which(name, env = process.env) {
+function which(name, env = process.env, shell = true) {
   if (path.isAbsolute(name)) return name;
-  const exts = process.platform === 'win32' ? (env.PATHEXT || '.COM;.EXE;.BAT;.CMD').toLowerCase().split(';').filter(Boolean) : [];
+  // Without a shell Node can start only .exe/.com; a .bat/.cmd shim earlier on PATH (pyenv-win) must not hide the real program.
+  const exts = process.platform === 'win32' ? (env.PATHEXT || '.COM;.EXE;.BAT;.CMD').toLowerCase().split(';').filter(ext => ext && (shell || ext === '.exe' || ext === '.com')) : [];
   const names = !exts.length || exts.includes(path.extname(name).toLowerCase()) ? [name] : exts.map(ext => name + ext);
   for (const dir of (env.PATH || '').split(path.delimiter).map(entry => entry.replaceAll('"', '')).filter(entry => path.isAbsolute(entry))) {
     // lstat: a Store app alias is a reparse point that stat cannot open.
@@ -48,7 +49,7 @@ function which(name, env = process.env) {
 export function run(file, args = [], { cwd, shell = false, timeout = TIMEOUT } = {}) {
   // shell only for fixed host-CLI commands (npm/claude/codex may be .cmd shims), never with caller input.
   const [name, ...rest] = shell ? file.split(' ') : [file];
-  const exe = which(name);
+  const exe = which(name, process.env, shell);
   if (!exe) return { status: null, stdout: '', stderr: '', error: Object.assign(new Error(`${name} is not on PATH`), { code: 'ENOENT' }) };
   // The opt-out also covers what a child runs by name, such as the node an npm shim starts.
   const options = { cwd, encoding: 'utf8', timeout, windowsHide: true, env: { ...process.env, NoDefaultCurrentDirectoryInExePath: '1' } };
@@ -576,7 +577,7 @@ export async function start({ prefix = defaultPrefix(), demo = false, stopOnEof 
     try { await app.close(); process.exit(0); }
     catch (error) { console.error(`Shutdown not confirmed: ${error.message}`); process.exit(1); }
   };
-  for (const signal of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.once(signal, stop);
+  for (const signal of ['SIGINT', 'SIGTERM', 'SIGBREAK', 'SIGHUP']) process.once(signal, stop);
   if (stopOnEof) process.stdin.once('end', stop).resume();
 }
 

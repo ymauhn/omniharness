@@ -107,9 +107,13 @@ class NistLongley(unittest.TestCase):
         source = load(EXP / "certified.json")["source"]
         self.assertEqual(sha256(EXP / source["path"]), source["sha256"])
         self.assertEqual(load(EXP / "results/check-lstsq.json")["verdict"], manifest["expected_verdicts"]["lstsq"])
-        # numpy is a declared dependency, pinned to the reference run's version.
-        numpy = load(EXP / "results/run.json")["numpy"]
-        self.assertIn(f"numpy=={numpy}", (EXP / "requirements.txt").read_text(encoding="utf-8").split())
+        # numpy is a declared dependency with a lower bound; another operator's version is an explained
+        # environment difference (PILLAR-3-SCIENCE.md), so only the bound is checked, not equality.
+        spec = [line.strip() for line in (EXP / "requirements.txt").read_text(encoding="utf-8").splitlines()
+                if line.strip().startswith("numpy")]
+        self.assertEqual(spec, ["numpy>=1.26"])
+        numpy = tuple(int(part) for part in load(EXP / "results/run.json")["numpy"].split(".")[:2])
+        self.assertGreaterEqual(numpy, (1, 26))
 
     def test_certified_values_are_verbatim_from_both_nist_sources(self):
         cert = load(EXP / "certified.json")

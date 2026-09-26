@@ -23,3 +23,6 @@ __pycache__/
 .impeccable/hook.cache.json
 .omniforge-lab/
 omniforge-lab/node_modules/
+
+# Workflow host isolation worktrees (never repository content)
+.claude/worktrees/

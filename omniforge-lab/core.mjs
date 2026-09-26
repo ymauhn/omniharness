@@ -499,7 +499,7 @@ export class ShellCoordinator extends EventEmitter {
       catch { try { child.kill('SIGKILL'); } catch {} return false; }
     }
     return await new Promise(resolve => {
-      const killer = spawn('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
+      const killer = spawn(path.join(process.env.SystemRoot || 'C:/Windows', 'System32', 'taskkill.exe'), ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
       killer.once('error', () => { try { child.kill(); } catch {} resolve(false); });
       killer.once('close', code => resolve(code === 0 || child.exitCode !== null));
     });

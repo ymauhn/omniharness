@@ -157,7 +157,7 @@
  "On the roadmap, not shipped: an integrated consulting agent.",
  "<svg class=\"i\" aria-hidden=\"true\" focusable=\"false\"><use href=\"#i-lock\"></use></svg> public edition · the members' edition is a private claude.ai page the maintainer shares; opening it is the sign-in",
  "<svg class=\"i\" aria-hidden=\"true\" focusable=\"false\"><use href=\"#i-check\"></use></svg> members edition · you are reading through claude.ai",
- "To register interest in member access, tick \"Member access\" in the <a href=\"https://github.com/ymauhn/omniharness/issues/new?template=community-interest.yml\">public issue form</a>; a handle is optional and nothing else is needed. Access is not granted through the issue, and the issue is public: never post an email address, an account name, a share link or credentials there. Nothing is for sale; prices are not set.",
+ "To register interest in member access, tick \"Member access\" in the <a href=\"https://github.com/ymauhn/omniharness/issues/new?template=community-interest.yml\">public issue form</a>; a handle is optional and nothing else is needed. Access is not granted through the issue, and the issue is public: never post an email address, a claude.ai account name, a share link or credentials there. Nothing is for sale; prices are not set.",
  "Architecture, setup, implementation",
  "<b>Services</b> consulting",
  "Architecture of an agent-engineering setup around the harness.",

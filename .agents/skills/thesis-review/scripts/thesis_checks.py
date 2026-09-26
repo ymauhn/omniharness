@@ -73,6 +73,7 @@ def csv_values(paths, precision, smin_precision, smin_columns, decimal):
         for row in csv.DictReader(text.splitlines(), delimiter=delim):
             for col, cell in row.items():
                 cell = (cell or "").strip()
+                cell = cell.replace("\u2212", "-")  # U+2212 minus reads as ASCII before any parsing
                 if THOUSANDS.match(cell) and ("." in cell if mode == "comma" else "," in cell):
                     n = int(re.sub(r"[.,]", "", cell))
                     values.update({str(n), f"{n:,}"})

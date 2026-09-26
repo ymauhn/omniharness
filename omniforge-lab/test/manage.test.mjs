@@ -502,3 +502,18 @@ test('the installed launcher survives uninstall deleting its own folder', t => {
   assert.doesNotMatch(result.stdout.split('Node.js, Python, Git and the host CLIs were not touched.')[1], /\S/);
   assert.ok(!fs.existsSync(prefix), result.stdout);
 });
+
+test('run skips a .bat/.cmd shim that Node cannot start without a shell and finds the real program later on PATH', t => {
+  if (process.platform !== 'win32') return;
+  const shims = tmp(t, 'shim'), real = tmp(t, 'real');
+  fs.writeFileSync(path.join(shims, 'omni-shimmed.bat'), '@echo shim');
+  fs.copyFileSync(path.join(process.env.SystemRoot, 'System32', 'hostname.exe'), path.join(real, 'omni-shimmed.exe'));
+  const saved = process.env.PATH;
+  process.env.PATH = [shims, real, saved].join(path.delimiter);
+  try {
+    const result = run('omni-shimmed');
+    assert.equal(result.error, undefined, String(result.error));
+    assert.equal(result.status, 0);
+    assert.ok(result.stdout.trim().length > 0);
+  } finally { process.env.PATH = saved; }
+});

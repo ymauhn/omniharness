@@ -50,7 +50,7 @@ Paid, one run on 2026-09-11, demand "community portal for OmniHarness" (`docs/sc
 |---|---|---|---|---|---|---|---|
 | 6 (5 search + 1 synthesis), 0 errors | 205.7 s | 80,767 | 443,262 | 107 | 26 unique, 4 duplicates removed | 6 (8 gaps, 10 recommendations) | github 6, hn 2, reddit 6 (degraded: blocked), x 6 (degraded by design), producthunt 6 (degraded by design) |
 
-E1 status: unverified. The run went through the Workflow tool, not `evals/run.py`, so there is no runner record and the E1 audit does not cover it.
+Status: unverified, outside the E1 audit. The run went through the Workflow tool, not `evals/run.py`, so there is no runner record for the audit to cover.
 
 Every reference carried a URL the search returned or the agent opened; the synthesis dropped no URL outside the list (code filter). The run stopped with `parouPor: sintetizado`, well under the ceiling. Reproduce: the exact `Workflow({name: "scout-driver", args})` call is recorded in the transcript and its sources in `.agents/skills/scout/references/sources.md`.
 
