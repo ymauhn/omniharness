@@ -98,6 +98,37 @@ class TaskGraphTests(unittest.TestCase):
         self.assertEqual(result["quality_before_penalty"], "0/1")
         self.assertFalse(result["hard_gate_pass"])
 
+    def test_acceptance_before_prerequisite_acceptance_earns_no_credit(self):
+        reversed_order = (attempt(1, "test", 0, 10, evidence="t1"),
+                          attempt(2, "review", 10, 20, evidence="r1"),
+                          attempt(3, "discover", 20, 30, evidence="d1"),
+                          attempt(4, "implement", 30, 40, evidence="i1"))
+        result = score(reversed_order, end=50)
+        self.assertEqual(result["credited_nodes"], ["discover", "implement"])
+        self.assertFalse(result["hard_gate_pass"])
+        self.assertFalse(result["task_pass"])
+        rerun = score(reversed_order + (attempt(5, "test", 40, 50, evidence="t2"),), end=50)
+        self.assertEqual(rerun["credited_nodes"], ["discover", "implement", "test"])
+        self.assertTrue(rerun["hard_gate_pass"])
+
+    def test_one_evidence_id_cannot_back_two_nodes(self):
+        shared = tuple(replace(item, evidence_id="same") for item in deliveries())
+        with self.assertRaisesRegex(ValueError, "evidence id is shared"):
+            score(shared)
+        retried = score(deliveries() + (attempt(5, "implement", 31, 40, evidence="i1"),), end=40)
+        self.assertTrue(retried["task_pass"])
+
+    def test_no_progress_penalty_counts_per_node_not_per_loop_key(self):
+        loops = tuple(attempt(5 + index, "implement", 30 + index, 31 + index,
+                              verdict="no_progress", loop_key=f"k{index}",
+                              adjudication=f"adjudicated-{index}") for index in range(5))
+        loops += (attempt(10, "test", 35, 36, verdict="no_progress", loop_key="k0",
+                          adjudication="adjudicated-test"),)
+        result = score(deliveries() + loops, end=40)
+        self.assertEqual(result["no_progress_repeat_excess"], 4)
+        self.assertEqual(result["loop_penalty"], "2/5")
+        self.assertEqual(result["provisional_quality"], "3/5")
+
     def test_refuter_fields_unknown_until_all_human_labels_exist(self):
         unknown = score(deliveries(), refuters=(RefuterCase("finding-1", True),))
         self.assertEqual(unknown["refuter"]["human_labeled"], 0)
