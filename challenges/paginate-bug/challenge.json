@@ -1,0 +1,6 @@
+{
+  "id": "paginate-bug",
+  "version": 1,
+  "title": "Fix the paginate off-by-one without losing its contract",
+  "timeoutSeconds": 20
+}

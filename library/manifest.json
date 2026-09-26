@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "entries": [
+    {
+      "id": "checkpoint-build",
+      "kind": "skill",
+      "source": ".agents/skills/checkpoint-build",
+      "sha256": "53141322a53b177a222b0ead77dfc2bdc6ad6792349ae1903cf21be83c356083",
+      "installs": [".claude/skills/checkpoint-build", ".agents/skills/checkpoint-build"],
+      "review": "SKILL.md sha256 a090f017569eefe196ccc0fe6564f8dc8e9dbda41d943d162e825866e8118bb5 carries reviewed_at 2026-09-25 in docs/skills-graph/skill-metadata.json; the fresh-context reviewer rehearsal is in docs/research/helix-2026-09-25.md. Instruction-level review, not a live trajectory."
+    },
+    {
+      "id": "engineering-checkpoint-template",
+      "kind": "template",
+      "source": "library/templates/engineering-checkpoint.workflow.json",
+      "sha256": "8413b138a516327dd0e2a8d153da73e5216c4ceb1f606febfc15f4b72ca3ee92",
+      "installs": [".omniharness/library/engineering-checkpoint.workflow.json"],
+      "review": "Exported unchanged from the engineering-checkpoint preset in omniforge-lab/workflows.mjs (tests/test_library.py checks equality). The preset is labelled a proposed template; owner review pending."
+    },
+    {
+      "id": "checkpoint-tdd-tutorial",
+      "kind": "tutorial",
+      "source": "recipes/checkpoint-tdd-with-omniforge.md",
+      "sha256": "6ddb9d60565ca409ab09398eaa22d14cec45a60cf9f5fafa83a39045f75ca482",
+      "installs": [".omniharness/library/checkpoint-tdd-with-omniforge.md"],
+      "review": "Commands executed on 2026-09-26 against a temporary home and data directory (docs/omniforge/PILLAR-4-LIBRARY.md); owner review pending."
+    }
+  ]
+}
