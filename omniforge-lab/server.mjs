@@ -271,7 +271,8 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
       else if (url.pathname === '/api/skills/refresh') { output = await catalog.refresh(); changed = false; }
       else if (url.pathname === '/api/projects') output = store.addProject(input);
       else if (url.pathname === '/api/sessions') {
-        output = store.addSession(input);
+        // The shell starts in the project root: a cwd is only the engine's (an agent worktree), never the page's.
+        output = store.addSession({ projectId: input.projectId, name: input.name });
         shells.start(output.id);
       } else if (url.pathname === '/api/tasks') output = store.addTask(input);
       else if (url.pathname === '/api/memory') output = store.addNote(input);
