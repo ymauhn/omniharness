@@ -52,7 +52,8 @@ function environment({ storage = new Map() } = {}) {
   return env;
 }
 
-const diff = (extra = {}) => ({ baseSha: 'b'.repeat(40), branch: 'omniforge/t-1', stat: { files: 1, additions: 1, deletions: 0 }, truncated: false,
+const TREE = '1'.repeat(40);
+const diff = (extra = {}) => ({ baseSha: 'b'.repeat(40), branch: 'omniforge/t-1', tree: TREE, stat: { files: 1, additions: 1, deletions: 0 }, truncated: false,
   files: [{ path: 'agent-call.json', status: 'A', additions: 1, deletions: 0, binary: false }], patch: 'diff --git a/agent-call.json b/agent-call.json\n@@ -0,0 +1 @@\n+{}\n', ...extra });
 const refusal = message => Object.assign(new Error(message), { status: 409 });
 
@@ -165,7 +166,7 @@ test('merge: one request at a time, the refusal shows and keeps the inputs, succ
   void env.form().fire('submit');
   const merges = () => env.calls.filter(call => call.route === '/api/tasks/t/merge');
   assert.equal(merges().length, 1, 'a second submit while the first runs is ignored');
-  assert.deepEqual(merges()[0].body, { expectedRevision: 3, testCommand: 'exit 3', note: 'Conferi o diff' });
+  assert.deepEqual(merges()[0].body, { expectedRevision: 3, testCommand: 'exit 3', note: 'Conferi o diff', reviewedTree: TREE });
   assert.equal(env.find('merge').disabled, true, 'the button is disabled while the merge runs');
   assert.equal(env.storage.get('omniforge-review-test:a'), 'exit 3', 'the test command is remembered for this project');
 
@@ -175,19 +176,48 @@ test('merge: one request at a time, the refusal shows and keeps the inputs, succ
   assert.deepEqual(env.toasts, [env.outcome().textContent], 'the outcome is announced once');
   assert.equal(env.find('test-command').value, 'exit 3', 'the refusal keeps the test command');
   assert.equal(env.find('note').value, 'Conferi o diff', 'and the note');
-  assert.equal(env.find('merge').disabled, false);
   assert.ok(env.pending.some(request => request.route === '/api/tasks/t/evidence'), 'the evidence reloads after the attempt');
   await env.answer('/api/tasks/t/diff', diff());
   await env.answer('/api/tasks/t/evidence', { taskId: 't', attempts: [] });
+  assert.equal(env.find('merge').disabled, false);
 
   env.tasks.get('t').revision = 4;
   env.find('test-command').value = ''; await env.find('test-command').fire('input');
   void env.form().fire('submit');
-  assert.deepEqual(merges()[1].body, { expectedRevision: 4, testCommand: null, note: 'Conferi o diff' }, 'expectedRevision is the current one');
+  assert.deepEqual(merges()[1].body, { expectedRevision: 4, testCommand: null, note: 'Conferi o diff', reviewedTree: TREE }, 'expectedRevision is the current one');
   await env.answer('/api/tasks/t/merge', { task: {}, attempt: { mergeSha: 'd'.repeat(40) } });
   assert.match(env.outcome().textContent, new RegExp(`Merge concluído: ${'d'.repeat(40)}`));
   assert.equal(env.outcome().dataset.kind, 'merged');
   assert.equal(env.find('note').value, '', 'a successful merge drops the note');
+});
+
+test('merge approves the tree of the diff it shows; a content change refusal shows why and reloads the diff before another try', async () => {
+  const env = environment();
+  const merges = () => env.calls.filter(call => call.route === '/api/tasks/t/merge');
+  env.panel.open('t');
+  assert.equal(env.find('merge').disabled, true, 'nothing to approve before the diff shows');
+  void env.form().fire('submit');
+  assert.equal(merges().length, 0, 'and a submit sends nothing');
+  await env.answer('/api/tasks/t/diff', diff({ tree: 'a'.repeat(40) }));
+  await env.answer('/api/tasks/t/evidence', { taskId: 't', attempts: [] });
+  void env.form().fire('submit');
+  assert.equal(merges()[0].body.reviewedTree, 'a'.repeat(40), 'the reviewed content identity travels with the approval');
+
+  const changed = 'O conteúdo da worktree mudou desde a revisão; abra o diff de novo';
+  await env.answer('/api/tasks/t/merge', refusal(changed));
+  assert.equal(env.outcome().textContent, `Merge recusado: ${changed}`);
+  assert.equal(env.outcome().dataset.kind, 'refused');
+  assert.match(env.text(), /Carregando diff…/, 'the refused content is no longer shown as reviewed');
+  assert.equal(env.find('merge').disabled, true, 'no approval until the new content shows');
+  void env.form().fire('submit');
+  assert.equal(merges().length, 1);
+  await env.answer('/api/tasks/t/diff', diff({ tree: 'c'.repeat(40), patch: 'diff --git a/agent-call.json b/agent-call.json\n@@ -0,0 +1 @@\n+{"novo":1}\n' }));
+  await env.answer('/api/tasks/t/evidence', { taskId: 't', attempts: [{ at: '2026-09-26T12:00:00.000Z', refused: { reason: changed }, mergeSha: null }] });
+  assert.match(env.text(), /\+\{"novo":1\}/, 'the new content is shown');
+  assert.match(env.outcome().textContent, /mudou desde a revisão/, 'with the reason still in view');
+  assert.equal(env.find('merge').disabled, false);
+  void env.form().fire('submit');
+  assert.equal(merges()[1].body.reviewedTree, 'c'.repeat(40), 'the next approval is of the new content');
 });
 
 test('the last test command is per project and storage failures never break the panel', async () => {
@@ -204,6 +234,7 @@ test('the last test command is per project and storage failures never break the 
   broken.panel = createReviewPanel({ root: broken.root, api: async route => answers(route), getProjectId: () => 'a', getTask: id => broken.tasks.get(id),
     storage: { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } } });
   broken.panel.open('t');
+  await tick();
   assert.equal(broken.find('test-command').value, '');
   broken.find('test-command').value = 'npm test';
   await broken.form().fire('submit');

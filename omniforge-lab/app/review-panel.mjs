@@ -139,21 +139,24 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
     if (taskId) render();
   }
 
+  // The approval names the content it approves: the tree of the diff on screen. The server refuses it when the worktree
+  // changed since then (409), so after any attempt the diff is dropped and read again before another approval.
   async function merge() {
-    const id = taskId, owner = projectId, task = getTask(id);
-    if (merging || !task) return;
+    const id = taskId, owner = projectId, task = getTask(id), reviewedTree = diff?.tree ?? null;
+    if (merging || !task || !diff) return;
     const testCommand = draft.testCommand.trim(), note = draft.note.trim();
     keepTest(owner, testCommand);
     merging = id; outcome = null; render(); // one merge at a time in this page; only its own task shows it running
     let result, failure;
-    try { result = await api(`/api/tasks/${encodeURIComponent(id)}/merge`, { method: 'POST', body: { expectedRevision: task.revision, testCommand: testCommand || null, note: note || null } }); }
+    const body = { expectedRevision: task.revision, testCommand: testCommand || null, note: note || null, reviewedTree };
+    try { result = await api(`/api/tasks/${encodeURIComponent(id)}/merge`, { method: 'POST', body }); }
     catch (error) { failure = error; }
     finally { merging = null; }
     if (current(id, owner)) {
       if (failure) outcome = { kind: 'refused', text: `${failure.status === 409 ? 'Merge recusado' : 'Merge não concluído'}: ${failure.message}` };
       else { outcome = { kind: 'merged', text: `Merge concluído: ${result.attempt?.mergeSha}` }; draft.note = ''; }
       toast(outcome.text);
-      void load();
+      diff = null; void load();
     }
     if (taskId) render();
   }
@@ -197,7 +200,7 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
     Object.assign(note, { value: draft.note, maxLength: 2000 });
     note.addEventListener('input', () => { draft.note = note.value; });
     const submit = keyed(one(form, 'button', 'button', merging === taskId ? 'Executando teste e merge…' : merging ? 'Aguardando outro merge…' : 'Aprovar e fazer merge'), 'merge');
-    submit.type = 'submit'; submit.disabled = Boolean(merging);
+    submit.type = 'submit'; submit.disabled = Boolean(merging) || !diff;
     if (outcome) one(form, 'p', 'review-outcome', outcome.text).dataset.kind = outcome.kind;
     form.addEventListener('submit', event => { event.preventDefault(); void merge(); });
   }
