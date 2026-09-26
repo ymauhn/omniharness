@@ -432,11 +432,24 @@ test('the Gauntlet button waits while its task merges, and neither a double-clic
   assert.deepEqual(posts().map(call => call.body), [{ expectedRevision: 3, preset: 'rapido' }], 'a deliberate click confirms');
 });
 
-test('an agent session that ended on its own is verified from the panel before the merge is offered', async () => {
+test('the merge gate\'s uncertain session shows as the server reports it: awaited while stopping, verified when interrupted', async () => {
   const env = environment();
-  env.sessions = [{ id: 's1', projectId: 'a', name: 'Claude · Saudação', cwd: 'C:\\wt', status: 'interrupted' }];
+  const session = { id: 's1', name: 'Claude · Saudação', status: 'stopping' };
+  // Another folder as far as the page knows: the server's gate decides, not the page's guess.
+  env.sessions = [{ ...session, projectId: 'a', cwd: 'C:\\outra' }];
   env.panel.open('t');
-  await env.answer('/api/tasks/t/diff', diff());
+  await env.answer('/api/tasks/t/diff', diff({ uncertainSession: session }));
+  await env.answer('/api/tasks/t/evidence', { taskId: 't', attempts: [] });
+  assert.match(env.text(), /“Claude · Saudação” na worktree da tarefa está sendo encerrada ou conferida/);
+  assert.equal(env.find('verification'), undefined, 'nothing to verify while the Lab still stops it');
+  assert.equal(env.find('merge').disabled, true);
+  env.panel.sync();
+  assert.equal(env.pending.length, 0, 'a state event that leaves the session as it was reloads nothing');
+
+  env.sessions[0].status = 'interrupted';
+  env.panel.sync();
+  assert.deepEqual(env.pending.map(request => request.route), ['/api/tasks/t/diff', '/api/tasks/t/evidence'], 'its status changed: the gate is read again');
+  await env.answer('/api/tasks/t/diff', diff({ uncertainSession: { ...session, status: 'interrupted' } }));
   await env.answer('/api/tasks/t/evidence', { taskId: 't', attempts: [] });
   assert.match(env.text(), /“Claude · Saudação” terminou sem o Lab confirmar/);
   assert.equal(env.find('merge').disabled, true, 'the merge waits for the verification');
@@ -444,8 +457,10 @@ test('an agent session that ended on its own is verified from the panel before t
   field.value = 'Gerenciador de tarefas: nenhum processo do agente'; await field.fire('input');
   void env.root.descendants().find(node => node.tag === 'form' && node.className === 'review-uncertain').fire('submit');
   assert.deepEqual(env.calls.at(-1), { route: '/api/sessions/s1/acknowledge', method: 'POST', body: { verification: 'Gerenciador de tarefas: nenhum processo do agente' } });
-  env.sessions[0].status = 'stopped';
   await env.answer('/api/sessions/s1/acknowledge', { id: 's1', status: 'stopped' });
+  assert.deepEqual(env.pending.map(request => request.route), ['/api/tasks/t/diff', '/api/tasks/t/evidence'], 'a verification reads the gate again');
+  await env.answer('/api/tasks/t/diff', diff({ uncertainSession: null }));
+  await env.answer('/api/tasks/t/evidence', { taskId: 't', attempts: [] });
   assert.doesNotMatch(env.text(), /terminou sem o Lab confirmar/);
   assert.equal(env.find('merge').disabled, false);
 });

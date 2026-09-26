@@ -181,12 +181,8 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
   }
 
   // An agent that ended on its own leaves its session interrupted: the server refuses the merge until the owner records
-  // how they checked that nothing of it still runs. That check is taken here, with the same route as the session rail.
-  function uncertainSession() {
-    const worktree = getTask(taskId)?.worktree;
-    return worktree ? getSessions().find(item => item.cwd === worktree && item.status === 'interrupted') ?? null : null;
-  }
-
+  // how they checked that nothing of it still runs. The diff reports the gate's own session (diff.uncertainSession); an
+  // interrupted one is verified here, with the same route as the session rail.
   function renderUncertain(parent, session) {
     const form = one(parent, 'form', 'review-uncertain');
     one(form, 'p', 'microcopy', `A sessão “${session.name}” terminou sem o Lab confirmar o fim dos processos dela. `
@@ -201,14 +197,15 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
       if (!verification) return;
       try {
         await api(`/api/sessions/${encodeURIComponent(session.id)}/acknowledge`, { method: 'POST', body: { verification } });
-        if (current(id, owner)) { draft.verification = ''; toast(`Verificação registrada para ${session.name}.`); render(); }
+        if (current(id, owner)) { draft.verification = ''; toast(`Verificação registrada para ${session.name}.`); void load(); }
       } catch (error) { if (current(id, owner)) toast(error.message); }
     });
   }
 
   function renderMerge(parent) {
-    const uncertain = uncertainSession();
-    if (uncertain) renderUncertain(parent, uncertain);
+    const uncertain = diff?.uncertainSession;
+    if (uncertain?.status === 'interrupted') renderUncertain(parent, uncertain);
+    else if (uncertain) one(parent, 'p', 'microcopy', `A sessão “${uncertain.name}” na worktree da tarefa está sendo encerrada ou conferida pelo Lab; o merge espera por ela.`);
     const form = one(parent, 'form', 'review-merge');
     form.setAttribute('aria-busy', String(merging === taskId));
     one(form, 'h3', '', 'Aprovar e fazer merge');
@@ -323,12 +320,14 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
     if (taskId && runKey() !== shownRun) render();
   }
 
-  /** Called on every state render: a project switch or a removed task closes the panel; a new task revision reloads it. */
+  /** Called on every state render: a project switch or a removed task closes the panel; a new task revision, or a new
+   * status of the session the merge gate reported, reloads it. */
   function sync() {
     if (!taskId) return;
-    const task = getTask(taskId);
+    const task = getTask(taskId), shown = diff?.uncertainSession;
     if (projectId !== getProjectId() || task?.projectId !== projectId) return close();
     if (task.revision !== revision) { revision = task.revision; void load(); }
+    else if (shown && getSessions().find(item => item.id === shown.id)?.status !== shown.status) void load();
   }
 
   function onEvidence(event) {

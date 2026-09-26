@@ -454,19 +454,25 @@ test('merge refuses while a session in the task worktree is stopping, interrupte
   const store = f.app.store;
   // The agent's process tree may still write in the worktree the merge commits.
   const session = store.addSession({ projectId: f.project.id, name: 'Claude · agente', cwd: f.worktree });
+  // The diff reports the gate's own check, so the page never judges the session by itself.
+  const reported = async () => (await (await f.get(`/api/tasks/${f.task.id}/diff`)).json()).uncertainSession;
+  assert.equal(await reported(), null);
   for (const status of ['stopping', 'interrupted']) {
     store.setSessionStatus(session.id, status);
+    assert.deepEqual(await reported(), { id: session.id, name: 'Claude · agente', status });
     const response = await f.merge({});
     assert.equal(response.status, 409);
     assert.match((await response.json()).error, /sessão “Claude · agente” na worktree da tarefa/);
   }
   store.flagUncertainSession(session.id);
   store.session(session.id).status = 'stopped';
+  assert.deepEqual(await reported(), { id: session.id, name: 'Claude · agente', status: 'stopped' });
   assert.equal((await f.merge({})).status, 409, 'uncertain in memory even when stored as stopped');
   assert.equal(git(f.root, 'rev-parse', BRANCH), f.baseSha, 'nothing was committed');
   assert.equal((await f.evidence()).attempts.length, 3);
   store.session(session.id).status = 'interrupted';
   store.acknowledgeInterruptedSession(session.id, 'processo conferido');
+  assert.equal(await reported(), null);
   const response = await f.merge({});
   assert.equal(response.status, 200, (await response.clone().json()).error);
 });

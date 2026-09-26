@@ -390,7 +390,9 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     const run = getRun(task.id);
     if (!run) fail('Nenhuma execução registrada para esta tarefa', 404);
     if (!validRun(run)) fail('Registro de execução inválido', 409);
-    return { status: 200, body: await worktreeDiff(run) };
+    const body = await worktreeDiff(run), uncertain = store.uncertainSessionIn(task.projectId, run.worktree);
+    // The merge gate's own check, so the page shows what the gate will say: an interrupted session is verified there.
+    return { status: 200, body: { ...body, uncertainSession: uncertain && { id: uncertain.id, name: uncertain.name, status: uncertain.status } } };
   }
 
   // The server asks before a new agent run: the merge tests and commits this task's worktree, then marks it done.
