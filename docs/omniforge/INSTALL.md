@@ -75,9 +75,12 @@ Open the exact printed URL. Opening `index.html` as a file does not work. `OMNIF
 ## Update and roll back
 
 ```powershell
-& "$env:LOCALAPPDATA\OmniForge\omniforge.cmd" update --from .\omniforge-0.2.0-<sha>-win-x64.zip
+# Take the NEW release's manager out of its zip (Install steps 1-2), then let it update the install:
+& "$env:TEMP\omniforge-setup\scripts\omniforge.cmd" update --from .\omniforge-0.2.0-<sha>-win-x64.zip
 & "$env:LOCALAPPDATA\OmniForge\omniforge.cmd" rollback
 ```
+
+The manager you run is the one that performs the update. The new release's copy therefore brings its own update fixes. `"%LOCALAPPDATA%\OmniForge\omniforge.cmd" update --from ...` also works, but it runs the installed, older manager (see Evidence: a fix made in `ab7195f` applies only when that version's manager runs the update).
 
 `update` refuses while a running Lab holds `data\state.lock`. It uses the Lab's own lock semantics read-only: a live pid, an unreadable lock or a `state.recovery.lock` all count as running. It copies `data\state.json` to `state.json.pre-<new version>` and never overwrites a backup: an update after a rollback that finds different content writes `state.json.pre-<new version>.1`, `.2` and so on. It then installs the new version next to the old one, switches `current.json` and the launcher, runs doctor and prints the rollback command. `rollback` switches back to the previous version and points to that backup. It never overwrites data by itself.
 
@@ -124,4 +127,80 @@ The same script ran on the development host against a disposable prefix for the 
 
 ## Evidence
 
-Pending: the host smoke of this build is recorded in the next commit.
+Host run on 2026-09-26, source **`ab7195fbc9965e25561109186f7311fc5851fc6b`** (branch `claude/installer`). Host: Windows 11 Pro 10.0.26200, Windows PowerShell 5.1.26100.9444, Node v24.19.0 and the bundled Codex Python 3.12. Every prefix was a disposable `%TEMP%` folder; `%LOCALAPPDATA%\OmniForge` and the owner's `.omniforge-lab` data were not touched. This is the development host, **not** the clean-user gate.
+
+Tests at that SHA: `node --test omniforge-lab/test/manage.test.mjs` 8/8, and `npm --prefix omniforge-lab test` 163/163 with 0 skipped.
+
+**Build.**
+
+```text
+> scripts\omniforge.cmd pack --out %TEMP%\ofs-ab7195f\release
+Built C:\Users\Yeonatan\AppData\Local\Temp\ofs-ab7195f\release\omniforge-0.1.0-ab7195f-win-x64.zip (305 files)
+sha256 83d953401dd01f84a52eab7219de3519ba34b8df21c563094b66b5629d95741d
+> powershell -File scripts\sandbox\prepare-release.ps1 -Release %TEMP%\ofs-ab7195f\release -Output %TEMP%\ofs-ab7195f\out
+Verified node-v24.19.0-win-x64.zip sha256 57f71ab3652e797d84acddc79c81cc9ff1c6ddb2a1974cdb83f00fee9bff4c73
+```
+
+The zip is 8,942,467 bytes. It holds `.agents`, `docs`, `harness`, `LICENSE`, `omniforge-build.json`, `omniforge-lab` (no `test/`) and `scripts/omniforge.cmd` (CRLF kept).
+
+**Lifecycle.** This is the sandbox script with the verified portable Node:
+
+```text
+> powershell -File %TEMP%\ofs-ab7195f\release\run-in-sandbox.ps1 -Release %TEMP%\ofs-ab7195f\release -Output %TEMP%\ofs-ab7195f\out -Prefix %TEMP%\ofs-ab7195f\OmniForge -PortableNode
+== install (exit 0)
+Installed OmniForge 0.1.0-ab7195f in C:\Users\Yeonatan\AppData\Local\Temp\ofs-ab7195f\OmniForge (data: ...\OmniForge\data)
+ok       node   Node.js 24.19.0
+ok       lab    node-pty 1.2.0-beta.15; terminal shell C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+ok       python Python 3.12 at C:\Users\Yeonatan\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe (via bundled Codex runtime)
+ok       git    git version 2.54.0.windows.1 (optional)
+ok       claude logged in: API key (ANTHROPIC_API_KEY; signed in via claude.ai) (optional)
+missing  codex  codex CLI not found (optional)
+         -> install it (npm install -g @openai/codex), then run: codex login
+Doctor: required prerequisites are ready.
+== doctor (exit 0)            (same rows)
+== repair (exit 0)            All 305 files of 0.1.0-ab7195f match the build manifest. / No stale locks.
+start --stop-on-eof           OmniForge Lab: http://127.0.0.1:56129/?token=<redacted>
+== uninstall (exit 0)         10 numbered triage lines, "Nothing removed."
+== uninstall --apply --remove-data (exit 0)
+```
+
+`report.json`: `passed: true`, `doctorOk: true`. The probe of the installed Lab returned `GET /` 200 (the Lab page) and `GET /api/state` 200 with `X-OmniForge-Token` (0 projects, 9 skills). The same call without the token returned 403, and the Python-backed `GET /api/skills?ring=installed&limit=5` returned 200. Closing stdin stopped it with exit 0, and `state.lock` was gone. After the uninstall `prefixLeft: false`. The whole run took 12.3 s. Residue: nothing under the prefix, and 9 older `%TEMP%\omniforge-demo-*` folders listed for triage and left in place.
+
+**Update, rollback and repair between two real builds** (`c7acb0d` installed, then `ab7195f`), in a fresh `%TEMP%\ofs-update\OmniForge`. Doctor rows and the numbered lists are left out:
+
+```text
+> boot\scripts\omniforge.cmd install --from omniforge-0.1.0-c7acb0d-win-x64.zip --prefix ...    (exit 0)
+Lab A running; POST /api/projects created 'update-smoke'
+> bootB\scripts\omniforge.cmd update --from omniforge-0.1.0-ab7195f-win-x64.zip --prefix ...   (while Lab A runs)
+omniforge: OmniForge is running or its data lock is uncertain (pid 53216 holds state.lock); stop it first   (exit 1)
+stop via stdin EOF: exit=0 state.lock left=False
+> bootB\...\omniforge.cmd update ...                                                          (exit 0)
+State backup: ...\data\state.json.pre-0.1.0-ab7195f
+Updated 0.1.0-c7acb0d -> 0.1.0-ab7195f; 0.1.0-c7acb0d stays installed side by side.
+To go back: "...\OmniForge\omniforge.cmd" rollback
+Lab B /api/state projects: update-smoke
+> omniforge rollback                                                                          (exit 0)
+Switched back to 0.1.0-c7acb0d; 0.1.0-ab7195f stays installed.
+Lab A again; POST /api/projects created 'after-rollback'
+> bootB\...\omniforge.cmd update ...   (again)                                                (exit 0)
+State backup: ...\data\state.json.pre-0.1.0-ab7195f.1
+state.json.pre-0.1.0-ab7195f: projects = update-smoke
+state.json.pre-0.1.0-ab7195f.1: projects = update-smoke, after-rollback
+tampered: appended to index.html, deleted workflows.mjs
+> omniforge repair                                                                            (exit 0)
+Restored 2 file(s) of 0.1.0-ab7195f from ...\releases\omniforge-0.1.0-ab7195f-win-x64.zip: omniforge-lab/index.html, omniforge-lab/workflows.mjs
+> omniforge repair   (again)                                                                  (exit 0)
+All 305 files of 0.1.0-ab7195f match the build manifest.
+> omniforge uninstall --apply --remove-data                                                   (exit 0)
+prefix exists after uninstall: False
+```
+
+**Installed demo, joint PTY shutdown** (`ab7195f`). `start --demo --stop-on-eof` printed `OmniForge Demo: http://127.0.0.1:61134/?token=<redacted>`, and `/api/state` showed 2 projects and sessions `Build:running, Pesquisa:running`. Closing stdin ended both shells and the server with exit 0 within 30 s, and no "Microsoft Visual C++ Runtime Library" window was open afterwards. That joint exit raised the node-pty 1.1.0 assert. The demo's own `%TEMP%\omniforge-demo-*` folder, which this run created, was removed after the check.
+
+**Defects these runs found, all fixed before `ab7195f`:**
+
+1. `b2819a0`: `uninstall --apply` removed everything but exited 1 and printed "O sistema não pode encontrar o caminho especificado" twice. cmd re-reads a running batch after every external command. Fixed in `c7acb0d` with `(goto) 2>nul`, plus a regression test through the real installed launcher.
+2. `b2819a0`: the residue report labelled other runs' `omniforge-demo-*.log` files as demo data. Fixed in `c7acb0d`: it now lists folders only.
+3. `c7acb0d`: a second update after a rollback reused the first `state.json.pre-<version>`, so newer work had no backup. Fixed in `ab7195f`: it writes `.pre-<version>.<n>` and never overwrites. The run also showed that the manager you invoke performs the update: through the rolled-back launcher, the old `c7acb0d` manager still reused the backup. The recommended update command above is therefore the new release's manager.
+
+**Not covered here.** A clean Windows user or VM (the Windows Sandbox run is pending the owner enabling the feature). Doctor's logged-out and subscription classes, and a Store-alias-only Python, are covered by unit tests only: this host has `claude` signed in with an `ANTHROPIC_API_KEY` source, no `codex` CLI and the bundled Python. Interactive Ctrl+C was not exercised by an agent.
