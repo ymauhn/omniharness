@@ -223,6 +223,44 @@ test('a revision conflict keeps the draft and offers a reviewed save on top of t
   assert.equal(created.definition.nodes[0].prompt, 'After archive'); assert.deepEqual(saves, [1, 2, 3]);
 });
 
+test('rebasing an unedited draft still needs a reviewed save before tasks or archival', async t => {
+  const value = workflowPresets()[0].definition, posts = [];
+  let server = { id: 'w1', projectId: 'a', version: 1, revision: 1, archivedAt: null, definition: value };
+  const api = async (url, options) => {
+    if (!options) return { projectId: 'a', rows: url.includes('/presets') ? [] : [server], runs: [] };
+    posts.push(url);
+    if (options.body.expectedRevision !== server.revision) throw Object.assign(Error('Workflow alterado; recarregue antes de continuar'), { status: 409 });
+    return server;
+  };
+  const { root } = ui(t, api); await tick(); await findButton(root, value.title).click();
+  server = { ...server, version: 2, revision: 2, definition: { ...value, nodes: [{ ...value.nodes[0], prompt: 'OTHER WINDOW PROMPT' }, ...value.nodes.slice(1)] } };
+  root.querySelectorAll('input').find(input => input.type === 'checkbox').checked = true;
+  await findButton(root, 'Salvar nova versão').click();
+  await findButton(root, 'Salvar rascunho sobre a versão 2').click();
+  assert.equal(findButton(root, 'Criar 1 tarefa').disabled, true, 'tasks would pin v2 prompts the panel is not showing');
+  await findButton(root, 'Arquivar fluxo').click();
+  assert.deepEqual(posts, ['/api/workflows/w1/update'], 'archival would target v2 while v1 is displayed');
+});
+
+test('a workflow at its version cap keeps the draft and offers saving it as a new workflow', async t => {
+  const value = workflowPresets()[0].definition, row = { id: 'w1', projectId: 'a', version: 32, revision: 32, archivedAt: null, definition: value };
+  let created;
+  const api = async (url, options) => {
+    if (url.endsWith('/update')) throw Object.assign(Error('Limite de 32 versões deste workflow atingido; nada foi salvo'), { status: 507 });
+    if (options) return created = { ...row, id: 'w2', version: 1, revision: 1, definition: options.body.definition };
+    return { projectId: 'a', rows: url.includes('/presets') ? [] : [row], runs: [] };
+  };
+  const { root } = ui(t, api); await tick(); await findButton(root, value.title).click();
+  const prompt = root.querySelectorAll('textarea').find(node => node.value === value.nodes[0].prompt); prompt.value = 'Draft edit'; await prompt.dispatchEvent({ type: 'input' });
+  const review = () => root.querySelectorAll('input').find(input => input.type === 'checkbox');
+  review().checked = true; await findButton(root, 'Salvar nova versão').click();
+  assert.match(root.textContent, /Limite de 32 versões/);
+  await findButton(root, 'Salvar rascunho como novo workflow').click();
+  assert.equal(!!review().checked, false, 'the new workflow needs a fresh review');
+  review().checked = true; await findButton(root, 'Salvar no projeto').click();
+  assert.equal(created.definition.nodes[0].prompt, 'Draft edit');
+});
+
 test('capacity limits show their own server message instead of a revision conflict', async t => {
   const value = workflowPresets()[0].definition, row = { id: 'w1', projectId: 'a', version: 1, revision: 1, archivedAt: null, definition: value };
   const api = async (url, options) => {

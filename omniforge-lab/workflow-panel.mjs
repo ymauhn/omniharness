@@ -217,7 +217,7 @@ export function mountWorkflows({ root, api, getProjectId, draft, onTasksCreated 
       const result = await api(path, { method: 'POST', body: { projectId: ticket.projectId, ...input } });
       if (!ticket.current() || state.destroyed) return;
       await success(result, ticket); return result;
-    } catch (error) { if (ticket.current() && !state.destroyed) { const reason = errorText(error); say(reason); if (error?.status === 409) await conflict?.(ticket, reason); } }
+    } catch (error) { if (ticket.current() && !state.destroyed) { const reason = errorText(error); say(reason); if ([409, 507].includes(error?.status)) await conflict?.(ticket, reason, error.status); } }
     finally {
       for (const [node, disabled] of frozen) node.disabled = disabled;
       if (state.operation === operation) { state.busy = false; state.operation = null; }
@@ -231,18 +231,21 @@ export function mountWorkflows({ root, api, getProjectId, draft, onTasksCreated 
       if (JSON.stringify(state.editing) !== captured) { say('Versão salva; alterações digitadas durante o envio continuam no rascunho.'); state.selected = row; return; }
       state.selected = row; state.editing = structuredClone(row.definition); state.dirty = false;
       renderDetail(); say(`Versão ${row.version} salva neste projeto.`); void load();
-    }, selected && (async (ticket, reason) => {
-      // Another window saved or archived: keep the draft and offer an explicit base change that still needs a fresh review.
-      await load(); const current = state.rows.find(row => row.id === selected.id);
+    }, selected && (async (ticket, reason, status) => {
+      // 409: another window saved or archived. 507: this workflow is full. Keep the draft and
+      // offer an explicit base change that still needs a fresh review.
+      let current = null;
+      if (status === 409) { await load(); current = state.rows.find(row => row.id === selected.id); }
       if (!ticket.current() || state.selected !== selected) return;
-      if (!current || current.revision === selected.revision) return say(reason);
-      const base = current.archivedAt ? null : current; renderDetail();
+      if (status === 409 && (!current || current.revision === selected.revision)) return say(reason);
+      const base = current?.archivedAt ? null : current; renderDetail();
       button(saveActions, base ? `Salvar rascunho sobre a versão ${base.version}` : 'Salvar rascunho como novo workflow', () => {
         if (!usable() || state.selected !== selected) return;
-        state.selected = base; renderDetail(); renderLibrary();
+        // Dirty even if unedited: the shown prompts are not the new base, so tasks and archival wait for a reviewed save.
+        state.selected = base; state.dirty = true; renderDetail(); renderLibrary();
         say(`Rascunho mantido ${base ? `sobre a versão ${base.version}; salvar cria a versão ${base.version + 1}` : 'como novo workflow'}. Revise e marque a confirmação antes de salvar.`);
       }, 'button');
-      say(`${base ? `Outra janela salvou a versão ${base.version}` : 'Outra janela arquivou este workflow'}. Seu rascunho continua aqui e nada foi sobrescrito; compare em "Ver versões e tarefas".`);
+      say(status === 507 ? `${reason}. Seu rascunho continua aqui; salve-o como novo workflow ou descarte-o.` : `${base ? `Outra janela salvou a versão ${base.version}` : 'Outra janela arquivou este workflow'}. Seu rascunho continua aqui e nada foi sobrescrito; compare em "Ver versões e tarefas".`);
     }));
   }
   async function createTasks(nodeId) {
