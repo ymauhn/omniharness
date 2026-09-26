@@ -6,9 +6,9 @@ import { local, api, action, taskById, time } from './state.mjs';
 
 const LABEL = { starting: 'Iniciando', working: 'Trabalhando', blocked: 'Aguardando você', idle: 'Ocioso', done: 'Concluído', failed: 'Falhou' };
 const RANK = { blocked: 0, starting: 1, working: 1, idle: 2, done: 3, failed: 3 };
-const ACTIVE = new Set(['starting', 'working', 'blocked', 'idle']); // the engine's own active states
+export const ACTIVE = new Set(['starting', 'working', 'blocked', 'idle']); // the engine's own active states
 const ALERT = new Set(['blocked', 'done', 'failed']);
-const HOST = { claude: 'Claude', codex: 'Codex' };
+export const HOST = { claude: 'Claude', codex: 'Codex' };
 const COLUMNS = [['open', 'Aberta'], ['running', 'Em execução'], ['blocked', 'Bloqueada'], ['done', 'Concluída']];
 const USAGE = [['inputTokens', 'entrada'], ['outputTokens', 'saída'], ['cacheReadTokens', 'cache lido'], ['cacheCreationTokens', 'cache criado']];
 

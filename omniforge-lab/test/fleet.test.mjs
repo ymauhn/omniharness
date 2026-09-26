@@ -85,8 +85,10 @@ test('runs are ordered blocked first, then starting/working, idle and done/faile
 test('usage is observed tokens or "desconhecido: <reason>", never a zero for an unknown figure', () => {
   assert.equal(usageText(run('r').usage), 'Uso desconhecido: Execução em andamento');
   assert.equal(usageText(undefined), 'Uso desconhecido: ainda não lido');
+  assert.equal(usageText({ status: 'unknown', inputTokens: 0, reason: 'Sessão não encontrada' }), 'Uso desconhecido: Sessão não encontrada');
   const observed = { status: 'observed', inputTokens: 6011, outputTokens: 6007, cacheReadTokens: 103, cacheCreationTokens: null, source: 'x', reason: null };
   assert.equal(usageText(observed), 'Tokens observados: 6.011 entrada · 6.007 saída · 103 cache lido');
+  assert.equal(usageText({ status: 'observed', inputTokens: 5, outputTokens: null, cacheReadTokens: 0 }), 'Tokens observados: 5 entrada · 0 cache lido', 'an observed zero stays zero');
 });
 
 test('the grid shows the selected project runs, opens a run terminal and never shows another project', async () => {
