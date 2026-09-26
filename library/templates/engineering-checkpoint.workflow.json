@@ -1,0 +1,59 @@
+{
+  "id": "engineering-checkpoint",
+  "version": 1,
+  "kind": "suggestion",
+  "runnable": false,
+  "definition": {
+    "title": "Do bug à evidência",
+    "summary": "Corrigir um problema delimitado, começando por um teste que falha e encerrando com evidência revisável.",
+    "pillar": "engineering",
+    "triggerPrompt": "Corrigir um problema delimitado, começando por um teste que falha e encerrando com evidência revisável.",
+    "inputs": [
+      "Issue e critério de aceite",
+      "Código e regras do projeto"
+    ],
+    "outputs": [
+      "Regressão executável",
+      "Diff e handoff revisado"
+    ],
+    "hosts": [
+      "codex",
+      "claude"
+    ],
+    "source": "Original OmniHarness workflow · 2026-09-25 · proposed template",
+    "authority": "manual-task-only",
+    "nodes": [
+      {
+        "id": "step-1",
+        "title": "Reproduzir",
+        "prompt": "Leia o código relevante e as regras do projeto. Reproduza o problema em um teste pequeno que falhe pelo motivo esperado. Registre o comando e a falha real.",
+        "dependsOn": [],
+        "skills": [
+          "repo:.agents/skills/checkpoint-build/SKILL.md"
+        ]
+      },
+      {
+        "id": "step-2",
+        "title": "Corrigir",
+        "prompt": "Use a reprodução registrada para fazer a menor correção dentro do escopo aprovado. Rode o teste e as verificações pertinentes. Preserve falhas e limites encontrados.",
+        "dependsOn": [
+          "step-1"
+        ],
+        "skills": [
+          "repo:.agents/skills/checkpoint-build/SKILL.md"
+        ]
+      },
+      {
+        "id": "step-3",
+        "title": "Revisar",
+        "prompt": "Faça uma revisão independente do diff e dos critérios de aceite. Relacione cada alegação à evidência; entregue o handoff com os testes executados e pendências reais.",
+        "dependsOn": [
+          "step-2"
+        ],
+        "skills": [
+          "repo:.agents/skills/checkpoint-build/SKILL.md"
+        ]
+      }
+    ]
+  }
+}
