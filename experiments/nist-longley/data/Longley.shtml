@@ -1,0 +1,157 @@
+<HTML>
+
+<HEAD>
+<script async type="text/javascript"
+        id="_fed_an_ua_tag"
+        src="https://dap.digitalgov.gov/Universal-Federated-Analytics-Min.js?agency=DOC&subagency=NIST&pua=UA-37115410-50&yt=true&exts=ppsx,pps,f90,sch,rtf,wrl,txz,m1v,xlsm,msi,xsd,f,tif,eps,mpg,xml,pl,xlt,c">
+</script>
+<TITLE>StRD Dataset Longley</TITLE>
+</HEAD>
+
+
+<BODY BGCOLOR=ebebeb text=000000 vlink=1403b2 alink=ee0000 link=1403b2>
+
+
+
+<TABLE CELLSPACING=0>
+
+   <TR valign=top>
+       <TD align=left valign=center> 
+    <A href="http://www.itl.nist.gov/div898/strd/">
+    <img border=0 src="http://www.itl.nist.gov/div898/strd/general/gifs/strd70.gif"></A>
+    </TD>
+<TD align=left valign=center>
+    <A href="http://www.itl.nist.gov/div898/strd/general/dataarchive.html">
+    <img border=0 src="http://www.itl.nist.gov/div898/strd/general/gifs/archive50.gif"></A>
+    </TD>
+
+       <TD></td>
+       <TD align=right valign=bottom>
+           <TABLE noborder CELLSPACING=15>
+              <tr align=right valign=center>
+                  <th align=center valign=center>
+    <A HREF="http://www.itl.nist.gov/div898/strd/lls
+/lls.shtml">
+       Main<br><nobr>LLS Page</nobr></A>
+    </th>
+
+                  <th align=center><A HREF="Filip.shtml">Previous<br>Dataset</A></th>
+                  <th align=center><A HREF="Wampler1.shtml">Next<br>Dataset</A></th>
+                  </tr>
+              </table></td>
+       </tr>
+
+   <TR VALIGN=top><th align=left colspan=4>Dataset Information<hr></th></tr>
+ 
+   
+<TR> <TD><br></TD> </tr>
+
+
+       
+   <TR VALIGN=top> 
+       <Th></th>
+       <Th></th>
+       <Th></th>
+       <Th ROWSPAN=9 align=right valign=top> <br> <br> <br> <br> <br>
+       &nbsp;&nbsp;
+
+       <IMG SRC="LINKS/PARTS/PLOTS/Longley-d.Gif" alt="y vs. x"></Th>
+       </tr>
+       
+   
+<TR VALIGN=top>
+    <Th align=left>Dataset<BR>Name:</TD>
+        <TD colspan=2><BR>
+         Longley</TD>
+    </tr>
+
+<TR VALIGN=top><td><br></td></tr>
+
+<tr valign=top>
+    <th align=left>Procedure:       </th>
+        <td align=left colspan=2>
+            <nobr>Linear Least Squares Regression</nobr><br>
+            <A HREF="http://www.itl.nist.gov/div898/strd/lls
+/data/
+LINKS/c-Longley.shtml">
+            <nobr>Certification Method & Definitions</nobr></a>
+            </td> 
+    </tr>
+
+<tr valign=top><td><br></td></tr>
+
+<TR VALIGN=top>
+    <Th align=left> Data:</th> 
+    <TD colspan=2>
+        <nobr>1 Response Variable (<b><var>y</var></b>)</nobr><br>
+        <nobr>6 Predictor Variable (<b><var>x<sub>1</sub></var></b>, ..., <b><var>x<sub>6</sub></var></b>)</nobr><br>
+        <nobr>16 Observations</nobr><br>
+        <nobr>Higher Level of Difficulty</nobr><br>
+        <nobr>Observed Data</nobr><br>
+
+  <A HREF="LINKS/DATA/Longley.dat"><nobr>Data file (ASCII Format)</nobr></A><br>
+  <A HREF="LINKS/i-Longley.shtml"><nobr>Additional Information</nobr></A><br>
+       </td>
+       </tr>
+       
+   
+<TR> <TD><br></TD> </tr>
+
+
+       
+   <TR VALIGN=top>
+       <TH align=left>Model:</TH>
+       <TD colspan=2 valign=top> 
+           Polynomial Class <BR>
+           7 Parameters
+           (<IMG valign=bottom border=0 SRC="LINKS/PARTS/MODELS/beta0.Gif" alt="(beta(0), beta(1),...,beta(6))">,
+            <IMG valign=bottom border=0 SRC="LINKS/PARTS/MODELS/beta1.Gif" alt="(beta(0), beta(1),...,beta(6))">,
+            ...,
+            <IMG valign=bottom border=0 SRC="LINKS/PARTS/MODELS/beta6.Gif" alt="(beta(0), beta(1),...,beta(6))">)
+ <BR>
+           </td>
+       </tr>
+       
+   
+<TR> <TD><br></TD> </tr>
+
+
+              
+   <TR VALIGN=top>
+       <TH>      </TH>
+       <TD colspan=3> 
+           <img src="LINKS/PARTS/MODELS/Longley.Gif" alt="y = beta(0) + beta(1)x(1) + beta(2)x(2) + beta(3)x(3) + beta(4)x(4) + beta(5)x(5) + beta(6)x(6) + e">
+           </td>
+       </tr>
+              
+   
+<TR> <TD><br></TD> </tr>
+
+
+   
+   <TR VALIGN=top><Th align=left>Results:</th>
+       <td colspan=3>
+           <A HREF="LINKS/v-Longley.shtml"> Certified Values</A><br>
+           <A HREF="LINKS/g-Longley.shtml"> Graphics</A>
+           </TD>
+       </TR> 
+       
+   
+<TR> <TD><br></TD> </tr>
+
+
+       
+   
+       <TR VALIGN=top>
+           <Th align=left>Reference:</Th>
+           <TD COLSPAN=3>
+             Longley, J. W. (1967).  <br>
+             An Appraisal of Least Squares Programs for the Electronic Computer from the Viewpoint of the User. <br>
+             Journal of the American Statistical Association, 62, pp. 819-841.
+           </TR>
+
+       
+   </TABLE>
+       
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a40f9df28f60d06d',t:'MTc5MDM5NzkwMw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></BODY>
+</HTML>

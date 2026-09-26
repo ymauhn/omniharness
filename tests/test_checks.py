@@ -109,6 +109,19 @@ class Gates(unittest.TestCase):
         code, out, _ = facts(FIX, flip)
         self.assertEqual((code, out["unmatched"]), (1, ["0.58690"]))
 
+    def test_facts_checks_punctuated_and_signed_numerals(self):
+        csv = self.tmp / "signed.csv"
+        csv.write_text("run;delta;fmax\nx;-0,0143;0,5869\n", encoding="utf-8")
+        tex = self.tmp / "signed.tex"
+        tex.write_text("An fmax of 0.5869. Then 0.5869, with $\\Delta = -0.0143$ or \u22120.0143; 0.5869--0.5869.\n",
+                       encoding="utf-8")
+        code, out, _ = facts(tex, csv)
+        self.assertEqual((code, out["unmatched"], out["checked"]), (0, [], 6))
+        # Wrong values before "." and ",", and a sign flip in each direction, must all fail.
+        tex.write_text("An fmax of 0.5870. Then 0.5870, with $-0.5869$ and $\\Delta = 0.0143$.\n", encoding="utf-8")
+        code, out, _ = facts(tex, csv)
+        self.assertEqual((code, out["unmatched"]), (1, ["-0.5869", "0.0143", "0.5870"]))
+
     def test_score(self):
         code, out, _ = run("score", "--scores", "90,80,70,60", "--facts-unmatched", "2")
         self.assertEqual((code, out["df"], out["composite"]), (0, 59, 67.7))

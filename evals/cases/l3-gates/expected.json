@@ -1,8 +1,8 @@
 {
   "dash_line": 19,
-  "facts_fixture": {"exit": 1, "unmatched": ["0.58690", "0.5871"], "checked": 16, "csv_values": 14},
+  "facts_fixture": {"exit": 1, "unmatched": ["0.58690", "0.5871"], "checked": 17, "csv_values": 14},
   "style_fixture": {"exit": 1, "dash": [19], "decimal_comma": ["0,4123"], "labels": ["sec:met_c"]},
-  "facts_good": {"exit": 0, "unmatched": [], "checked": 16, "csv_values": 14},
+  "facts_good": {"exit": 0, "unmatched": [], "checked": 17, "csv_values": 14},
   "style_good": {"exit": 0, "dash": [], "decimal_comma": [], "labels": []},
   "integrity_good_vs_good": {"exit": 0, "outside": [], "blocks": [], "missing_labels": [], "dangling_refs": []},
   "integrity_one_word_inside": {"exit": 0, "blocks": 1, "section": "Main Comparison", "before": "summarises", "after": "summarizes"},

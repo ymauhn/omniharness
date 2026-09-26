@@ -1,0 +1,24 @@
+{
+  "method": "normal-equations",
+  "threshold_lre": 5,
+  "min_lre": 7.41,
+  "verdict": "PASS",
+  "lre": {
+    "B0": 8.2,
+    "B0_sd": 8.53,
+    "B1": 7.43,
+    "B1_sd": 9.69,
+    "B2": 7.72,
+    "B2_sd": 8.69,
+    "B3": 8.34,
+    "B3_sd": 8.67,
+    "B4": 8.57,
+    "B4_sd": 9.02,
+    "B5": 7.41,
+    "B5_sd": 9.23,
+    "B6": 8.26,
+    "B6_sd": 8.53,
+    "residual_sd": 10.25,
+    "r_squared": 12.29
+  }
+}

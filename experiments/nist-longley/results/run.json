@@ -1,0 +1,23 @@
+{
+  "command": "python run.py",
+  "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+  "numpy": "2.3.5",
+  "blas": {
+    "name": "scipy-openblas",
+    "version": "0.3.30",
+    "openblas configuration": "OpenBLAS 0.3.30  USE64BITINT DYNAMIC_ARCH NO_AFFINITY Haswell MAX_THREADS=24"
+  },
+  "lapack": {
+    "name": "scipy-openblas",
+    "version": "0.3.30"
+  },
+  "platform": "Windows-11-10.0.26200-SP0",
+  "cond2_X": 4859257015.454869,
+  "inputs": {
+    "data/Longley.dat": "fc4b0c824f8f0b834eb8e7d1c4c7e0b3cebdd7987bcb085e8f5e1007582480ea"
+  },
+  "outputs": {
+    "results/lstsq.csv": "990efb973f01d0beda579b8264b9793575d8db6274c0fc490be45975aab019e2",
+    "results/normal-equations.csv": "bee6e9f371eb7a997f95ec43ff60514f9587dbab4d4150220919d855c9246aab"
+  }
+}

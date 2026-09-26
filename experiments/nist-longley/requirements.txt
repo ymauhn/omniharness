@@ -1,0 +1,4 @@
+# Declared dependency of experiments/nist-longley and of tests/test_nist_longley.py (repository test run).
+# Pinned to the reference run's numpy (results/run.json). Any numpy >= 1.26 is accepted under the
+# environment-difference policy in docs/omniforge/PILLAR-3-SCIENCE.md.
+numpy==2.3.5
