@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { writeFileAtomic } from './lib/fsutil.mjs';
 import { gitEnv, withoutGitLocation } from './lib/git-env.mjs';
+import { ACTIVE } from './engine.mjs';
 
 const MAX_PATCH = 256 * 1024;
 const MAX_LISTING = 16 * 1024 * 1024;
@@ -18,8 +19,7 @@ const MAX_ATTEMPTS = 20;
 const MAX_TEXT = 2000;
 const TEST_TIMEOUT_MS = 10 * 60_000;
 const MAX_REPORT = 64 * 1024;
-const RUNNING = new Set(['starting', 'working', 'blocked']);
-const ACTIVE = new Set([...RUNNING, 'idle']);
+const RUNNING = new Set([...ACTIVE].filter(state => state !== 'idle'));
 // The agent's turn is over: it exited, or its session waits for a new prompt (idle).
 const FINISHED = new Set(['idle', 'done', 'failed']);
 const PRESETS = new Set(['rapido', 'padrao']);

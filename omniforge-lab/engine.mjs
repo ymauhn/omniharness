@@ -12,7 +12,7 @@ import { writeFileAtomic } from './lib/fsutil.mjs';
 import { gitEnv } from './lib/git-env.mjs';
 
 const HOOK = path.join(path.dirname(fileURLToPath(import.meta.url)), 'agent-hook.mjs');
-const ACTIVE = new Set(['starting', 'working', 'blocked', 'idle']);
+export const ACTIVE = new Set(['starting', 'working', 'blocked', 'idle']);
 const CLAUDE_HOOKS = ['UserPromptSubmit', 'PreToolUse', 'Notification', 'Stop'];
 const EVENTS = new Set([...CLAUDE_HOOKS, 'agent-turn-complete']);
 const LABEL = { claude: 'Claude', codex: 'Codex' };
@@ -58,7 +58,6 @@ const git = (cwd, ...args) => execFileSync('git', args, { cwd, env: gitEnv(), en
 const tryGit = (cwd, ...args) => { try { return git(cwd, ...args); } catch { return null; } };
 
 const unknownUsage = reason => ({ status: 'unknown', inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheCreationTokens: null, source: null, reason });
-const samePath = (a, b) => process.platform === 'win32' ? path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase() : path.resolve(a) === path.resolve(b);
 const jsonLines = file => fs.readFileSync(file, 'utf8').split('\n').flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } });
 // The first line only (Codex session_meta, ~25 KB): another session's rollout can pass 1 GB, over V8's string limit.
 function firstLine(file) {
@@ -103,7 +102,7 @@ function codexUsage(homeDir, run) {
     const head = firstLine(file);
     const meta = head?.type === 'session_meta' ? head.payload : null;
     const at = Date.parse(meta?.timestamp);
-    if (typeof meta?.cwd === 'string' && samePath(meta.cwd, run.worktree) && at >= started && (!best || at > best.at)) best = { file, at, id: meta.id };
+    if (typeof meta?.cwd === 'string' && path.relative(meta.cwd, run.worktree) === '' && at >= started && (!best || at > best.at)) best = { file, at, id: meta.id };
   }
   if (!best) return { usage: unknownUsage('Sessão do Codex desta worktree não encontrada') };
   // ponytail: the run's own rollout is read whole, so one over ~512 MiB reports unknown; read it from the end if that happens.

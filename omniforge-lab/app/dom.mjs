@@ -10,6 +10,9 @@ export const make = (tag, className, content) => {
   return node;
 };
 
+// Marks a node that a rebuild refocuses (see keepFocus).
+export const keyed = (node, key) => { node.dataset.focusKey = key; return node; };
+
 export const one = (parent, tag, className, content) => {
   const node = make(tag, className, content);
   parent.append(node);

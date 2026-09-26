@@ -1,7 +1,7 @@
 // Review of a task run (review.mjs): the worktree's diff, the gated "Aprovar e fazer merge", the Gauntlet on demand and
 // the task's evidence bundle. Diff, test output, report paths and refusal reasons are untrusted agent output: they reach
 // the page as textContent only.
-import { one, asArray } from './dom.mjs';
+import { one, asArray, keyed } from './dom.mjs';
 import { runLabel, usageText, HOST, ACTIVE } from './fleet.mjs';
 
 const FILE_STATUS = { A: 'adicionado', M: 'modificado', D: 'removido', T: 'tipo alterado' };
@@ -153,7 +153,6 @@ export function createReviewPanel({ root, api, getProjectId, getTask, toast = ()
     if (taskId) render();
   }
 
-  const keyed = (node, key) => { node.dataset.focusKey = key; return node; };
   const button = (parent, className, text, key, onClick) => {
     const node = keyed(one(parent, 'button', className, text), key);
     node.type = 'button';

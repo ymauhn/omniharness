@@ -4,8 +4,8 @@
 setTimeout(() => process.exit(0), 3000).unref();
 const { OMNIFORGE_RUN_ID: runId, OMNIFORGE_RUN_TOKEN: token, OMNIFORGE_HOOK_URL: url } = process.env;
 try {
-  let text = process.argv.length > 2 ? process.argv.at(-1) : '';
-  if (process.argv.length <= 2) {
+  let text = process.argv.slice(2).at(-1) ?? '';
+  if (!text) {
     process.stdin.setEncoding('utf8');
     for await (const chunk of process.stdin) text += chunk;
   }
