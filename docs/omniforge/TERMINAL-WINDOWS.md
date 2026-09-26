@@ -1,6 +1,6 @@
 # Terminal windows and bounded replay
 
-The terminal-grid checkpoint is being integrated under [WORKSPACE-FLOWS-CHECKPOINT](WORKSPACE-FLOWS-CHECKPOINT.md). It extends the existing interactive host PTYs; no terminal view is a contained agent worker.
+The terminal-grid checkpoint is being integrated under [WORKSPACE-FLOWS-CHECKPOINT](../archive/WORKSPACE-FLOWS-CHECKPOINT.md). It extends the existing interactive host PTYs; no terminal view is a contained agent worker.
 
 The UI supports one to eight panes per window, one to four columns, relative column widths and row heights. Layouts are stored in tab-local session storage for up to 20 projects. Add, reorder and close panels without destroying their underlying sessions; a separate action opens another same-origin window for a selected project/session. No unlimited-pane or window-level operating-system isolation claim is made. Input and terminal resize require the focused app window and focused matching pane; a partially interrupted queued paste reports the interruption instead of sending the remainder elsewhere.
 

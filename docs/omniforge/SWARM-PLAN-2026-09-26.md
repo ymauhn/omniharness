@@ -1,6 +1,6 @@
 # OmniForge — lean swarm plan (1–2 days)
 
-Owner-approved direction, 2026-09-26. Start from branch `claude/v1-audit-2026-09-26` (see [HANDOFF-PAUSE](HANDOFF-PAUSE-2026-09-26.md)). This plan replaces the V1 contract sequence for now; the contract stays as the long-term reference, not as today's gate.
+Owner-approved direction, 2026-09-26. Start from branch `claude/v1-audit-2026-09-26` (see [HANDOFF-PAUSE](../archive/HANDOFF-PAUSE-2026-09-26.md)). This plan replaces the V1 contract sequence for now; the contract stays as the long-term reference, not as today's gate.
 
 ## Goal and decisions
 

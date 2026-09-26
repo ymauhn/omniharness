@@ -1,6 +1,6 @@
 # OmniForge Lab: guided owner acceptance
 
-Status: **procedure, not a test result**. Use this with a permitted interactive browser and the owner/Claude to evaluate the current Windows Lab and Companion Studio. The source and deterministic checks are recorded in [the latest checkpoint](LATEST-CHECKPOINT.md), [the Arsenal checkpoint](ARSENAL-UI-CHECKPOINT.md), and [pending validation](VALIDATION-PENDING.md). None of those checks substitutes for this visual and interaction round.
+Status: **procedure, not a test result**. Use this with a permitted interactive browser and the owner/Claude to evaluate the current Windows Lab and Companion Studio. The source and deterministic checks are recorded in [the latest checkpoint](LATEST-CHECKPOINT.md), [the Arsenal checkpoint](../archive/ARSENAL-UI-CHECKPOINT.md), and [pending validation](VALIDATION-PENDING.md). None of those checks substitutes for this visual and interaction round.
 
 ## Preparation and evidence boundary
 
