@@ -6,11 +6,12 @@ import { local, projectById } from './state.mjs';
 
 const VIEWS = ['workspace', 'tasks', 'workflows', 'arsenal', 'graphs', 'skills', 'assets', 'usage'];
 
-export function createNavigation({ workspace, tasks, graphs, assets, catalog, copilot, workflows, arsenal, extensionsPanel, usagePanel, memoryPanel }) {
+export function createNavigation({ workspace, tasks, graphs, assets, catalog, copilot, workflows, arsenal, extensionsPanel, usagePanel, memoryPanel, reviewPanel }) {
   function renderSkills() { catalog.sync(); if (local.view === 'skills') catalog.load(); }
 
   function renderAll() {
     copilot.sync(); workflows.sync(); arsenal.sync();
+    reviewPanel.sync();
     if (local.view === 'assets') extensionsPanel.sync();
     workspace.renderSidebar(); workspace.renderWorkspace(); tasks.renderTasks(); graphs.renderMemory(); renderSkills(); assets.renderAssets(); graphs.renderGraph();
     const project = projectById(local.projectId);
