@@ -157,7 +157,8 @@ export class AgentEngine extends EventEmitter {
 
   publish(run) {
     this.save();
-    this.emit('agent', { taskId: run.taskId, projectId: run.projectId, runId: run.id, sessionId: run.sessionId, host: run.host, state: run.state, detail: run.detail, at: new Date().toISOString() });
+    this.emit('agent', { taskId: run.taskId, projectId: run.projectId, runId: run.id, sessionId: run.sessionId, host: run.host, state: run.state, detail: run.detail,
+      at: new Date().toISOString(), ...(run.kind && { kind: run.kind }) });
   }
 
   set(run, { state, detail }) {
@@ -174,8 +175,9 @@ export class AgentEngine extends EventEmitter {
     Object.assign(run, { state, detail, exitCode, endedAt: new Date().toISOString(), usage, hostSessionId: run.hostSessionId ?? hostSessionId ?? null });
   }
 
-  runForTask(taskId) {
-    const run = this.runs.findLast(item => item.taskId === taskId);
+  /** The task's latest agent run, or with `kind` its latest run of that kind (a review such as 'gauntlet'). */
+  runForTask(taskId, kind) {
+    const run = this.runs.findLast(item => item.taskId === taskId && item.kind === kind);
     return run ? structuredClone(run) : null;
   }
 
@@ -191,12 +193,8 @@ export class AgentEngine extends EventEmitter {
     return { file, args: [] };
   }
 
-  // Synchronous from the checks to the PTY start, so two requests cannot both pass the "no active run" check.
-  run(taskId, { host, expectedRevision } = {}) {
-    const task = this.store.task(taskId);
-    if (!Object.hasOwn(LABEL, host)) fail('Host de agente inválido', 400);
-    if (ACTIVE.has(this.runForTask(taskId)?.state)) fail('A tarefa já tem um agente em execução');
-    if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== task.revision) fail('Tarefa alterada em outra janela; confira o estado atual antes de mudar');
+  // The project folder must be a git root on a branch with a commit: its HEAD is the base of a new worktree.
+  checkedRoot(task) {
     const { root } = this.store.project(task.projectId);
     const prefix = tryGit(root, 'rev-parse', '--show-prefix');
     if (prefix === null) fail('A pasta do projeto não é um repositório git');
@@ -205,31 +203,53 @@ export class AgentEngine extends EventEmitter {
     if (!baseSha) fail('O repositório do projeto precisa de pelo menos um commit');
     const baseBranch = tryGit(root, 'symbolic-ref', '--quiet', '--short', 'HEAD');
     if (!baseBranch) fail('O repositório do projeto está em HEAD destacado; faça checkout de uma branch');
+    return { root, baseSha, baseBranch };
+  }
+
+  // Synchronous from the checks to the PTY start, so two requests cannot both pass the "no active run" check.
+  // A review run (`kind` with its own `prompt`: the Gauntlet) opens its own session in the worktree of the task's latest
+  // agent run and leaves the task's owner and status alone; review.mjs checks that run before it asks for one.
+  run(taskId, { host, expectedRevision, kind, prompt } = {}) {
+    const task = this.store.task(taskId);
+    if (!Object.hasOwn(LABEL, host)) fail('Host de agente inválido', 400);
+    // Any active run blocks a new agent run, which would take the task over; a review waits only for its own kind.
+    if (this.runs.some(item => item.taskId === taskId && ACTIVE.has(item.state) && (!kind || item.kind === kind))) {
+      fail(kind ? 'A tarefa já tem uma revisão em execução' : 'A tarefa já tem um agente em execução');
+    }
+    if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== task.revision) fail('Tarefa alterada em outra janela; confira o estado atual antes de mudar');
+    // The prompt is one argv element: node-pty would split one starting with `"`, and the CLI reads a leading `-` as a flag.
+    if (kind && !/^[^"-]/.test(prompt ?? '')) fail('Prompt de revisão inválido', 400);
+    const base = kind ? this.runForTask(taskId) : this.checkedRoot(task);
+    if (!base) fail('Nenhuma execução registrada para esta tarefa', 404);
     const { file, args: hostArgs } = this.executable(host);
 
     const id = randomUUID();
     // A short folder keeps Claude's transcript path (~/.claude/projects/<cwd as name>/<session>.jsonl) under 260 characters.
-    const worktreeDir = path.join(this.store.dataDir, 'worktrees', id.slice(0, 8));
-    const session = this.store.addSession({ projectId: task.projectId, name: `${LABEL[host]} · ${task.title}`.slice(0, 120), cwd: worktreeDir });
-    const branchFor = n => `omniforge/${task.id.slice(0, 8)}-${n}`;
-    let n = this.runs.filter(run => run.taskId === taskId).length + 1;
-    while (tryGit(root, 'show-ref', '--verify', '--quiet', `refs/heads/${branchFor(n)}`) !== null) n++;
-    const branch = branchFor(n);
-    // Only .git/worktrees and the new folder change: the root's working tree and index are never touched.
-    try { git(root, 'worktree', 'add', '-q', '-b', branch, worktreeDir, baseSha); }
-    catch (error) {
-      this.store.setSessionStatus(session.id, 'stopped');
-      fail(`Não foi possível criar a worktree: ${String(error.stderr || error.message).trim().slice(0, 300)}`, 500);
+    const worktreeDir = base.worktree ?? path.join(this.store.dataDir, 'worktrees', id.slice(0, 8));
+    const session = this.store.addSession({ projectId: task.projectId, name: `${LABEL[host]}${kind ? ` (${kind})` : ''} · ${task.title}`.slice(0, 120), cwd: worktreeDir });
+    const { root, baseBranch, baseSha } = base;
+    let { worktree, branch } = base;
+    if (!kind) {
+      const branchFor = n => `omniforge/${task.id.slice(0, 8)}-${n}`;
+      let n = this.runs.filter(run => run.taskId === taskId).length + 1;
+      while (tryGit(root, 'show-ref', '--verify', '--quiet', `refs/heads/${branchFor(n)}`) !== null) n++;
+      branch = branchFor(n);
+      // Only .git/worktrees and the new folder change: the root's working tree and index are never touched.
+      try { git(root, 'worktree', 'add', '-q', '-b', branch, worktreeDir, baseSha); }
+      catch (error) {
+        this.store.setSessionStatus(session.id, 'stopped');
+        fail(`Não foi possível criar a worktree: ${String(error.stderr || error.message).trim().slice(0, 300)}`, 500);
+      }
+      worktree = fs.realpathSync.native(worktreeDir);
     }
-    const worktree = fs.realpathSync.native(worktreeDir);
     const run = { id, taskId, projectId: task.projectId, host, sessionId: session.id, hostSessionId: host === 'claude' ? randomUUID() : null, root, worktree, branch, baseBranch, baseSha,
-      state: 'starting', detail: '', startedAt: new Date().toISOString(), endedAt: null, exitCode: null, usage: unknownUsage('Execução em andamento') };
+      state: 'starting', detail: '', startedAt: new Date().toISOString(), endedAt: null, exitCode: null, usage: unknownUsage('Execução em andamento'), ...(kind && { kind, prompt }) };
     this.runs.push(run);
     try {
       this.publish(run);
-      // A fixed prefix keeps the prompt from starting with `"` (node-pty would not re-quote it and it would split into
-      // several arguments) or `-` (a CLI flag). The whole prompt is one argv element; no shell ever parses it.
-      const prompt = `Tarefa: ${task.title}${task.details ? `\n\n${task.details}` : ''}`.replaceAll('\0', '');
+      // A fixed prefix keeps the task's prompt from starting with `"` (node-pty would not re-quote it and it would split
+      // into several arguments) or `-` (a CLI flag). The whole prompt is one argv element; no shell ever parses it.
+      const text = (prompt ?? `Tarefa: ${task.title}${task.details ? `\n\n${task.details}` : ''}`).replaceAll('\0', '');
       let args;
       if (host === 'claude') {
         // Hooks only, outside the worktree; the owner's user and project settings are never rewritten.
@@ -237,12 +257,12 @@ export class AgentEngine extends EventEmitter {
         const command = { type: 'command', command: `"${process.execPath.replaceAll('\\', '/')}" "${HOOK.replaceAll('\\', '/')}"`, timeout: 5 };
         fs.mkdirSync(path.dirname(settings), { recursive: true });
         writeFileAtomic(settings, JSON.stringify({ hooks: Object.fromEntries(CLAUDE_HOOKS.map(name => [name, [{ hooks: [command] }]])) }, null, 2), { mode: 0o600 });
-        args = ['--session-id', run.hostSessionId, '--settings', settings, prompt];
+        args = ['--session-id', run.hostSessionId, '--settings', settings, text];
       } else {
         // A JSON string array is valid TOML (basic strings escape `\` and `"` the same way). This replaces the owner's
         // own `notify` for this session only. Codex has no signal for a pending approval, so it never reports blocked.
         // --no-daemon: a shared app-server would run the turn, and notify, outside this PTY's hook environment.
-        args = ['--no-daemon', '-C', worktree, '-c', `notify=${JSON.stringify([process.execPath, HOOK])}`, prompt];
+        args = ['--no-daemon', '-C', worktree, '-c', `notify=${JSON.stringify([process.execPath, HOOK])}`, text];
       }
       const secret = randomBytes(24).toString('hex');
       this.secrets.set(id, Buffer.from(secret));
@@ -255,9 +275,11 @@ export class AgentEngine extends EventEmitter {
       this.publish(run);
       throw error;
     }
-    const assigned = this.store.assignTask(taskId, { sessionId: session.id, worktree, expectedRevision });
-    // Only an open task starts running; a blocked or done one keeps the status its owner gave it.
-    if (assigned.status === 'open') this.store.setTaskStatus(taskId, 'running', assigned.revision);
+    if (!kind) {
+      const assigned = this.store.assignTask(taskId, { sessionId: session.id, worktree, expectedRevision });
+      // Only an open task starts running; a blocked or done one keeps the status its owner gave it.
+      if (assigned.status === 'open') this.store.setTaskStatus(taskId, 'running', assigned.revision);
+    }
     this.set(run, { state: 'working', detail: '' });
     return structuredClone(run);
   }

@@ -1,7 +1,8 @@
 // Fake Claude Code / Codex for the engine tests (not a test file). Launched as `node engine-fake-agent.mjs <home>
 // <agent args...>` through the engine's `hosts` test seam. It records its launch, fires the engine's own hook command
 // exactly as the real CLI would, waits for one line of PTY input, writes a session file under the fake home and exits.
-// It never calls a model. A prompt containing FALHAR exits with code 3.
+// It never calls a model. A prompt containing FALHAR exits with code 3; a /gauntlet-loop prompt saves a small fake
+// Phase 3 report where gauntlet/SKILL.md says (.gauntlet/ under its cwd) before it exits.
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -40,6 +41,10 @@ if (args.includes('--session-id')) {
   fs.writeFileSync(path.join(dir, session, 'subagents', 'agent-1.jsonl'), assistant('m3', { input_tokens: 1000, output_tokens: 1000 }));
   fs.writeFileSync(path.join(dir, session, 'subagents', 'workflows', 'wf_1', 'agent-2.jsonl'), assistant('m5', { input_tokens: 5000, output_tokens: 5000 }));
   fs.writeFileSync(path.join(dir, 'outra-sessao.jsonl'), assistant('m4', { input_tokens: 99999, output_tokens: 99999 }));
+  if (prompt.startsWith('/gauntlet-loop ')) {
+    fs.mkdirSync('.gauntlet', { recursive: true });
+    fs.writeFileSync(path.join('.gauntlet', 'relatorio-fake.md'), ['# Gauntlet (falso)', '🔴 ALTA (1)', '🟡 MÉDIA (0)', '🟢 BAIXA (2)', '⚪ SEM VERIFICAÇÃO (0)', 'Refutados: 1', ''].join('\n'));
+  }
 } else {
   await line();
   // Codex runs notify without a shell and appends the event JSON as the last argument.

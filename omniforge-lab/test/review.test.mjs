@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createOmniForgeServer } from '../server.mjs';
-import { gitEnv, runTestCommand } from '../review.mjs';
+import { createReview, gauntletSummary, gitEnv, runTestCommand } from '../review.mjs';
 
 const TOKEN = 'review-token-5f0c9a1e7b3d';
 const BRANCH = 'omniforge/task';
@@ -36,7 +36,8 @@ async function fixture(t, { title = 'Adicionar saudação' } = {}) {
   const runs = new Map();
   // duringTest runs while the merge waits on its test command: the window in which others can act.
   const timing = { testTimeoutMs: 60_000, duringTest: null };
-  const app = createOmniForgeServer({ dataDir: path.join(dir, 'data'), token: TOKEN, getRun: id => runs.get(id) ?? null,
+  // Agent runs only: no Gauntlet run in these fixtures.
+  const app = createOmniForgeServer({ dataDir: path.join(dir, 'data'), token: TOKEN, getRun: (id, kind) => (kind ? null : runs.get(id) ?? null),
     runTest: async options => { await timing.duringTest?.(); return runTestCommand({ ...options, timeoutMs: timing.testTimeoutMs }); } });
   const base = new URL(await app.listen()).origin;
   t.after(async () => {
@@ -369,11 +370,74 @@ test('review routes require the master token', async t => {
   const f = await fixture(t);
   f.setRun();
   for (const route of ['diff', 'evidence']) assert.equal((await fetch(`${f.base}/api/tasks/${f.task.id}/${route}`)).status, 403);
-  const merge = await fetch(`${f.base}/api/tasks/${f.task.id}/merge`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"expectedRevision":1}' });
-  assert.equal(merge.status, 403);
+  for (const route of ['merge', 'gauntlet']) {
+    const body = '{"expectedRevision":1,"preset":"rapido"}';
+    assert.equal((await fetch(`${f.base}/api/tasks/${f.task.id}/${route}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body })).status, 403);
+  }
   assert.equal(fs.existsSync(path.join(f.app.store.dataDir, 'evidence')), false);
+  assert.equal(fs.existsSync(path.join(f.worktree, '.gauntlet')), false);
   assert.equal((await f.get('/api/tasks/unknown/evidence')).status, 404);
   assert.deepEqual(await f.evidence(), { taskId: f.task.id, attempts: [] });
+});
+
+test('a Gauntlet report summary is its severity counts when the report states them, else desconhecido', () => {
+  const report = ['🔴 ALTA (2)   | área | a.mjs:3 | achado', '🟡 MÉDIA (1)  | …', '🟢 BAIXA (0)', '⚪ SEM VERIFICAÇÃO (3) — o teto chegou antes', 'Refutados: 4'].join('\n');
+  assert.deepEqual(gauntletSummary(report), { high: 2, medium: 1, low: 0, unverified: 3 });
+  assert.deepEqual(gauntletSummary('Alta (1)\nMedia (2)'), { high: 1, medium: 2 }, 'case and accents vary; a level not stated is left out, never 0');
+  assert.equal(gauntletSummary('Nenhum achado sobreviveu.'), 'desconhecido');
+});
+
+test('a finished Gauntlet run becomes a bounded evidence entry, read only from its own report inside its worktree', async t => {
+  const f = await fixture(t);
+  const review = createReview({ store: f.app.store, token: TOKEN });
+  const started = Date.now() - 10_000;
+  const usage = { status: 'unknown', inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheCreationTokens: null, source: null, reason: 'Transcrição da sessão Claude não encontrada' };
+  const finished = (id, overrides = {}) => ({ id, taskId: f.task.id, kind: 'gauntlet', prompt: `/gauntlet-loop padrao so-relatorio sem-perguntas desde=${f.baseSha}`,
+    worktree: f.worktree, startedAt: new Date(started).toISOString(), endedAt: new Date(started + 5000).toISOString(), exitCode: 0, usage, ...overrides });
+  const last = async () => (await f.evidence()).gauntlet.at(-1);
+  const dir = path.join(f.worktree, '.gauntlet');
+  const at = (file, ms) => { fs.utimesSync(file, new Date(ms), new Date(ms)); return file; };
+
+  review.recordGauntlet(finished('sem-pasta'));
+  assert.deepEqual(await last(), { at: new Date(started + 5000).toISOString(), runId: 'sem-pasta', preset: 'padrao', exitCode: 0, usage, reportPath: null, summary: 'desconhecido' });
+  assert.deepEqual((await f.evidence()).attempts, [], 'merge attempts are untouched');
+
+  fs.mkdirSync(dir);
+  write(dir, 'antigo.md', 'ALTA (9)');
+  at(path.join(dir, 'antigo.md'), started - 60_000);
+  review.recordGauntlet(finished('so-antigo'));
+  assert.equal((await last()).reportPath, null, 'a report older than the run belongs to another run');
+
+  write(dir, 'relatorio-1.md', '🔴 ALTA (1)\n🟢 BAIXA (2)\n');
+  at(path.join(dir, 'relatorio-1.md'), started + 1000);
+  write(dir, 'relatorio-2.md', 'Sem contagens aqui.');
+  at(path.join(dir, 'relatorio-2.md'), started + 2000);
+  write(dir, 'notas.txt', 'ALTA (5)');
+  review.recordGauntlet(finished('dois'));
+  assert.deepEqual([(await last()).reportPath, (await last()).summary], [path.join(dir, 'relatorio-2.md'), 'desconhecido'], 'the newest .md of the run');
+  fs.rmSync(path.join(dir, 'relatorio-2.md'));
+  review.recordGauntlet(finished('um'));
+  assert.deepEqual([(await last()).reportPath, (await last()).summary], [path.join(dir, 'relatorio-1.md'), { high: 1, low: 2 }]);
+
+  // Bounded read: counts past the first 64 KiB are not read.
+  write(dir, 'grande.md', `${'x'.repeat(64 * 1024)}\nALTA (7)`);
+  at(path.join(dir, 'grande.md'), started + 3000);
+  review.recordGauntlet(finished('grande'));
+  assert.deepEqual([(await last()).reportPath, (await last()).summary], [path.join(dir, 'grande.md'), 'desconhecido']);
+
+  // A report folder that leads outside the worktree is never read.
+  const outside = path.join(f.dir, 'fora'), linked = path.join(f.dir, 'wt-ligada');
+  fs.mkdirSync(outside); fs.mkdirSync(linked);
+  write(outside, 'relatorio.md', 'ALTA (8)');
+  fs.symlinkSync(outside, path.join(linked, '.gauntlet'), 'junction');
+  review.recordGauntlet(finished('fora', { worktree: linked }));
+  assert.deepEqual([(await last()).reportPath, (await last()).summary], [null, 'desconhecido']);
+
+  for (let i = 0; i < 20; i++) review.recordGauntlet(finished(`r${i}`, { usage: { ...usage, reason: `segredo ${TOKEN}` } }));
+  const text = await (await f.get(`/api/tasks/${f.task.id}/evidence`)).text();
+  assert.equal(text.includes(TOKEN), false, 'the Lab token never reaches the bundle');
+  const { gauntlet } = JSON.parse(text);
+  assert.deepEqual([gauntlet.length, gauntlet[0].runId, gauntlet.at(-1).runId], [20, 'r0', 'r19'], 'the last 20 runs are kept');
 });
 
 test('a merge git stops partway is not reported as restored while it left files in the root', { skip: process.platform !== 'win32' && 'needs a Windows file lock' }, async t => {

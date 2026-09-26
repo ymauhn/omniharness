@@ -1,7 +1,7 @@
-// Review and merge of a task run: the worktree's full diff, a gated merge into the owner's root, and an
-// evidence bundle per task. This runs git in the owner's real repository, so: argv only (never a shell),
-// no reset, no force, no branch or worktree deletion, and the root's working tree is touched only by
-// `git merge` and `git merge --abort`.
+// Review and merge of a task run: the worktree's full diff, a gated merge into the owner's root, the Gauntlet on
+// the owner's request and an evidence bundle per task. This runs git in the owner's real repository, so: argv only
+// (never a shell), no reset, no force, no branch or worktree deletion, and the root's working tree is touched only by
+// `git merge` and `git merge --abort`. The task's worktree gets only the Gauntlet's self-ignoring report folder.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -15,7 +15,13 @@ const MAX_TAIL = 4096;
 const MAX_ATTEMPTS = 20;
 const MAX_TEXT = 2000;
 const TEST_TIMEOUT_MS = 10 * 60_000;
+const MAX_REPORT = 64 * 1024;
 const RUNNING = new Set(['starting', 'working', 'blocked']);
+const ACTIVE = new Set([...RUNNING, 'idle']);
+// The agent's turn is over: it exited, or its session waits for a new prompt (idle).
+const FINISHED = new Set(['idle', 'done', 'failed']);
+const PRESETS = new Set(['rapido', 'padrao']);
+const SEVERITIES = [['high', 'ALTA'], ['medium', 'M[ÉE]DIA'], ['low', 'BAIXA'], ['unverified', 'SEM VERIFICA[ÇC][ÃA]O']];
 const SYSTEM32 = path.join(process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows', 'System32');
 // Variables that point git at another repository or index, as inside a git hook.
 const GIT_LOCATION = /^GIT_(DIR|WORK_TREE|INDEX_FILE|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|COMMON_DIR|PREFIX)$/i;
@@ -176,9 +182,50 @@ function untrackedInTheWay(root, nameStatus) {
   return [...new Set(found)];
 }
 
-/** Routes GET /api/tasks/:id/diff, GET /api/tasks/:id/evidence and POST /api/tasks/:id/merge.
- * `getRun(taskId)` returns the engine's latest run record for the task, or null. */
-export function createReview({ store, getRun = () => null, runTest = runTestCommand, token = '', onEvidence = () => {} }) {
+/** Severity counts of a Gauntlet Phase 3 report ("🔴 ALTA (n)", gauntlet/SKILL.md), or 'desconhecido' when it states
+ * none. A level the report does not state is left out, never counted as 0. */
+export function gauntletSummary(text) {
+  const counts = {};
+  for (const [key, label] of SEVERITIES) {
+    const match = new RegExp(`${label}\\s*\\((\\d+)\\)`, 'i').exec(text);
+    if (match) counts[key] = Number(match[1]);
+  }
+  return Object.keys(counts).length ? counts : 'desconhecido';
+}
+
+// The report folder ignores itself (a `*` .gitignore, as .pytest_cache does): the report never enters the task's
+// diff or merge. A folder that is a link could make the Lab write outside the worktree, so it is refused.
+function reportFolder(worktree) {
+  const dir = path.join(worktree, '.gauntlet');
+  try { fs.mkdirSync(dir); } catch (error) { if (error.code !== 'EEXIST') throw error; }
+  if (!fs.lstatSync(dir).isDirectory()) fail('.gauntlet na worktree da tarefa não é uma pasta comum; mova-o antes do Gauntlet', 409);
+  try { fs.writeFileSync(path.join(dir, '.gitignore'), '*\n', { flag: 'wx' }); } catch (error) { if (error.code !== 'EEXIST') throw error; }
+}
+
+// The newest Markdown report saved in <worktree>/.gauntlet/ since the run started, resolved inside the worktree
+// (a link out of it is never followed) and read up to MAX_REPORT bytes. Null when there is none to read.
+function gauntletReport(run) {
+  try {
+    const dir = path.join(run.worktree, '.gauntlet'), started = Date.parse(run.startedAt);
+    let newest = null;
+    for (const name of fs.readdirSync(dir)) {
+      if (!name.endsWith('.md')) continue;
+      const file = path.join(dir, name), stat = fs.lstatSync(file);
+      if (stat.isFile() && stat.mtimeMs >= started && (!newest || stat.mtimeMs > newest.mtimeMs)) newest = { file, mtimeMs: stat.mtimeMs };
+    }
+    if (!newest) return null;
+    const inside = path.relative(fs.realpathSync.native(run.worktree), fs.realpathSync.native(newest.file));
+    if (inside.startsWith('..') || path.isAbsolute(inside)) return null;
+    const fd = fs.openSync(newest.file, 'r'), buffer = Buffer.alloc(MAX_REPORT);
+    try { return { file: newest.file, text: buffer.toString('utf8', 0, fs.readSync(fd, buffer, 0, MAX_REPORT, 0)) }; }
+    finally { fs.closeSync(fd); }
+  } catch { return null; }
+}
+
+/** Routes GET /api/tasks/:id/diff, GET /api/tasks/:id/evidence, POST /api/tasks/:id/merge and POST /api/tasks/:id/gauntlet;
+ * `recordGauntlet(run)` adds a finished Gauntlet run to its task's evidence. `getRun(taskId, kind)` returns the engine's
+ * latest agent run for the task (or of that kind, 'gauntlet'), or null; `startRun(taskId, options)` is the engine's run. */
+export function createReview({ store, getRun = () => null, startRun, runTest = runTestCommand, token = '', onEvidence = () => {} }) {
   // ponytail: one merge at a time for the whole Lab; per-root locks if parallel merges ever matter.
   let merging = false;
   const evidenceFile = taskId => path.join(store.dataDir, 'evidence', `${taskId}.json`);
@@ -186,9 +233,10 @@ export function createReview({ store, getRun = () => null, runTest = runTestComm
     try { return JSON.parse(fs.readFileSync(evidenceFile(taskId), 'utf8')); }
     catch (error) { if (error.code === 'ENOENT') return { taskId, attempts: [] }; throw error; }
   };
-  const record = (task, attempt) => {
+  // `list` is 'attempts' (merges) or 'gauntlet'; a bundle written before the Gauntlet has no 'gauntlet' list yet.
+  const record = (task, entry, list = 'attempts') => {
     const bundle = readEvidence(task.id);
-    bundle.attempts = [...bundle.attempts, attempt].slice(-MAX_ATTEMPTS);
+    bundle[list] = [...(bundle[list] ?? []), entry].slice(-MAX_ATTEMPTS);
     fs.mkdirSync(path.dirname(evidenceFile(task.id)), { recursive: true });
     // The token is hex, so it never needs JSON escaping; the bundle never carries it, whatever a note or test printed.
     const text = JSON.stringify(bundle, null, 2);
@@ -213,6 +261,8 @@ export function createReview({ store, getRun = () => null, runTest = runTestComm
     if (!run) refuse('Nenhuma execução registrada para esta tarefa');
     if (!validRun(run)) refuse('Registro de execução inválido');
     if (RUNNING.has(run.state)) refuse(`O agente ainda está em execução (${run.state}); aguarde terminar`);
+    // Its hunters may still be writing probe files in the worktree, which the commit below would take.
+    if (ACTIVE.has(getRun(task.id, 'gauntlet')?.state)) refuse('O Gauntlet ainda está revisando esta tarefa; aguarde o relatório e encerre a sessão dele antes do merge');
     taskCurrent(task.id, expectedRevision);
     await rootReady(run);
     for (const ident of ['GIT_AUTHOR_IDENT', 'GIT_COMMITTER_IDENT']) {
@@ -282,15 +332,42 @@ export function createReview({ store, getRun = () => null, runTest = runTestComm
     finally { record(task, attempt); }
   }
 
-  return async function handle({ method, url, input }) {
-    const match = url.pathname.match(/^\/api\/tasks\/([^/]+)\/(diff|evidence|merge)$/);
-    if (!match || !['GET diff', 'GET evidence', 'POST merge'].includes(`${method} ${match[2]}`)) return null;
+  // The owner's confirmed request: a Gauntlet of the task's finished run, in its worktree, on a non-empty diff.
+  async function gauntlet(task, input) {
+    if (!PRESETS.has(input.preset)) fail('Preset do Gauntlet inválido');
+    if (!Number.isSafeInteger(input.expectedRevision) || input.expectedRevision !== task.revision) fail('Tarefa alterada em outra janela; confira o estado atual antes de mudar', 409);
+    const run = getRun(task.id);
+    if (!run) fail('Nenhuma execução registrada para esta tarefa', 404);
+    // validRun also keeps baseSha plain hex, so it can go into the prompt.
+    if (!validRun(run)) fail('Registro de execução inválido', 409);
+    if (!(await worktreeDiff(run)).files.length) fail('A worktree da tarefa não tem mudanças para revisar', 409);
+    // After the diff, in the same tick as the start: the agent may have resumed, or another run begun, meanwhile.
+    const current = getRun(task.id);
+    if (current?.id !== run.id || !FINISHED.has(current.state)) fail('O agente da tarefa precisa ter terminado (ocioso, concluído ou falho) antes do Gauntlet', 409);
+    reportFolder(run.worktree);
+    // gauntlet/SKILL.md: report only (no fixes), no scope questions, scoped to what changed since the task's base.
+    const prompt = `/gauntlet-loop ${input.preset} so-relatorio sem-perguntas desde=${run.baseSha}`;
+    return startRun(task.id, { host: 'claude', expectedRevision: input.expectedRevision, kind: 'gauntlet', prompt });
+  }
+
+  function recordGauntlet(run) {
+    const report = gauntletReport(run);
+    record(store.task(run.taskId), { at: run.endedAt, runId: run.id, preset: /^\/gauntlet-loop (\w+)/.exec(run.prompt ?? '')?.[1] ?? null, exitCode: run.exitCode,
+      usage: run.usage, reportPath: report?.file ?? null, summary: report ? gauntletSummary(report.text) : 'desconhecido' }, 'gauntlet');
+  }
+
+  async function handle({ method, url, input }) {
+    const match = url.pathname.match(/^\/api\/tasks\/([^/]+)\/(diff|evidence|merge|gauntlet)$/);
+    if (!match || !['GET diff', 'GET evidence', 'POST merge', 'POST gauntlet'].includes(`${method} ${match[2]}`)) return null;
     const task = store.task(match[1]);
     if (match[2] === 'evidence') return { status: 200, body: readEvidence(task.id) };
     if (match[2] === 'merge') return { status: 200, body: await merge(task, input), changed: true };
+    if (match[2] === 'gauntlet') return { status: 200, body: await gauntlet(task, input), changed: true };
     const run = getRun(task.id);
     if (!run) fail('Nenhuma execução registrada para esta tarefa', 404);
     if (!validRun(run)) fail('Registro de execução inválido', 409);
     return { status: 200, body: await worktreeDiff(run) };
-  };
+  }
+
+  return { handle, recordGauntlet };
 }

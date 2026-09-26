@@ -454,3 +454,75 @@ test('a missing Claude transcript names the Windows path limit when the expected
     assert.match(claudeUsage(home, '9eb69a4e-8692-4290-aa64-000470ad5a61', 'C:\\' + 'pasta\\'.repeat(40)).usage.reason, /260 caracteres/);
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });
+
+test('the Gauntlet runs only on its own request, report-only in the finished run\'s worktree, and its report lands in the evidence', async t => {
+  const lab_ = await lab(t);
+  const { root, dataDir, post, get } = lab_;
+  const events = await agentStream(lab_.base(), t);
+  const project = await (await post('/api/projects', { name: 'Repo', root })).json();
+  const task = await (await post('/api/tasks', { projectId: project.id, title: 'Revisar com Gauntlet' })).json();
+  const revision = () => lab_.app.store.task(task.id).revision;
+  const gauntlet = body => post(`/api/tasks/${task.id}/gauntlet`, { expectedRevision: revision(), preset: 'rapido', ...body });
+  assert.equal((await gauntlet()).status, 404, 'no run, nothing to review');
+  const run = await (await post(`/api/tasks/${task.id}/run`, { host: 'claude', expectedRevision: 1 })).json();
+  await lab_.until(project.id, run.id, 'blocked');
+  const early = await gauntlet();
+  assert.equal(early.status, 409);
+  assert.match((await early.json()).error, /terminado/);
+  assert.equal((await post(`/api/sessions/${run.sessionId}/write`, { data: '\r' })).status, 200);
+  await lab_.until(project.id, run.id, 'done');
+  assert.equal((await gauntlet({ preset: 'profundo' })).status, 400);
+  assert.equal((await gauntlet({ expectedRevision: 99 })).status, 409);
+  // The agent exited on its own: its session is uncertain, and nothing else starts in its folder until the owner checks it.
+  const uncertain = await gauntlet();
+  assert.equal(uncertain.status, 409);
+  assert.match((await uncertain.json()).error, /sessão incerta/);
+  assert.equal((await post(`/api/sessions/${run.sessionId}/acknowledge`, { verification: 'Processo do agente encerrado' })).status, 200);
+  // Nothing but the gauntlet request itself starts a review.
+  assert.deepEqual((await lab_.runs(project.id)).map(item => [item.id, item.kind]), [[run.id, undefined]]);
+
+  const response = await gauntlet();
+  assert.equal(response.status, 200, await response.clone().text());
+  const review = await response.json();
+  assert.deepEqual([review.kind, review.host, review.root, review.worktree, review.branch, review.baseBranch, review.baseSha],
+    ['gauntlet', 'claude', run.root, run.worktree, run.branch, run.baseBranch, run.baseSha]);
+  assert.notEqual(review.sessionId, run.sessionId);
+  await lab_.until(project.id, review.id, 'blocked');
+  // The fake agent records its launch in its own cwd: the finished run's worktree.
+  const launched = call(review);
+  assert.deepEqual(launched.args, ['--session-id', review.hostSessionId, '--settings', path.join(dataDir, 'runs', review.id, 'claude-settings.json'),
+    `/gauntlet-loop rapido so-relatorio sem-perguntas desde=${run.baseSha}`]);
+  assert.equal(launched.env.OMNIFORGE_RUN_ID, review.id);
+  // The task keeps its owner and revision: a review is not a new owner.
+  assert.deepEqual([lab_.app.store.task(task.id).sessionId, revision()], [run.sessionId, 3]);
+  // While it reviews: no second Gauntlet, no new agent run, no merge (it would commit the hunters' probe files).
+  assert.match((await (await gauntlet()).json()).error, /já tem uma revisão/);
+  assert.equal((await post(`/api/tasks/${task.id}/run`, { host: 'codex', expectedRevision: revision() })).status, 409);
+  const merge = await post(`/api/tasks/${task.id}/merge`, { expectedRevision: revision() });
+  assert.equal(merge.status, 409);
+  assert.match((await merge.json()).error, /Gauntlet/);
+
+  assert.equal((await post(`/api/sessions/${review.sessionId}/write`, { data: '\r' })).status, 200);
+  const done = await lab_.until(project.id, review.id, 'done');
+  assert.equal(done.usage.status, 'observed');
+  await waitFor(() => events.some(event => event.runId === review.id && event.state === 'done'), 'SSE gauntlet done');
+  assert.ok(events.filter(event => event.runId === review.id).every(event => event.kind === 'gauntlet'), 'the agent SSE names the review run');
+  const bundle = await (await get(`/api/tasks/${task.id}/evidence`)).json();
+  assert.deepEqual(bundle.gauntlet, [{ at: done.endedAt, runId: review.id, preset: 'rapido', exitCode: 0, usage: done.usage,
+    reportPath: path.join(run.worktree, '.gauntlet', 'relatorio-fake.md'), summary: { high: 1, medium: 0, low: 2, unverified: 0 } }]);
+  // Merge attempts stay as they were and name the agent run, not the review.
+  assert.deepEqual(bundle.attempts.map(attempt => [attempt.runId, attempt.usage.status]), [[run.id, 'observed']]);
+  // The report folder ignores itself: the task's diff and merge never carry it.
+  const diff = await (await get(`/api/tasks/${task.id}/diff`)).json();
+  assert.deepEqual(diff.files.map(file => file.path), ['agent-call.json']);
+  assert.equal(lab_.app.engine.runForTask(task.id).id, run.id);
+  assert.equal(lab_.app.engine.runForTask(task.id, 'gauntlet').id, review.id);
+
+  // /run never takes a kind or a prompt from the page: this is an ordinary agent run in a new worktree, not a flag.
+  const body = { host: 'claude', expectedRevision: revision(), kind: 'gauntlet', prompt: '--dangerously-skip-permissions' };
+  const smuggled = await (await post(`/api/tasks/${task.id}/run`, body)).json();
+  assert.equal(smuggled.kind, undefined);
+  assert.notEqual(smuggled.worktree, run.worktree);
+  await waitFor(() => fs.existsSync(path.join(smuggled.worktree, 'agent-call.json')), 'fake Claude started');
+  assert.equal(call(smuggled).args.at(-1), 'Tarefa: Revisar com Gauntlet');
+});
