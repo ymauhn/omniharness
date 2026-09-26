@@ -92,9 +92,9 @@ test('composer turns a long draft into a bounded first-line title and keeps the 
   assert.equal(env.requests[2].body.details, undefined);
 });
 
-test('task status select sends its revision, restores and refreshes after a conflict, and shows details as text', async () => {
+test('task status select sends its revision, restores and refreshes after a conflict, and loads details as text on open', async () => {
   const env = environment();
-  env.local.state.tasks = [{ id: 't1', projectId: 'p', title: 'Race', dependsOn: [], status: 'open', revision: 3, details: 'Race\n<b>Contexto completo</b>' }];
+  env.local.state.tasks = [{ id: 't1', projectId: 'p', title: 'Race', dependsOn: [], status: 'open', revision: 3, hasDetails: true }];
   env.ctx.renderTasks();
   const list = env.$('#task-list'), select = list.find(node => node.tag === 'select');
   env.respond = async () => null;
@@ -103,6 +103,13 @@ test('task status select sends its revision, restores and refreshes after a conf
   assert.equal(env.requests[0].body.expectedRevision, 3);
   assert.equal(select.value, 'open');
   assert.ok(env.calls.includes('refresh'));
+  const more = list.find(node => node.tag === 'details');
+  assert.deepEqual(env.apiCalls, [], 'details load only when opened');
+  env.apiQueue.push(Promise.resolve({ id: 't1', details: 'Race\n<b>Contexto completo</b>' }));
+  more.open = true;
+  await more.fire('toggle');
+  await more.fire('toggle');
+  assert.deepEqual(env.apiCalls, ['/api/tasks/t1/details']);
   assert.match(list.textContent, /<b>Contexto completo<\/b>/);
 });
 

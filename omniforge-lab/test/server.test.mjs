@@ -112,7 +112,11 @@ test('task status rejects a stale window, long drafts keep details and inventory
   const [saved] = (await (await get('/api/state')).json()).tasks;
   assert.equal(saved.status, 'done');
   assert.equal(saved.revision, 2);
-  assert.equal(saved.details, draft.trim());
+  assert.equal(saved.hasDetails, true);
+  assert.equal(Object.hasOwn(saved, 'details'), false);
+  assert.deepEqual(await (await get(`/api/tasks/${task.id}/details`)).json(), { id: task.id, details: draft.trim() });
+  assert.equal((await get('/api/tasks/unknown/details')).status, 404);
+  assert.equal((await fetch(`${base}/api/tasks/${task.id}/details`)).status, 403);
   const opendir = fs.promises.opendir;
   t.mock.method(fs.promises, 'opendir', (dir, ...rest) => path.basename(dir) === 'locked' ? Promise.reject(Object.assign(new Error('EPERM'), { code: 'EPERM' })) : opendir(dir, ...rest));
   const partial = await get(`/api/inventory?projectId=${project.id}`);
@@ -124,6 +128,38 @@ test('task status rejects a stale window, long drafts keep details and inventory
   const missing = await get(`/api/inventory?projectId=${project.id}`);
   assert.equal(missing.status, 409);
   assert.match((await missing.json()).error, /Pasta do projeto indisponível/);
+});
+
+test('tasks with long details keep every event-stream window connected', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-lab-api-'));
+  const app = createOmniForgeServer({ dataDir: path.join(root, 'data'), token: 'test-token' });
+  const base = new URL(await app.listen()).origin;
+  const controller = new AbortController();
+  t.after(async () => {
+    controller.abort(); await app.close();
+    const relative = path.relative(os.tmpdir(), root);
+    if (relative.startsWith('omniforge-lab-api-') && !relative.includes(path.sep)) fs.rmSync(root, { recursive: true, force: true });
+  });
+  const headers = { 'content-type': 'application/json', 'x-omniforge-token': 'test-token' };
+  const project = app.store.addProject({ name: 'Detalhes', root });
+  const events = await fetch(`${base}/api/events`, { headers, signal: controller.signal });
+  const reader = events.body.getReader(), decoder = new TextDecoder();
+  let received = '';
+  while (!received.includes('event: state')) received += decoder.decode((await reader.read()).value, { stream: true });
+  // Each Copilot-structured task may carry a 4,000-character draft; six of them once pushed state events past 16 KiB.
+  for (let i = 1; i <= 6; i++) {
+    const response = await fetch(`${base}/api/tasks`, { method: 'POST', headers, body: JSON.stringify({ projectId: project.id, title: `Detalhada ${i}`, details: `Detalhada ${i}\n${'x'.repeat(3980)}` }) });
+    assert.equal(response.status, 200);
+  }
+  const deadline = Date.now() + 5000;
+  while (!received.includes('Detalhada 6') && Date.now() < deadline) {
+    const { value, done } = await Promise.race([reader.read(), new Promise(resolve => setTimeout(() => resolve({ done: true }), 1000))]);
+    if (done) break;
+    received += decoder.decode(value, { stream: true });
+  }
+  assert.ok(received.includes('Detalhada 6'), `stream ended after ${received.length} characters`);
+  assert.equal(received.includes('x'.repeat(100)), false);
+  await reader.cancel();
 });
 
 test('separate local instances use distinct authentication cookies', async t => {
