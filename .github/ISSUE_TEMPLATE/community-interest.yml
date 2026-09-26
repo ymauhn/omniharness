@@ -1,0 +1,39 @@
+name: Community interest
+description: Register interest in the OmniForge beta, the library or member access. Nothing is for sale yet.
+title: "[interest] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This issue is public.** Anyone can read it. Do not include private data, email addresses, API keys, tokens, passwords or other credentials.
+
+        OmniForge is a local, Windows-first workspace in active development; V1 is not complete. The skills, templates and tutorials already live in this repository. Nothing is for sale yet: this form only records interest. Member access is not granted through an issue, so never post an email address, an account name or a share link here, not even in a reply.
+  - type: input
+    id: handle
+    attributes:
+      label: Handle (optional)
+      description: How you would like to be addressed, for example your GitHub handle. Leave empty to stay anonymous beyond your GitHub account.
+    validations:
+      required: false
+  - type: checkboxes
+    id: interest
+    attributes:
+      label: What interests you?
+      options:
+        - label: OmniForge local workspace beta (Windows-first, in development)
+        - label: Skills, templates and tutorials library
+        - label: Member access
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: What would you use it for? Describe the work, not your private data.
+    validations:
+      required: false
+  - type: checkboxes
+    id: public-notice
+    attributes:
+      label: Public issue
+      options:
+        - label: I understand this issue is public and contains no private data or credentials.
+          required: true

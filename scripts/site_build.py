@@ -2,7 +2,7 @@
 
 Reads site/index.html and injects: the skills graph (docs/skills-graph/graph.json, installed ring plus every linked node),
 the member guides (SKILL.md bodies and the portal plan, as escaped markdown inside <template data-members>), and the showcase
-metrics (site/showcase/06-metrics.json into data-metric elements). Writes site/public/index.html (public edition: member
+metrics (site/showcase/v3/metrics.json into data-metric elements, plus weight_build: this build's public weight). Writes site/public/index.html (public edition: member
 templates removed, data-edition="public") and, with --artifact <path>, the members edition as an artifact fragment (no
 doctype/html/head/body wrappers). --report prints the weight of each edition. Stdlib only; the source keeps its placeholders.
 """
@@ -30,10 +30,11 @@ def read(p):
         return f.read()
 
 
-def href(n):
+def href(n, root=ROOT):
+    """Source link: a path under the root the graph was scanned from (graph.json "root"), whichever checkout builds."""
     for p in n.get("paths", []):
-        if p.startswith(ROOT + "/"):
-            return GITHUB + p[len(ROOT) + 1:]
+        if p.startswith(root + "/"):
+            return GITHUB + p[len(root) + 1:]
     for h in n.get("hosts", []):
         if h.startswith("plugin:") and h[7:] in PLUGIN_URL:
             return PLUGIN_URL[h[7:]]
@@ -49,7 +50,7 @@ def graph_payload(graph):
         plug = next((h[7:] for h in hosts if h.startswith("plugin:")), None)
         return plug or ("repo" if "repo" in hosts else (hosts[0] if hosts else n["ring"]))
     return {"generated": graph["generated"],
-            "nodes": [{"id": n["id"], "ring": n["ring"], "group": group(n), "d": blurb(n.get("description") or ""), "href": href(n)} for n in nodes],
+            "nodes": [{"id": n["id"], "ring": n["ring"], "group": group(n), "d": blurb(n.get("description") or ""), "href": href(n, graph.get("root", ROOT))} for n in nodes],
             "edges": [{"s": e["from"], "t": e["to"], "type": e["type"]} for e in graph["edges"] if e["from"] in ids and e["to"] in ids]}
 
 
@@ -142,9 +143,13 @@ def main(argv=None):
     guides = {k: read(f"{ROOT}/{p}") for k, p in GUIDES.items() if os.path.isfile(f"{ROOT}/{p}")}
     mpath = ROOT + "/site/showcase/v3/metrics.json"
     metrics = json.load(open(mpath, encoding="utf-8")) if os.path.isfile(mpath) else {}
-    built = build(src, graph, guides, metrics)
     os.makedirs(ROOT + "/site/public", exist_ok=True)
     shot_paths = shots()
+    # "This page" states this build's public weight: measure a first pass, then build again with the number in place
+    b, z, _ = weight(edition(build(src, graph, guides, metrics), "public", shot_paths))
+    metrics["weight_build"] = f"public edition: {b / 1024:.0f} KB raw · {z / 1024:.0f} KB deflated"
+    metrics["weight_build_pt"] = f"edição pública: {b / 1024:.0f} KB bruto · {z / 1024:.0f} KB comprimido"
+    built = build(src, graph, guides, metrics)
     pub = edition(built, "public", shot_paths)
     with open(ROOT + "/site/public/index.html", "w", encoding="utf-8", newline="\n") as f:
         f.write(pub)
