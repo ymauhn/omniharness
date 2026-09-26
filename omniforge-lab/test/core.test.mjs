@@ -6,13 +6,16 @@ import path from 'node:path';
 import { WorkspaceStore, inventoryAssets } from '../core.mjs';
 import { PtyCoordinator } from '../pty.mjs';
 
+// Canonical, as the store keeps project roots: TEMP may be an 8.3 or junction spelling of this folder.
+const TMP = fs.realpathSync.native(os.tmpdir());
+
 function fixture(t) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-lab-test-'));
+  const root = fs.mkdtempSync(path.join(TMP, 'omniforge-lab-test-'));
   const dataDir = path.join(root, 'data');
   const store = new WorkspaceStore(dataDir);
   t.after(() => {
     store.close();
-    const relative = path.relative(os.tmpdir(), root);
+    const relative = path.relative(TMP, root);
     if (relative.startsWith('omniforge-lab-test-') && !relative.includes(path.sep)) fs.rmSync(root, { recursive: true, force: true });
   });
   const projectRoot = path.join(root, 'project');
