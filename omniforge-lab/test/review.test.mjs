@@ -335,6 +335,30 @@ test('merge refuses without a configured git identity and never invents one', as
   assert.equal(git(f.root, 'rev-parse', BRANCH), f.baseSha, 'nothing was committed');
 });
 
+test('merge refuses while a session in the task worktree is stopping, interrupted or uncertain, naming it', async t => {
+  const f = await fixture(t);
+  f.setRun();
+  write(f.worktree, 'hello.txt', 'hi\n');
+  const store = f.app.store;
+  // The agent's process tree may still write in the worktree the merge commits.
+  const session = store.addSession({ projectId: f.project.id, name: 'Claude · agente', cwd: f.worktree });
+  for (const status of ['stopping', 'interrupted']) {
+    store.setSessionStatus(session.id, status);
+    const response = await f.merge({});
+    assert.equal(response.status, 409);
+    assert.match((await response.json()).error, /sessão "Claude · agente" na worktree da tarefa/);
+  }
+  store.flagUncertainSession(session.id);
+  store.session(session.id).status = 'stopped';
+  assert.equal((await f.merge({})).status, 409, 'uncertain in memory even when stored as stopped');
+  assert.equal(git(f.root, 'rev-parse', BRANCH), f.baseSha, 'nothing was committed');
+  assert.equal((await f.evidence()).attempts.length, 3);
+  store.session(session.id).status = 'interrupted';
+  store.acknowledgeInterruptedSession(session.id, 'processo conferido');
+  const response = await f.merge({});
+  assert.equal(response.status, 200, (await response.clone().json()).error);
+});
+
 test('merge refuses task content that carries the Lab token', async t => {
   const f = await fixture(t);
   f.setRun();

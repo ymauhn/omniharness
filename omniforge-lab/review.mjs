@@ -263,6 +263,9 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     if (RUNNING.has(run.state)) refuse(`O agente ainda está em execução (${run.state}); aguarde terminar`);
     // Its hunters may still be writing probe files in the worktree, which the commit below would take.
     if (ACTIVE.has(getRun(task.id, 'gauntlet')?.state)) refuse('O Gauntlet ainda está revisando esta tarefa; aguarde o relatório e encerre a sessão dele antes do merge');
+    // An agent process that may outlive its session could still be writing in the worktree the commit below takes.
+    const uncertain = store.uncertainSessionIn(task.projectId, run.worktree);
+    if (uncertain) refuse(`A sessão "${uncertain.name}" na worktree da tarefa está incerta; confira se o processo dela terminou e confirme a verificação antes do merge`);
     taskCurrent(task.id, expectedRevision);
     await rootReady(run);
     for (const ident of ['GIT_AUTHOR_IDENT', 'GIT_COMMITTER_IDENT']) {

@@ -190,12 +190,18 @@ export class WorkspaceStore {
   addSession({ projectId, name, cwd }) {
     const project = this.project(projectId);
     name = requiredText(name, 'Nome da sessão');
-    // An uncertain process tree can only interfere with sessions in its own folder.
-    if (this.data.sessions.some(item => item.projectId === project.id && item.cwd === cwd && (['stopping', 'interrupted'].includes(item.status) || this.uncertainSessions.has(item.id)))) fail('Há uma sessão incerta nesta pasta do projeto; verifique o processo antes de continuar', 409);
+    if (this.uncertainSessionIn(project.id, cwd)) fail('Há uma sessão incerta nesta pasta do projeto; verifique o processo antes de continuar', 409);
     const session = { id: randomUUID(), projectId: project.id, name, host: 'local-pty', ...(cwd && { cwd }), status: 'starting', createdAt: new Date().toISOString() };
     this.data.sessions.push(session);
     this.save();
     return session;
+  }
+
+  /** A session in this project folder (`cwd`; undefined is the root) whose process tree may still be alive, or null.
+   * An uncertain process tree can only interfere with its own folder: nothing new starts there, nothing merges from it. */
+  uncertainSessionIn(projectId, cwd) {
+    return this.data.sessions.find(item => item.projectId === projectId && item.cwd === cwd &&
+      (['stopping', 'interrupted'].includes(item.status) || this.uncertainSessions.has(item.id))) ?? null;
   }
 
   session(id) {
