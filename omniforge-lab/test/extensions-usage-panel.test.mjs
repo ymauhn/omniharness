@@ -162,6 +162,12 @@ test('usage: the unavailable error clears on a later successful load', async () 
   assert.doesNotMatch(root.textContent, /Uso indisponível/);
 });
 
+test('usage: the key form offers the API providers only; the JEV key flow is cut from the page', async () => {
+  const { root } = dom(), { api } = usageFixture();
+  await mountUsagePanel({ root, api }).load();
+  assert.deepEqual(root.querySelectorAll('option').map(option => option.value), ['anthropic', 'openai']);
+});
+
 test('usage: focus returns to the equivalent control after each action', async () => {
   const { root, doc } = dom(), { api } = usageFixture();
   const panel = mountUsagePanel({ root, api }); await panel.load();

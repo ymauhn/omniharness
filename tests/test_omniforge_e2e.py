@@ -460,8 +460,8 @@ class LabE2E(LabCase):
             page.get_by_text("••••7Q2Z").wait_for(timeout=20000)
             self.assertNotIn(dummy, page.content())
             evidence(page, "usage-keys")
-            page.get_by_role("button", name="Remover chave jev terminada em 7Q2Z").click()
-            page.get_by_role("button", name="Confirmar remoção da chave jev terminada em 7Q2Z").click()
+            page.get_by_role("button", name="Remover chave anthropic terminada em 7Q2Z").click()
+            page.get_by_role("button", name="Confirmar remoção da chave anthropic terminada em 7Q2Z").click()
             page.get_by_text("Nenhuma chave guardada.").wait_for(timeout=20000)
         finally:
             # The demo writes to the real Windows vault: never leave the dummy credential behind if the UI path fails.
