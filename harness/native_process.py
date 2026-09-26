@@ -11,9 +11,10 @@ import re
 import signal
 import subprocess
 import time
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+
+from harness.fsutil import write_atomic
 
 
 _ATTEMPT = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
@@ -25,13 +26,7 @@ def _stamp():
 
 
 def _write_state(path, state):
-    temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".tmp")
-    with temporary.open("x", encoding="utf-8") as stream:
-        json.dump(state, stream, sort_keys=True)
-        stream.write("\n")
-        stream.flush()
-        os.fsync(stream.fileno())
-    os.replace(temporary, path)
+    write_atomic(path, json.dumps(state, sort_keys=True) + "\n")
 
 
 def _file_evidence(path):

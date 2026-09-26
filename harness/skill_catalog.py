@@ -15,12 +15,13 @@ import os
 import re
 import stat
 import sys
-import tempfile
 import unicodedata
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
+
+from harness.fsutil import write_atomic
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_VERSION = 1
@@ -431,16 +432,8 @@ def write_snapshot(snapshot, destination):
     validate_snapshot(snapshot)
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=destination.name + '.', suffix='.tmp', dir=destination.parent)
-    try:
-        with os.fdopen(fd, 'w', encoding='utf-8', newline='\n') as stream:
-            stream.write(json.dumps(snapshot, ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False) + '\n')
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, destination)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
+    write_atomic(destination, json.dumps(snapshot, ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False) + '\n',
+                 mode=0o600, newline='\n')
 
 
 def _load_json(path, max_bytes=32_000_000):

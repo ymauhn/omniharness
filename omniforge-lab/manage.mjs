@@ -7,6 +7,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
+import { writeFileAtomic } from './lib/fsutil.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP = path.resolve(HERE, '..');
@@ -62,9 +63,7 @@ const hashFile = file => createHash('sha256').update(fs.readFileSync(file)).dige
 const firstLine = text => String(text || '').trim().split(/\r?\n/)[0].slice(0, 160);
 
 function writeJson(file, value) {
-  const temp = `${file}.${randomUUID()}.tmp`;
-  fs.writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`);
-  fs.renameSync(temp, file);
+  writeFileAtomic(file, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 function contains(parent, child) {

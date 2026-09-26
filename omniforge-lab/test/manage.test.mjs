@@ -27,7 +27,9 @@ function tinyZip(dir, version, sha, { real = false, files = {} } = {}) {
   fs.writeFileSync(path.join(root, 'omniforge-lab', 'index.html'), `<p>${version}</p>\n`);
   fs.writeFileSync(path.join(root, 'scripts', 'omniforge.cmd'), '@echo off\r\n');
   if (real) {
+    fs.mkdirSync(path.join(root, 'omniforge-lab', 'lib'), { recursive: true });
     fs.copyFileSync(new URL('../manage.mjs', import.meta.url), path.join(root, 'omniforge-lab', 'manage.mjs'));
+    fs.copyFileSync(new URL('../lib/fsutil.mjs', import.meta.url), path.join(root, 'omniforge-lab', 'lib', 'fsutil.mjs'));
     fs.copyFileSync(new URL('../../scripts/omniforge.cmd', import.meta.url), path.join(root, 'scripts', 'omniforge.cmd'));
   }
   for (const [relative, text] of Object.entries(files)) fs.writeFileSync(path.join(root, relative), text);

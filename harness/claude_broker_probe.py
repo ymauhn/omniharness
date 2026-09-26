@@ -20,6 +20,7 @@ from .claude_native import _ENV_KEYS
 from .claude_worker_bridge import _verify_events
 from .container_worker import ContainerWorker
 from .container_worker_probe import _cleanup_fixture
+from .fsutil import write_exclusive
 from .native_process import _terminate_tree
 from .sandbox_probe import WORKER, host_paths
 from .swarm_worktrees import Worktrees
@@ -170,11 +171,7 @@ def probe(*, docker, image, endpoint):
                    "lifetime_seconds": worker.lifetime_seconds,
                    "events_path": str(events)}
         binding_path = root / "broker-binding.json"
-        with binding_path.open("x", encoding="utf-8") as stream:
-            json.dump(binding, stream, sort_keys=True)
-            stream.write("\n")
-            stream.flush()
-            os.fsync(stream.fileno())
+        write_exclusive(binding_path, json.dumps(binding, sort_keys=True) + "\n")
         digest = hashlib.sha256(binding_path.read_bytes()).hexdigest()
         exit_code, stdout, stderr = _broker_process(binding_path, digest,
                                                     binding["source_sha256"], _mcp_input(paths), work)

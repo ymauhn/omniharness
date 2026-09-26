@@ -3,8 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { once } from 'node:events';
-import { WorkspaceStore, ShellCoordinator, inventoryAssets } from '../core.mjs';
+import { WorkspaceStore, inventoryAssets } from '../core.mjs';
 import { PtyCoordinator } from '../pty.mjs';
 
 function fixture(t) {
@@ -369,17 +368,8 @@ test('two crash recoverers cannot both acquire the same state writer lock', t =>
   }
 });
 
-test('unavailable shell does not report a running session', async t => {
-  const { projectRoot, store } = fixture(t);
-  const project = store.addProject({ name: 'Game', root: projectRoot });
-  const session = store.addSession({ projectId: project.id, name: 'Unavailable' });
-  const shells = new ShellCoordinator(store, { shell: 'omni-shell-that-does-not-exist.exe' });
-  const errorEvent = once(shells, 'terminal');
-  assert.throws(() => shells.start(session.id), /indisponível/);
-  await errorEvent;
-  assert.equal(store.session(session.id).status, 'interrupted');
-});
-
+// The unavailable-shell case is covered for the production coordinator by
+// 'shell resolution uses an existing absolute executable and fails closed' in pty.test.mjs.
 test('asset inventory stays in the chosen project and skips ignored directories', async t => {
   const { projectRoot } = fixture(t);
   fs.writeFileSync(path.join(projectRoot, 'hero.png'), 'x');
@@ -428,37 +418,8 @@ test('context brief bounds tiny-note metadata as well as text', t => {
   assert.ok(JSON.stringify(brief).length <= brief.limit);
 });
 
-test('two live line-oriented shells preserve distinct project directories', async t => {
-  const { root, projectRoot, store } = fixture(t);
-  const otherRoot = path.join(root, 'other');
-  fs.mkdirSync(otherRoot);
-  const a = store.addProject({ name: 'A', root: projectRoot });
-  const b = store.addProject({ name: 'B', root: otherRoot });
-  const sa = store.addSession({ projectId: a.id, name: 'Shell A' });
-  const sb = store.addSession({ projectId: b.id, name: 'Shell B' });
-  const shells = new ShellCoordinator(store);
-  const outputs = new Map([[sa.id, ''], [sb.id, '']]);
-  shells.on('terminal', event => outputs.set(event.sessionId, outputs.get(event.sessionId) + event.text));
-  try {
-    shells.start(sa.id);
-    shells.start(sb.id);
-    const command = process.platform === 'win32' ? 'Write-Output $PWD.Path' : 'pwd';
-    shells.command(sa.id, command);
-    shells.command(sb.id, command);
-    const deadline = Date.now() + 10000;
-    while (Date.now() < deadline && (!outputs.get(sa.id).includes(projectRoot) || !outputs.get(sb.id).includes(otherRoot))) await new Promise(resolve => setTimeout(resolve, 50));
-    assert.ok(outputs.get(sa.id).toLowerCase().includes(projectRoot.toLowerCase()), JSON.stringify([...outputs]));
-    assert.ok(outputs.get(sb.id).toLowerCase().includes(otherRoot.toLowerCase()), JSON.stringify([...outputs]));
-    assert.ok(!outputs.get(sa.id).includes(otherRoot));
-    assert.ok(!outputs.get(sb.id).includes(projectRoot));
-  } finally {
-    for (const id of [...shells.processes.keys()]) shells.command(id, 'exit');
-    const end = Date.now() + 3000;
-    while (shells.processes.size && Date.now() < end) await new Promise(resolve => setTimeout(resolve, 25));
-    if (shells.processes.size) await shells.closeAll();
-  }
-});
-
+// Distinct-project-directory isolation across two live shells is covered for the production
+// coordinator by 'two real PTYs keep their project directories and Unicode output separate' in pty.test.mjs.
 test('PowerShell 7 preserves a non-ASCII project path in terminal output', async t => {
   if (process.platform !== 'win32') return;
   const { root, store } = fixture(t);

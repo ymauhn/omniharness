@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { runExtension } from './extension-runner.mjs';
 import { SKIP_DIRS } from './core.mjs';
+import { writeFileAtomic } from './lib/fsutil.mjs';
 
 const TEMPLATE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'extension-templates', 'asset-link-checker.js');
 const EXTENSION_ID = 'asset-link-checker';
@@ -84,9 +85,7 @@ export class ExtensionService {
     if (expectedRevision !== current.revision) fail('Registro de extensões mudou; atualize e confirme a revisão', 409);
     registry.revision = current.revision + 1;
     fs.mkdirSync(this.root, { recursive: true });
-    const temp = `${this.file(projectId)}.${randomUUID()}.tmp`;
-    fs.writeFileSync(temp, JSON.stringify(registry, null, 2));
-    fs.renameSync(temp, this.file(projectId));
+    writeFileAtomic(this.file(projectId), JSON.stringify(registry, null, 2));
     return registry;
   }
 

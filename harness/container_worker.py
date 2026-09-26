@@ -16,6 +16,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from harness.fsutil import write_atomic
+
 
 IMAGE = re.compile(r"python@sha256:[0-9a-f]{64}\Z")
 CID = re.compile(r"[0-9a-f]{64}\Z")
@@ -31,13 +33,7 @@ def _stamp():
 
 
 def _save(path, state):
-    temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".tmp")
-    with temporary.open("x", encoding="utf-8") as stream:
-        json.dump(state, stream, sort_keys=True)
-        stream.write("\n")
-        stream.flush()
-        os.fsync(stream.fileno())
-    os.replace(temporary, path)
+    write_atomic(path, json.dumps(state, sort_keys=True) + "\n")
 
 
 def _read(path, attempt_id):

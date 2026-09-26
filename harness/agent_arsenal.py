@@ -11,9 +11,10 @@ import hashlib
 import json
 import os
 import re
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+
+from harness.fsutil import write_atomic
 
 PILLARS = ('engineering', 'orchestration-os', 'science-thesis', 'education-community', 'technical-marketing')
 HOSTS = ('codex', 'claude', 'hermes')
@@ -301,7 +302,6 @@ class Registry:
             handle = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         except FileExistsError as exc:
             raise LockedError('Registry writer is busy; inspect a persistent lock before recovery') from exc
-        temporary = None
         try:
             os.close(handle)
             document, _, _ = self._read()
@@ -316,13 +316,9 @@ class Registry:
             raw = _encode(document)
             if len(raw) > MAX_STORE_BYTES:
                 raise CapacityError('Registry byte limit reached; history was retained')
-            with tempfile.NamedTemporaryFile(dir=self.path.parent, prefix='.arsenal-', suffix='.tmp', delete=False) as stream:
-                temporary = Path(stream.name); stream.write(raw); stream.flush(); os.fsync(stream.fileno())
-            os.replace(temporary, self.path); temporary = None
+            write_atomic(self.path, raw, mode=0o600)
             return document['revision']
         finally:
-            if temporary is not None:
-                temporary.unlink(missing_ok=True)
             lock.unlink()
 
     def snapshot(self):

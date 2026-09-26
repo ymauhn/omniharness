@@ -2,14 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { spawn } from 'node:child_process';
-import { EventEmitter } from 'node:events';
-import { StringDecoder } from 'node:string_decoder';
-import { resolvePtyShell } from './pty.mjs';
+import { writeFileDurable } from './lib/fsutil.mjs';
 
 const MAX_NOTE = 4000;
 const MAX_CONTEXT_NOTES = 24;
-const MAX_COMMAND = 4096;
 const ASSET_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.wav', '.mp3', '.ogg', '.mp4', '.webm', '.glb', '.gltf']);
 export const SKIP_DIRS = new Set(['.git', 'node_modules', '.venv', '__pycache__', '.omniforge-lab']);
 const UNREADABLE_DIR = new Set(['EACCES', 'EPERM', 'ENOENT', 'EBUSY', 'ENOTDIR']);
@@ -30,12 +26,6 @@ function initialData() {
 }
 
 const compatible = data => data?.schema === 1 && ['projects', 'sessions', 'tasks', 'notes'].every(key => Array.isArray(data[key]));
-
-function writeDurable(file, data) {
-  const fd = fs.openSync(file, 'w', 0o600);
-  try { fs.writeFileSync(fd, JSON.stringify(data, null, 2), 'utf8'); fs.fsyncSync(fd); }
-  finally { fs.closeSync(fd); }
-}
 
 function noteVersion(note, operation) {
   const { revision, mutationSequence, text, source, updatedAt, archivedAt } = note;
@@ -163,8 +153,8 @@ export class WorkspaceStore {
     try {
       // The new state is on disk before it replaces state.json; the backup is the last committed state.
       // ponytail: full-state backup per save; move to a journal if state.json grows past a few MB.
-      writeDurable(temp, this.data);
-      if (fs.existsSync(this.file)) writeDurable(this.backupFile, this.durableData);
+      writeFileDurable(temp, JSON.stringify(this.data, null, 2), { mode: 0o600 });
+      if (fs.existsSync(this.file)) writeFileDurable(this.backupFile, JSON.stringify(this.durableData, null, 2), { mode: 0o600 });
       fs.renameSync(temp, this.file);
       this.durableData = structuredClone(this.data);
     } catch (error) {
@@ -441,110 +431,6 @@ export class WorkspaceStore {
     this.data.layout.split = split;
     this.save();
     return this.data.layout;
-  }
-}
-
-export class ShellCoordinator extends EventEmitter {
-  constructor(store, { shell, spawnProcess = spawn } = {}) {
-    super();
-    this.store = store;
-    this.shell = shell;
-    this.spawnProcess = spawnProcess;
-    this.processes = new Map();
-    this.sealed = false;
-  }
-
-  start(sessionId) {
-    if (this.processes.has(sessionId)) fail('Sessão já iniciada');
-    const session = this.store.session(sessionId);
-    const project = this.store.project(session.projectId);
-    const shell = this.shell ?? resolvePtyShell();
-    const args = process.platform === 'win32' ? (path.basename(shell).toLowerCase() === 'cmd.exe' ? ['/Q', '/K'] : ['-NoLogo', '-NoProfile', '-Command', '-']) : [];
-    const child = this.spawnProcess(shell, args, { cwd: project.root, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, detached: process.platform !== 'win32', env: { ...process.env, OMNIFORGE_PROJECT_ID: project.id, OMNIFORGE_SESSION_ID: session.id } });
-    let launchFailed = false;
-    child.on('error', error => {
-      launchFailed = true;
-      if (!this.sealed) this.store.setSessionStatus(sessionId, 'interrupted');
-      this.emit('terminal', { sessionId, stream: 'error', text: error.message, at: new Date().toISOString() });
-    });
-    if (!child.pid) {
-      this.store.setSessionStatus(sessionId, 'interrupted');
-      fail('Shell local indisponível', 503);
-    }
-    this.processes.set(sessionId, child);
-    this.store.setSessionStatus(sessionId, 'running', child.pid);
-    const bindOutput = (stream, name) => {
-      const decoder = new StringDecoder('utf8');
-      stream.on('data', chunk => this.emit('terminal', { sessionId, stream: name, text: decoder.write(chunk), at: new Date().toISOString() }));
-      stream.on('end', () => {
-        const tail = decoder.end();
-        if (tail) this.emit('terminal', { sessionId, stream: name, text: tail, at: new Date().toISOString() });
-      });
-    };
-    bindOutput(child.stdout, 'stdout');
-    bindOutput(child.stderr, 'stderr');
-    child.on('close', (code, signal) => {
-      this.processes.delete(sessionId);
-      if (!this.sealed) this.store.setSessionStatus(sessionId, launchFailed ? 'interrupted' : 'stopped');
-      this.emit('closed', { sessionId, code, signal });
-    });
-    return session;
-  }
-
-  command(sessionId, command) {
-    command = requiredText(command, 'Comando', MAX_COMMAND);
-    const child = this.processes.get(sessionId);
-    if (!child || !child.stdin.writable) fail('Sessão não está ativa', 409);
-    child.stdin.write(`${command}\n`);
-    return { sessionId, accepted: true };
-  }
-
-  stop(sessionId) {
-    const child = this.processes.get(sessionId);
-    if (!child) fail('Sessão não está ativa', 409);
-    void this.terminateTree(child).then(ok => {
-      if (!ok && this.processes.has(sessionId)) this.emit('terminal', { sessionId, stream: 'error', text: 'Encerramento da árvore de processos não confirmado', at: new Date().toISOString() });
-    });
-    return { sessionId, stopping: true };
-  }
-
-  async terminateTree(child) {
-    if (!child.pid) return false;
-    if (process.platform !== 'win32') {
-      try { process.kill(-child.pid, 'SIGKILL'); return true; }
-      catch { try { child.kill('SIGKILL'); } catch {} return false; }
-    }
-    return await new Promise(resolve => {
-      const killer = spawn(path.join(process.env.SystemRoot || 'C:/Windows', 'System32', 'taskkill.exe'), ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
-      killer.once('error', () => { try { child.kill(); } catch {} resolve(false); });
-      killer.once('close', code => resolve(code === 0 || child.exitCode !== null));
-    });
-  }
-
-  async closeAll() {
-    try {
-      const pending = [...this.processes.values()].map(child => {
-        const closed = new Promise(resolve => child.once('close', resolve));
-        return this.terminateTree(child).then(async ok => {
-          if (!ok && this.processes.has(this.sessionIdForProcess(child))) throw new Error(`Encerramento da árvore do shell ${child.pid} não confirmado`);
-          await new Promise((resolve, reject) => {
-            const timer = setTimeout(() => reject(new Error(`Shell ${child.pid} não encerrou`)), 5000);
-            closed.then(() => { clearTimeout(timer); resolve(); });
-          });
-        });
-      });
-      await Promise.all(pending);
-    } catch (error) {
-      for (const id of this.processes.keys()) this.store.setSessionStatus(id, 'interrupted');
-      throw error;
-    } finally {
-      this.sealed = true;
-    }
-  }
-
-  sessionIdForProcess(child) {
-    for (const [id, process] of this.processes) if (process === child) return id;
-    return null;
   }
 }
 
