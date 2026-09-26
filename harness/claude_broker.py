@@ -7,13 +7,13 @@ the broker never accepts host paths, Docker options, or a second attempt ID.
 import argparse
 import hashlib
 import json
-import os
 import re
 import sys
 import uuid
 from pathlib import Path
 
 from harness.container_worker import CID, ContainerWorker
+from harness.fsutil import flush_durable, write_exclusive
 from harness.swarm_worktrees import Worktrees
 
 
@@ -24,7 +24,7 @@ _MAX_REQUEST = 65536
 _MAX_VISIBLE = 32768
 PACKAGE_INIT = "harness/__init__.py"
 SOURCE_FILES = (PACKAGE_INIT, "harness/claude_broker.py",
-                "harness/container_worker.py", "harness/swarm_worktrees.py")
+                "harness/container_worker.py", "harness/swarm_worktrees.py", "harness/fsutil.py")
 
 
 def source_hashes(code_root):
@@ -112,15 +112,12 @@ class Broker:
         self.initialized = False
         self.calls = 0
         self.events_path.parent.mkdir(parents=True, exist_ok=True)
-        with self.events_path.open("x", encoding="utf-8") as stream:
-            self._event(stream, {"event": "server_started", "attempt_id": attempt_id,
-                                 "session_id": session_id})
+        write_exclusive(self.events_path, json.dumps({"event": "server_started", "attempt_id": attempt_id,
+                                                       "session_id": session_id}, sort_keys=True) + "\n")
 
     @staticmethod
     def _event(stream, event):
-        stream.write(json.dumps(event, sort_keys=True) + "\n")
-        stream.flush()
-        os.fsync(stream.fileno())
+        flush_durable(stream, json.dumps(event, sort_keys=True) + "\n")
 
     def _append(self, event):
         with self.events_path.open("a", encoding="utf-8") as stream:

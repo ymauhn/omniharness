@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { writeFileAtomic } from './lib/fsutil.mjs';
 
 const PROVIDER = /^[a-z][a-z0-9-]{1,31}$/;
 const MAX_SECRET = 4096;
@@ -93,9 +94,7 @@ export class KeyVault {
 
   save(keys) {
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
-    const temp = `${this.file}.${randomUUID()}.tmp`;
-    fs.writeFileSync(temp, JSON.stringify({ schema: 1, keys }, null, 2));
-    fs.renameSync(temp, this.file);
+    writeFileAtomic(this.file, JSON.stringify({ schema: 1, keys }, null, 2));
   }
 
   async store({ provider, secret }) {

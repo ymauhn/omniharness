@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { doctor, pack, archive, install, update, rollback, repair, uninstall, run } from '../manage.mjs';
+import { doctor, pack, archive, install, update, rollback, repair, uninstall, run, RUNTIME } from '../manage.mjs';
 
 const PINNED = '1.2.0-beta.15';
 
@@ -27,7 +27,9 @@ function tinyZip(dir, version, sha, { real = false, files = {} } = {}) {
   fs.writeFileSync(path.join(root, 'omniforge-lab', 'index.html'), `<p>${version}</p>\n`);
   fs.writeFileSync(path.join(root, 'scripts', 'omniforge.cmd'), '@echo off\r\n');
   if (real) {
+    fs.mkdirSync(path.join(root, 'omniforge-lab', 'lib'), { recursive: true });
     fs.copyFileSync(new URL('../manage.mjs', import.meta.url), path.join(root, 'omniforge-lab', 'manage.mjs'));
+    fs.copyFileSync(new URL('../lib/fsutil.mjs', import.meta.url), path.join(root, 'omniforge-lab', 'lib', 'fsutil.mjs'));
     fs.copyFileSync(new URL('../../scripts/omniforge.cmd', import.meta.url), path.join(root, 'scripts', 'omniforge.cmd'));
   }
   for (const [relative, text] of Object.entries(files)) fs.writeFileSync(path.join(root, relative), text);
@@ -516,4 +518,33 @@ test('run skips a .bat/.cmd shim that Node cannot start without a shell and find
     assert.equal(result.status, 0);
     assert.ok(result.stdout.trim().length > 0);
   } finally { process.env.PATH = saved; }
+});
+
+// A harness/*.py file that RUNTIME ships must not import a harness module RUNTIME leaves behind:
+// git archive has no __init__.py to pull siblings in, so a missing entry is a runtime ModuleNotFoundError.
+test('RUNTIME ships every harness module its own harness/*.py entries import', () => {
+  const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
+  const pyEntries = new Set(RUNTIME.filter(entry => entry.startsWith('harness/') && entry.endsWith('.py')));
+  for (const entry of pyEntries) {
+    const source = fs.readFileSync(path.join(repoRoot, entry), 'utf8');
+    for (const match of source.matchAll(/^\s*(?:from harness\.(\w+) import|import harness\.(\w+))/gm)) {
+      const dep = `harness/${match[1] || match[2]}.py`;
+      assert.ok(dep === entry || pyEntries.has(dep), `${entry} imports ${dep}, which RUNTIME does not ship`);
+    }
+  }
+});
+
+// manage.mjs is documented as a two-file bootstrap (scripts/omniforge.cmd + omniforge-lab/manage.mjs,
+// INSTALL.md's Install step 2, reused by Update); the tar command must also extract every relative
+// module manage.mjs imports, or the documented bootstrap fails before doing anything.
+test('INSTALL.md bootstrap tar command extracts every relative module manage.mjs imports', () => {
+  const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
+  const manageSource = fs.readFileSync(path.join(repoRoot, 'omniforge-lab', 'manage.mjs'), 'utf8');
+  const needed = new Set();
+  for (const match of manageSource.matchAll(/from '\.\/([^']+)'/g)) needed.add(path.posix.join('omniforge-lab', path.posix.dirname(match[1])));
+  assert.ok(needed.size > 0, 'expected manage.mjs to have at least one relative import to guard');
+  const install = fs.readFileSync(path.join(repoRoot, 'docs', 'omniforge', 'INSTALL.md'), 'utf8');
+  const tarLine = install.split('\n').find(line => line.includes('tar -x') && line.includes('omniforge-lab/manage.mjs'));
+  assert.ok(tarLine, 'INSTALL.md bootstrap tar command not found');
+  for (const dir of needed) assert.ok(tarLine.includes(dir), `${JSON.stringify(tarLine)} is missing ${dir}`);
 });

@@ -32,6 +32,10 @@ import time
 from datetime import datetime, timezone
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if REPO not in sys.path:  # this file also runs as a standalone script, where REPO is not on sys.path yet
+    sys.path.insert(0, REPO)
+from harness.fsutil import write_atomic  # noqa: E402
+
 CHALLENGES = os.path.join(REPO, "challenges")
 NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
 MEMBER = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")  # lowercase: Windows file names are case-insensitive
@@ -169,19 +173,8 @@ def record(cid, submission, member="local-owner", expected_revision=None, timeou
             "recordedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "submissionSha256": verdict["submissionSha256"], "verifierSha256": verdict["verifierSha256"]})
         data["revision"] += 1
-        tmp = f"{path}.{os.getpid()}.tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-            f.flush()
-            os.fsync(f.fileno())
-        for attempt in range(40):  # Windows refuses the replace while a reader holds the file open
-            try:
-                os.replace(tmp, path)
-                break
-            except PermissionError:
-                if attempt == 39:
-                    raise
-                time.sleep(0.05)
+        # Windows refuses the replace while a reader holds the file open; retry rather than fail the write.
+        write_atomic(path, json.dumps(data, indent=2), max_replace_attempts=40, retry_delay=0.05)
     return verdict, data
 
 

@@ -18,6 +18,7 @@ from harness.claude_broker import SERVER, TOOL_NAME, broker_bootstrap, source_ha
 from harness.claude_native import run_claude_attempt
 from harness.claude_tool_inventory import inspect_init
 from harness.container_worker import ATTEMPT, CID
+from harness.fsutil import write_exclusive
 
 
 @dataclass(frozen=True, eq=False, slots=True)
@@ -96,11 +97,7 @@ def _unique_object(pairs):
 
 
 def _save_new(path, value):
-    with path.open("x", encoding="utf-8") as stream:
-        json.dump(value, stream, sort_keys=True)
-        stream.write("\n")
-        stream.flush()
-        os.fsync(stream.fileno())
+    write_exclusive(path, json.dumps(value, sort_keys=True) + "\n")
 
 
 def _verify_events(path, *, attempt_id, session_id, worker_state):

@@ -96,7 +96,7 @@ try {
     # Bootstrap: the installer itself ships inside the verified zip.
     $boot = Join-Path $env:TEMP ('omniforge-bootstrap-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
     New-Item -ItemType Directory -Path $boot | Out-Null
-    & $tar -x -f $zip.FullName -C $boot scripts/omniforge.cmd omniforge-lab/manage.mjs
+    & $tar -x -f $zip.FullName -C $boot scripts/omniforge.cmd omniforge-lab/manage.mjs omniforge-lab/lib
     if ($LASTEXITCODE -ne 0) { throw 'could not extract the installer from the release zip' }
     $install = Invoke-Step 'install' ('"' + (Join-Path $boot 'scripts\omniforge.cmd') + '" install --from "' + $zip.FullName + '" --prefix "' + $Prefix + '"')
     Remove-Item -LiteralPath $boot -Recurse -Force

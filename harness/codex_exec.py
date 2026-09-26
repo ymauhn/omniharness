@@ -11,6 +11,7 @@ import re
 import subprocess
 from pathlib import Path
 
+from harness.fsutil import write_exclusive
 from harness.native_process import recover_attempt, run_attempt
 
 
@@ -232,11 +233,7 @@ def recover_codex_attempt(evidence_root, attempt_id):
             receipt = unknown_codex_receipt(data, exit_code=process.get("exit_code"),
                                              issue="persisted Codex receipt disagrees with current evidence")
     else:
-        with saved.open("x", encoding="utf-8") as stream:
-            json.dump(receipt, stream, sort_keys=True)
-            stream.write("\n")
-            stream.flush()
-            os.fsync(stream.fileno())
+        write_exclusive(saved, json.dumps(receipt, sort_keys=True) + "\n")
     return {"process": process, "receipt": receipt}
 
 
