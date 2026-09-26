@@ -232,7 +232,7 @@ export function mountCopilot({root,draft,api,getProjectId,getNotes,openSkills}) 
   const live = add(root,'p','visually-hidden'); live.setAttribute('role','status'); live.setAttribute('aria-live','polite'); live.setAttribute('aria-atomic','true');
   const undoButton = button(root,'Desfazer última aplicação',()=>{
     sync(); if (!model.undo()) return announce('O rascunho mudou; não há alteração segura para desfazer.');
-    draft.value = model.text; hidePanel(); draft.focus(); updateUndo(); announce('Alteração desfeita.');
+    draft.value = model.text; selected = null; hidePanel(); draft.focus(); updateUndo(); updateActions(); announce('Alteração desfeita.');
   },'ghost cp-undo'); undoButton.hidden = true;
 
   function announce(text) { live.textContent = text; }
@@ -277,9 +277,10 @@ export function mountCopilot({root,draft,api,getProjectId,getNotes,openSkills}) 
   function checkSelection() {
     if (document.activeElement !== draft || composing) return;
     sync(); const start = draft.selectionStart, end = draft.selectionEnd;
-    const changed = selected ? selected.start !== start || selected.end !== end : end > start;
+    const valid = end > start && !!draft.value.slice(start,end).trim() && boundary(draft.value,start) && boundary(draft.value,end); // Blank spans act on the whole draft.
+    const changed = selected ? selected.start !== start || selected.end !== end : valid;
     if (changed) { model.cancel(); requestBusy = false; hidePanel(); }
-    selected = end > start && boundary(draft.value,start) && boundary(draft.value,end) ? {start,end,revision:model.revision} : null;
+    selected = valid ? {start,end,revision:model.revision} : null;
     clearTimeout(pauseTimer); updateActions();
     if (selected && model.mode !== 'off') expression('selection','Um trecho · você escolhe a ação.',false);
     else schedule();
@@ -300,9 +301,8 @@ export function mountCopilot({root,draft,api,getProjectId,getNotes,openSkills}) 
     }
     panel.replaceChildren(); panel.hidden = false; followup.hidden = true;
     add(panel,'strong','',`${label} · template local`);
-    const original = add(panel,'details','cp-original'); add(original,'summary','','Trecho original'); add(original,'pre','',captured.draft.slice(captured.start,captured.end));
-    add(panel,'p','microcopy','Prévia da substituição; campos entre colchetes são perguntas para você preencher.');
-    add(panel,'pre','cp-preview',replacement);
+    add(panel,'p','microcopy','Prévia do rascunho completo após aplicar; seu texto é preservado. Campos entre colchetes são perguntas para você preencher.');
+    add(panel,'pre','cp-preview',captured.draft.slice(0,captured.start) + replacement + captured.draft.slice(captured.end));
     const controls = add(panel,'div','cp-actions');
     button(controls,'Aplicar no rascunho',()=>{
       sync(); if (!model.apply()) { hidePanel(); return announce('Sugestão antiga: o projeto ou rascunho mudou.'); }
@@ -317,10 +317,13 @@ export function mountCopilot({root,draft,api,getProjectId,getNotes,openSkills}) 
     sync(); clearTimeout(pauseTimer);
     if (model.mode === 'off' || !model.projectId || !draft.value.trim() || composing || !isVisible()) return;
     requestBusy = false;
-    const span = selected && selected.revision === model.revision ? selected : {start:0,end:model.text.length};
-    const captured = model.capture(span.start,span.end), text = captured.draft.slice(span.start,span.end);
+    const length = model.text.length, span = selected && selected.revision === model.revision ? selected : {start:0,end:length};
+    const text = model.text.slice(span.start,span.end), whole = span.start === 0 && span.end === length;
+    // ponytail: a selected span is quoted in a block appended after the whole draft, so a multi-line scaffold never splits a sentence;
+    // in long multi-paragraph drafts it lands far from the span. Insert after the span's paragraph if that proves confusing.
+    const captured = whole ? model.capture(0,length) : model.capture(length,length), cite = body => whole ? body : `\n\nTrecho em foco: ${body}`;
     model.lastSuggestedRevision = model.revision; hidePanel();
-    if (kind !== 'skills') { showProposal(captured,localTemplate(kind,text,contextExcerpt(getNotes(),model.projectId)),{clarify:'Estruturar pedido',context:'Citar contexto',research:'Pesquisa e termos'}[kind]); return; }
+    if (kind !== 'skills') { showProposal(captured,cite(localTemplate(kind,text,contextExcerpt(getNotes(),model.projectId))),{clarify:'Estruturar pedido',context:'Citar contexto',research:'Pesquisa e termos'}[kind]); return; }
     requestBusy = true; expression('thinking','Consultando metadados locais…',false);
     try {
       const query = utf8Excerpt(text);
@@ -341,7 +344,7 @@ export function mountCopilot({root,draft,api,getProjectId,getNotes,openSkills}) 
         button(card,'Ver metadados',()=>openSkills(row.name),'ghost');
         button(card,'Citar no pedido',()=>{
           sync(); hidePanel();
-          showProposal(captured,`${text}\n\nSkill candidata: ${row.name}\nFonte: ${row.source_key || 'não informada'}\nValidar pré-requisitos e autorização antes do uso.`,'Referência de skill');
+          showProposal(captured,cite(`${text}\n\nSkill candidata: ${row.name}\nFonte: ${row.source_key || 'não informada'}\nValidar pré-requisitos e autorização antes do uso.`),'Referência de skill');
         },'ghost');
       }
       const controls = add(panel,'div','cp-actions'); button(controls,'Estruturar pedido',()=>suggest('clarify')); button(controls,'Dispensar',reject,'ghost');
@@ -373,9 +376,10 @@ export function mountCopilot({root,draft,api,getProjectId,getNotes,openSkills}) 
   draft.form?.addEventListener('reset',()=>queueMicrotask(()=>{sync();readPreferences();}));
   document.addEventListener('pointerdown',event=>{if(event.target!==draft&&!root.contains(event.target)){selected=null;updateActions();}});
   root.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();model.cancel();hidePanel();draft.focus();announce('Painel fechado.');}});
-  document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeout(pauseTimer);model.cancel();requestBusy=false;hidePanel();mascot.classList.remove('cp-pop');}else schedule();});
+  draft.addEventListener('keydown',event=>{if(event.key==='Escape'&&!(panel.hidden&&followup.hidden)){event.preventDefault();model.cancel();hidePanel();announce('Painel fechado.');}}); // The draft sits outside root; focus stays.
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeout(pauseTimer);model.cancel();requestBusy=false;hidePanel();mascot.classList.remove('cp-pop');}else{provider.refresh();schedule();}});
   const observer = new IntersectionObserver(entries=>{visible=entries[0]?.isIntersecting===true;if(!visible){clearTimeout(pauseTimer);mascot.classList.remove('cp-pop');}else schedule();}); observer.observe(root);
-  readPreferences();
+  readPreferences(); provider.refresh(); // Laya is app-global: another window may have loaded or unloaded it.
   return {sync, revision(){sync();return model.revision;}, deactivate(){clearTimeout(pauseTimer);model.cancel();requestBusy=false;hidePanel();mascot.classList.remove('cp-pop');}};
 }
 export async function refreshCatalogIndex(api, {path,isCurrent}) {

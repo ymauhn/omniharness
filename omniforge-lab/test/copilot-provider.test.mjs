@@ -48,3 +48,16 @@ test('finishing warm-up cannot override a newer provider preference or switched 
     }
   } finally { globalThis.document = previous; }
 });
+
+test('settings state that JEV exists in the harness but is not connected to this Lab', () => {
+  const previous = globalThis.document;
+  class Element { constructor() { this.children = []; } append(child) { this.children.push(child); } setAttribute() {} addEventListener() {} }
+  try {
+    globalThis.document = { createElement: () => new Element() };
+    const root = new Element();
+    mountClassifierControls({ root, api: async () => ({ state: 'off' }), getProjectId: () => 'p', onChange() {} });
+    const text = root.children.map(child => child.textContent).join(' ');
+    assert.match(text, /JEV: o adaptador existe no harness, mas não está conectado a este Lab; ainda não há entrada de chave\./);
+    assert.doesNotMatch(text, /adaptador disponível/);
+  } finally { globalThis.document = previous; }
+});
