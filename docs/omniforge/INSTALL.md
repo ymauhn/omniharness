@@ -51,7 +51,7 @@ scripts\omniforge.cmd pack --out dist
 
 1. Put the zip and its `.sha256` in one folder, then compare `(Get-FileHash .\omniforge-0.1.0-<sha>-win-x64.zip -Algorithm SHA256).Hash` with the first word of the `.sha256` file.
 2. Take the installer out of the zip. The built-in `tar` reads zip files:
-   `mkdir $env:TEMP\omniforge-setup; tar -x -f .\omniforge-0.1.0-<sha>-win-x64.zip -C $env:TEMP\omniforge-setup scripts/omniforge.cmd omniforge-lab/manage.mjs`
+   `mkdir $env:TEMP\omniforge-setup; tar -x -f .\omniforge-0.1.0-<sha>-win-x64.zip -C $env:TEMP\omniforge-setup scripts/omniforge.cmd omniforge-lab/manage.mjs omniforge-lab/lib`
 3. `& "$env:TEMP\omniforge-setup\scripts\omniforge.cmd" install --from .\omniforge-0.1.0-<sha>-win-x64.zip`
 
 The default prefix is `%LOCALAPPDATA%\OmniForge`; `--prefix <dir>` changes it. `install` verifies the `.sha256` and extracts into a temporary folder. It hashes every file that the manifest lists before moving the folder into place, then runs doctor. A file in the zip that the manifest does not list is not hashed on its own; only the zip's `.sha256` covers it. Installing the same zip again keeps the installed files, the previous version and the recorded state backup. A different version must go through `update`.

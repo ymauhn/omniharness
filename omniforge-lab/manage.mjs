@@ -17,9 +17,9 @@ const DATA_MARK = '.omniforge-install';
 const TIMEOUT = 10_000;
 // What the installed Lab reads at runtime: server/demo/services here, skills and catalog tables for
 // listSkills and harness.catalog_api, the arsenal bridge, and the Laya classifier worker and manifest.
-const RUNTIME = ['omniforge-lab', ':(exclude)omniforge-lab/test', 'scripts/omniforge.cmd', '.agents/skills',
+export const RUNTIME = ['omniforge-lab', ':(exclude)omniforge-lab/test', 'scripts/omniforge.cmd', '.agents/skills',
   'harness/catalog_api.py', 'harness/skill_catalog.py', 'harness/agent_arsenal.py', 'harness/agent_arsenal_bridge.py',
-  'harness/agent_profiles.json', 'harness/classifier_worker.py', 'harness/prompt_classifier.py',
+  'harness/fsutil.py', 'harness/agent_profiles.json', 'harness/classifier_worker.py', 'harness/prompt_classifier.py',
   'docs/catalog/community-skills.md', 'docs/catalog/mcp-servers.md', 'docs/catalog/free-tiers.md',
   'docs/skills-graph/skill-metadata.json', 'docs/experiments/laya-artifacts-2026-09-25.json',
   'docs/omniforge/INSTALL.md', 'LICENSE'];
