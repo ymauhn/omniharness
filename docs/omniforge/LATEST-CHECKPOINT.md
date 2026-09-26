@@ -1,5 +1,7 @@
 # Resume here: full OmniForge MVP
 
+**2026-09-26: PAUSED for a direction change.** Read [HANDOFF-PAUSE-2026-09-26](HANDOFF-PAUSE-2026-09-26.md) first; the text below is the earlier plan.
+
 **Owner-paused on September 26 because the weekly Codex allowance was low.** Claude Opus 5.5 should resume from the [complete cross-session handoff](HANDOFF-CLAUDE-OPUS-2026-09-26.md). This pause does not narrow the release contract.
 
 Updated September 25, 2026. **Full OmniForge MVP remains active.** The native bridge [PR #9](https://github.com/ymauhn/omniharness/pull/9) merged as `c8e1bb231d25f499e3ca23704cbca1d39384854e`. The prepared-worker [PR #10](https://github.com/ymauhn/omniharness/pull/10), reviewed exact head `d251d559b882a08c2ae87c305e1293edb0533900`, **merged as `3b2494b87f28a7e4fbb45db5895d488885fe04d4`**. Root branch `codex/mvp-host-callback-ledger` started clean from that merge. The owner asked to continue normally with interruption-ready handoff near the weekly credit limit. Latest read-only account query observed **4% weekly allowance remaining**; this is account-wide, not task attribution. One free reset credit exists but has not been redeemed, and no credit was purchased. The owner may continue with Claude using this file and the current checkpoint; that does not reduce the MVP scope.
