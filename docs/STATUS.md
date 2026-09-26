@@ -1,6 +1,6 @@
 # OmniForge Lab status
 
-Measured on this host, 2026-09-26 (Windows 11 Pro, Node v24.19.0, Python 3.12.14): `npm --prefix omniforge-lab test` → **297/297, zero skipped**; `python -m unittest discover tests` → **383/383, zero skipped** (this includes every Playwright E2E file under `tests/`, run in real Chromium against a fresh synthetic demo server, never the owner's own repository — see `tests/test_omniforge_e2e.py`'s `LabCase`). Rerun either command yourself for a current number; this page names the file that proves each claim so drift is checkable, not the count itself.
+Measured on this host, 2026-09-26 (Windows 11 Pro, Node v24.19.0, Python 3.12.14): `npm --prefix omniforge-lab test` → **319/319, zero skipped**; `python -m unittest discover tests` → **390 OK, zero skipped**, both also with %TEMP% reached through a junction alias (commit `f3f781e`) (this includes every Playwright E2E file under `tests/`, run in real Chromium against a fresh synthetic demo server, never the owner's own repository — see `tests/test_omniforge_e2e.py`'s `LabCase`). Rerun either command yourself for a current number; this page names the file that proves each claim so drift is checkable, not the count itself.
 
 ## What works
 
