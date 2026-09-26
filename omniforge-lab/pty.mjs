@@ -96,14 +96,16 @@ export class PtyCoordinator extends EventEmitter {
     this.closed = false;
   }
 
-  start(sessionId) {
+  /** `launch` ({cwd, file, args, env}) runs a program other than the shell, e.g. an agent in its worktree;
+   * `file` must be absolute and `env` is added to the Lab environment. Without it the shell launch is unchanged. */
+  start(sessionId, launch = undefined) {
     if (this.sealed) fail('Coordenador encerrado', 409);
     if (this.processes.has(sessionId)) fail('Sessão já iniciada');
     const session = this.store.session(sessionId);
     if (session.status !== 'starting') fail('Sessão não está pronta para iniciar; verifique a sessão interrompida', 409);
     const project = this.store.project(session.projectId);
     let shell;
-    try { shell = resolvePtyShell(this.shell, this.env); }
+    try { shell = resolvePtyShell(launch ? launch.file : this.shell, this.env); }
     catch (error) {
       // Nothing was spawned: record a plain stop so the project is not blocked by an uncertain session.
       this.store.setSessionStatus(sessionId, 'stopped');
@@ -111,12 +113,12 @@ export class PtyCoordinator extends EventEmitter {
     }
     let child;
     try {
-      child = this.spawnPty(shell, process.platform === 'win32' ? ['-NoLogo', '-NoProfile', '-NoExit', '-Command', 'Set-PSReadLineOption -HistorySaveStyle SaveNothing'] : [], {
-        cwd: project.root,
+      child = this.spawnPty(shell, launch ? launch.args : process.platform === 'win32' ? ['-NoLogo', '-NoProfile', '-NoExit', '-Command', 'Set-PSReadLineOption -HistorySaveStyle SaveNothing'] : [], {
+        cwd: launch ? launch.cwd : project.root,
         cols: this.cols,
         rows: this.rows,
         name: 'xterm-256color',
-        env: { ...this.env, OMNIFORGE_PROJECT_ID: project.id, OMNIFORGE_SESSION_ID: session.id },
+        env: { ...this.env, ...launch?.env, OMNIFORGE_PROJECT_ID: project.id, OMNIFORGE_SESSION_ID: session.id },
       });
     } catch (error) {
       this.store.setSessionStatus(sessionId, 'interrupted');

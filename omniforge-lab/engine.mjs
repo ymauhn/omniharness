@@ -1,0 +1,255 @@
+// Agent engine: runs a task as a real interactive Claude Code or Codex session in its own git worktree, tracks its
+// state from the CLIs' own lifecycle hooks and process events (no model calls), and keeps the run record that
+// review/merge consumes. The owner approves tools in the terminal: no permission or sandbox flag is changed here.
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { EventEmitter } from 'node:events';
+import { execFileSync } from 'node:child_process';
+import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { writeFileAtomic } from './lib/fsutil.mjs';
+
+const HOOK = path.join(path.dirname(fileURLToPath(import.meta.url)), 'agent-hook.mjs');
+const ACTIVE = new Set(['starting', 'working', 'blocked', 'idle']);
+const CLAUDE_HOOKS = ['UserPromptSubmit', 'PreToolUse', 'Notification', 'Stop'];
+const EVENTS = new Set([...CLAUDE_HOOKS, 'agent-turn-complete']);
+const LABEL = { claude: 'Claude', codex: 'Codex' };
+
+function fail(message, status = 409) {
+  const error = new Error(message);
+  error.status = status;
+  throw error;
+}
+
+/** Absolute path of a native executable: PATH first, then the installer's own folder. On Windows only `<name>.exe`
+ * is accepted: a .cmd/.bat shim runs through cmd.exe, where a task title would become command injection. */
+export function findExecutable(name, fallbackDir, env = process.env) {
+  const file = process.platform === 'win32' ? `${name}.exe` : name;
+  const pathValue = Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1];
+  const dirs = String(pathValue || '').split(path.delimiter).filter(dir => path.isAbsolute(dir));
+  if (fallbackDir) dirs.push(fallbackDir);
+  for (const dir of dirs) {
+    const candidate = path.join(dir, file);
+    try { if (fs.statSync(candidate).isFile()) return candidate; } catch { /* next */ }
+  }
+  return null;
+}
+
+// argv only, never a shell: branch names and paths do not pass through a command interpreter.
+const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+const tryGit = (cwd, ...args) => { try { return git(cwd, ...args); } catch { return null; } };
+
+const unknownUsage = reason => ({ status: 'unknown', inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheCreationTokens: null, source: null, reason });
+const samePath = (a, b) => process.platform === 'win32' ? path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase() : path.resolve(a) === path.resolve(b);
+const jsonLines = file => fs.readFileSync(file, 'utf8').split('\n').flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } });
+// The first line only (Codex session_meta, ~25 KB): another session's rollout can pass 1 GB, over V8's string limit.
+function firstLine(file) {
+  const fd = fs.openSync(file, 'r');
+  try {
+    const buffer = Buffer.alloc(1 << 20);
+    const size = fs.readSync(fd, buffer, 0, buffer.length, 0);
+    const end = buffer.subarray(0, size).indexOf(10);
+    return JSON.parse(buffer.toString('utf8', 0, end < 0 ? size : end));
+  } catch { return null; } finally { fs.closeSync(fd); }
+}
+
+// Claude: <home>/.claude/projects/<any>/<session>.jsonl, found by file name (the folder encodes the cwd), plus its
+// subagent transcripts (workflow subagents nest in subagents/workflows/wf_*/). One API message spans several lines repeating the same usage, so each message.id counts once.
+function claudeUsage(homeDir, sessionId) {
+  const projects = path.join(homeDir, '.claude', 'projects');
+  const file = (fs.existsSync(projects) ? fs.readdirSync(projects) : []).map(dir => path.join(projects, dir, `${sessionId}.jsonl`)).find(candidate => fs.existsSync(candidate));
+  if (!file) return { usage: unknownUsage('Transcrição da sessão Claude não encontrada') };
+  const subagents = path.join(path.dirname(file), sessionId, 'subagents');
+  const files = [file, ...(fs.existsSync(subagents) ? fs.readdirSync(subagents, { recursive: true }).filter(name => name.endsWith('.jsonl')).map(name => path.join(subagents, name)) : [])];
+  const messages = new Map();
+  for (const row of files.flatMap(jsonLines)) if (row?.type === 'assistant' && row.message?.id && row.message.usage) messages.set(row.message.id, row.message.usage);
+  if (!messages.size) return { usage: unknownUsage('A transcrição Claude não registra uso de mensagens') };
+  const sum = key => [...messages.values()].reduce((total, usage) => total + (Number.isSafeInteger(usage[key]) ? usage[key] : 0), 0);
+  return { usage: { status: 'observed', inputTokens: sum('input_tokens'), outputTokens: sum('output_tokens'), cacheReadTokens: sum('cache_read_input_tokens'),
+    cacheCreationTokens: sum('cache_creation_input_tokens'), source: file, reason: null } };
+}
+
+// Codex: the newest <home>/.codex/sessions/**/rollout-*.jsonl whose session_meta cwd is this worktree and that began
+// after the run; its last token_count total. Codex counts cached input inside inputTokens (Claude does not).
+function codexUsage(homeDir, run) {
+  const root = path.join(homeDir, '.codex', 'sessions');
+  const started = Date.parse(run.startedAt);
+  let best = null;
+  for (const name of fs.existsSync(root) ? fs.readdirSync(root, { recursive: true }) : []) {
+    const file = path.join(root, name);
+    if (!/^rollout-.*\.jsonl$/.test(path.basename(name)) || fs.statSync(file).mtimeMs < started) continue;
+    const head = firstLine(file);
+    const meta = head?.type === 'session_meta' ? head.payload : null;
+    const at = Date.parse(meta?.timestamp);
+    if (typeof meta?.cwd === 'string' && samePath(meta.cwd, run.worktree) && at >= started && (!best || at > best.at)) best = { file, at, id: meta.id };
+  }
+  if (!best) return { usage: unknownUsage('Sessão do Codex desta worktree não encontrada') };
+  // ponytail: the run's own rollout is read whole, so one over ~512 MiB reports unknown; read it from the end if that happens.
+  const total = jsonLines(best.file).findLast(row => row?.payload?.type === 'token_count' && row.payload.info?.total_token_usage)?.payload.info.total_token_usage;
+  if (!total) return { usage: unknownUsage('A sessão do Codex não registrou contagem de tokens'), hostSessionId: best.id };
+  return { usage: { status: 'observed', inputTokens: total.input_tokens ?? null, outputTokens: total.output_tokens ?? null, cacheReadTokens: total.cached_input_tokens ?? null,
+    cacheCreationTokens: total.cache_write_input_tokens ?? null, source: best.file, reason: null }, hostSessionId: best.id };
+}
+
+function readUsage(run, homeDir) {
+  try { return run.host === 'claude' ? claudeUsage(homeDir, run.hostSessionId) : codexUsage(homeDir, run); }
+  catch (error) { return { usage: unknownUsage(`Leitura de uso falhou: ${error.message}`) }; }
+}
+
+export class AgentEngine extends EventEmitter {
+  /** `hosts` ({claude|codex: {file, args}}) is a test seam only: production resolves the real executables. */
+  constructor({ store, shells, hookUrl, codexPath = null, homeDir = os.homedir(), env = process.env, hosts = null }) {
+    super();
+    Object.assign(this, { store, shells, hookUrl, codexPath, homeDir, env, hosts });
+    this.file = path.join(store.dataDir, 'runs.json');
+    this.runs = fs.existsSync(this.file) ? JSON.parse(fs.readFileSync(this.file, 'utf8')) : [];
+    this.secrets = new Map();
+    // No PTY survives a Lab restart: an unfinished run is failed, never done.
+    const orphans = this.runs.filter(run => ACTIVE.has(run.state));
+    for (const run of orphans) this.finish(run, { state: 'failed', detail: 'interrompido', exitCode: null });
+    if (orphans.length) this.save();
+    // Exit code 0 is done; any other code is failed. No code, or a signal, is an interruption: on POSIX node-pty
+    // reports a process killed by the Lab's stop or shutdown as code 0 plus the signal.
+    shells.on('closed', ({ sessionId, code, signal }) => {
+      const run = this.runs.find(item => item.sessionId === sessionId && ACTIVE.has(item.state));
+      if (!run) return;
+      this.finish(run, code === null || signal ? { state: 'failed', detail: 'interrompido', exitCode: null }
+        : code === 0 ? { state: 'done', detail: '', exitCode: 0 } : { state: 'failed', detail: `saiu com código ${code}`, exitCode: code });
+      // This runs inside node-pty's exit callback: a failed write must not take the Lab down.
+      try { this.publish(run); }
+      catch (error) { console.error(`OmniForge: fim da execução ${run.id} não foi salvo: ${error.message}`); }
+    });
+  }
+
+  save() {
+    writeFileAtomic(this.file, JSON.stringify(this.runs, null, 2), { mode: 0o600 });
+  }
+
+  publish(run) {
+    this.save();
+    this.emit('agent', { taskId: run.taskId, projectId: run.projectId, runId: run.id, sessionId: run.sessionId, host: run.host, state: run.state, detail: run.detail, at: new Date().toISOString() });
+  }
+
+  set(run, { state, detail }) {
+    if (run.state === state && run.detail === detail) return;
+    Object.assign(run, { state, detail });
+    this.publish(run);
+  }
+
+  /** Ends a run and reads its usage from the CLI's own session files (no model call). The caller saves. */
+  finish(run, { state, detail, exitCode }) {
+    this.secrets.delete(run.id);
+    const { usage, hostSessionId } = readUsage(run, this.homeDir);
+    Object.assign(run, { state, detail, exitCode, endedAt: new Date().toISOString(), usage, hostSessionId: run.hostSessionId ?? hostSessionId ?? null });
+  }
+
+  runForTask(taskId) {
+    const run = this.runs.findLast(item => item.taskId === taskId);
+    return run ? structuredClone(run) : null;
+  }
+
+  list(projectId = null) {
+    if (projectId !== null) this.store.project(projectId);
+    return structuredClone(this.runs.filter(run => projectId === null || run.projectId === projectId).reverse());
+  }
+
+  executable(host) {
+    if (this.hosts) return this.hosts[host];
+    const file = host === 'claude' ? findExecutable('claude', path.join(this.homeDir, '.local', 'bin'), this.env) : this.codexPath;
+    if (!file || process.platform === 'win32' && !/\.exe$/i.test(file)) fail(`Executável nativo do ${LABEL[host]} não encontrado; o Lab não aceita atalhos .cmd/.bat nem shells`);
+    return { file, args: [] };
+  }
+
+  // Synchronous from the checks to the PTY start, so two requests cannot both pass the "no active run" check.
+  run(taskId, { host, expectedRevision } = {}) {
+    const task = this.store.task(taskId);
+    if (!Object.hasOwn(LABEL, host)) fail('Host de agente inválido', 400);
+    if (ACTIVE.has(this.runForTask(taskId)?.state)) fail('A tarefa já tem um agente em execução');
+    if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== task.revision) fail('Tarefa alterada em outra janela; confira o estado atual antes de mudar');
+    const { root } = this.store.project(task.projectId);
+    const prefix = tryGit(root, 'rev-parse', '--show-prefix');
+    if (prefix === null) fail('A pasta do projeto não é um repositório git');
+    if (prefix !== '') fail('A pasta do projeto precisa ser a raiz de um repositório git');
+    const baseSha = tryGit(root, 'rev-parse', '--verify', '--quiet', 'HEAD^{commit}');
+    if (!baseSha) fail('O repositório do projeto precisa de pelo menos um commit');
+    const baseBranch = tryGit(root, 'symbolic-ref', '--quiet', '--short', 'HEAD');
+    if (!baseBranch) fail('O repositório do projeto está em HEAD destacado; faça checkout de uma branch');
+    const { file, args: hostArgs } = this.executable(host);
+
+    const session = this.store.addSession({ projectId: task.projectId, name: `${LABEL[host]} · ${task.title}`.slice(0, 120) });
+    const id = randomUUID();
+    const branchFor = n => `omniforge/${task.id.slice(0, 8)}-${n}`;
+    let n = this.runs.filter(run => run.taskId === taskId).length + 1;
+    while (tryGit(root, 'show-ref', '--verify', '--quiet', `refs/heads/${branchFor(n)}`) !== null) n++;
+    const branch = branchFor(n);
+    const worktreeDir = path.join(this.store.dataDir, 'worktrees', id);
+    // Only .git/worktrees and the new folder change: the root's working tree and index are never touched.
+    try { git(root, 'worktree', 'add', '-q', '-b', branch, worktreeDir, baseSha); }
+    catch (error) {
+      this.store.setSessionStatus(session.id, 'stopped');
+      fail(`Não foi possível criar a worktree: ${String(error.stderr || error.message).trim().slice(0, 300)}`, 500);
+    }
+    const worktree = fs.realpathSync.native(worktreeDir);
+    const run = { id, taskId, projectId: task.projectId, host, sessionId: session.id, hostSessionId: host === 'claude' ? randomUUID() : null, root, worktree, branch, baseBranch, baseSha,
+      state: 'starting', detail: '', startedAt: new Date().toISOString(), endedAt: null, exitCode: null, usage: unknownUsage('Execução em andamento') };
+    this.runs.push(run);
+    try {
+      this.publish(run);
+      // A fixed prefix keeps the prompt from starting with `"` (node-pty would not re-quote it and it would split into
+      // several arguments) or `-` (a CLI flag). The whole prompt is one argv element; no shell ever parses it.
+      const prompt = `Tarefa: ${task.title}${task.details ? `\n\n${task.details}` : ''}`.replaceAll('\0', '');
+      let args;
+      if (host === 'claude') {
+        // Hooks only, outside the worktree; the owner's user and project settings are never rewritten.
+        const settings = path.join(this.store.dataDir, 'runs', id, 'claude-settings.json');
+        const command = { type: 'command', command: `"${process.execPath.replaceAll('\\', '/')}" "${HOOK.replaceAll('\\', '/')}"`, timeout: 5 };
+        fs.mkdirSync(path.dirname(settings), { recursive: true });
+        writeFileAtomic(settings, JSON.stringify({ hooks: Object.fromEntries(CLAUDE_HOOKS.map(name => [name, [{ hooks: [command] }]])) }, null, 2), { mode: 0o600 });
+        args = ['--session-id', run.hostSessionId, '--settings', settings, prompt];
+      } else {
+        // A JSON string array is valid TOML (basic strings escape `\` and `"` the same way). This replaces the owner's
+        // own `notify` for this session only. Codex has no signal for a pending approval, so it never reports blocked.
+        args = ['-C', worktree, '-c', `notify=${JSON.stringify([process.execPath, HOOK])}`, prompt];
+      }
+      const secret = randomBytes(24).toString('hex');
+      this.secrets.set(id, Buffer.from(secret));
+      this.shells.start(session.id, { cwd: worktree, file, args: [...hostArgs, ...args],
+        env: { OMNIFORGE_RUN_ID: id, OMNIFORGE_RUN_TOKEN: secret, OMNIFORGE_HOOK_URL: this.hookUrl() } });
+    } catch (error) {
+      // Still starting means nothing was spawned: a plain stop keeps the project unblocked (the PTY layer records its own failures).
+      if (this.store.session(session.id).status === 'starting') this.store.setSessionStatus(session.id, 'stopped');
+      this.finish(run, { state: 'failed', detail: error.message, exitCode: null });
+      this.publish(run);
+      throw error;
+    }
+    this.store.assignTask(taskId, { sessionId: session.id, worktree, expectedRevision });
+    this.set(run, { state: 'working', detail: '' });
+    return structuredClone(run);
+  }
+
+  /** A hook event, authenticated by its own run's secret; it can change only that run's state. */
+  event({ runId, event, detail } = {}, token) {
+    const secret = typeof runId === 'string' && this.secrets.get(runId);
+    const presented = Buffer.from(typeof token === 'string' ? token : '');
+    if (!secret || presented.length !== secret.length || !timingSafeEqual(presented, secret)) fail('Evento de agente não autorizado', 403);
+    if (!EVENTS.has(event)) fail('Evento de agente inválido', 400);
+    detail = typeof detail === 'string' ? detail.slice(0, 200) : '';
+    let state;
+    if (event === 'UserPromptSubmit' || event === 'PreToolUse') state = 'working';
+    // Claude's notification_type: permission_prompt/elicitation_dialog wait on the owner, idle_prompt waits for a
+    // new prompt; older versions send only the message text. Anything else (auth_success) changes nothing.
+    else if (event === 'Notification') state = /permission|elicitation/i.test(detail) ? 'blocked' : /idle|waiting/i.test(detail) ? 'idle' : null;
+    else [state, detail] = ['idle', '']; // Stop, agent-turn-complete
+    if (state) this.set(this.runs.find(run => run.id === runId), { state, detail });
+    return { accepted: true };
+  }
+
+  /** Terminal input for a session. */
+  input(sessionId, data) {
+    const run = this.runs.find(item => item.sessionId === sessionId && ['idle', 'blocked'].includes(item.state));
+    // ponytail: any Enter typed while the agent waits counts as an answer; a real answer is confirmed by the next hook
+    // and a stray Enter shows working until the agent's next idle/blocked hook. Parse the TUI if that misleads.
+    if (run && typeof data === 'string' && /[\r\n]/.test(data)) this.set(run, { state: 'working', detail: '' });
+  }
+}

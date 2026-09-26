@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { WorkspaceStore, inventoryAssets, listSkills } from './core.mjs';
 import { PtyCoordinator } from './pty.mjs';
+import { AgentEngine, findExecutable } from './engine.mjs';
 import { CatalogService } from './catalog-service.mjs';
 import { ClassifierService } from './classifier-service.mjs';
 import { classifyPrompt, classifierError } from './copilot-classification.mjs';
@@ -30,12 +31,12 @@ function send(response, status, data, type = 'application/json; charset=utf-8') 
   response.end(type.startsWith('application/json') ? JSON.stringify(data) : data);
 }
 
-async function body(request) {
+async function body(request, limit = MAX_BODY) {
   const chunks = [];
   let bytes = 0;
   for await (const part of request) {
     bytes += part.length;
-    if (bytes > MAX_BODY) {
+    if (bytes > limit) {
       const error = new Error('Corpo da requisição muito grande');
       error.status = 413;
       throw error;
@@ -53,16 +54,11 @@ async function body(request) {
   catch { const error = new Error('JSON inválido'); error.status = 400; throw error; }
 }
 
-// The installed Codex CLI, for the explicit quota read only: PATH first, then the Codex app's own copy.
-function findCodex() {
-  const names = process.platform === 'win32' ? ['codex.exe'] : ['codex'];
-  const dirs = String(process.env.PATH || '').split(path.delimiter).filter(dir => path.isAbsolute(dir));
-  if (process.env.USERPROFILE) dirs.push(path.join(process.env.USERPROFILE, '.codex', '.sandbox-bin'));
-  for (const dir of dirs) for (const name of names) { const file = path.join(dir, name); try { if (fs.statSync(file).isFile()) return file; } catch { /* next */ } }
-  return null;
-}
+// The installed Codex CLI (quota read and agent runs): PATH first, then the Codex app's own copy.
+const findCodex = () => findExecutable('codex', process.env.USERPROFILE && path.join(process.env.USERPROFILE, '.codex', '.sandbox-bin'));
 
-export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omniforge-lab'), repoRoot = REPO_ROOT, token = randomBytes(24).toString('hex'), catalog = new CatalogService({ repoRoot, dataDir }), classifier = new ClassifierService({ repoRoot }), arsenalService = null, observeArsenalHosts, keyVault = null, readQuota = readCodexRateLimits, codexPath = findCodex() } = {}) {
+// `engineOptions` is a test seam (fake agent hosts, home folder for usage files); production passes none.
+export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omniforge-lab'), repoRoot = REPO_ROOT, token = randomBytes(24).toString('hex'), catalog = new CatalogService({ repoRoot, dataDir }), classifier = new ClassifierService({ repoRoot }), arsenalService = null, observeArsenalHosts, keyVault = null, readQuota = readCodexRateLimits, codexPath = findCodex(), engineOptions = {} } = {}) {
   const expectedToken = Buffer.from(token);
   const sameToken = value => {
     if (typeof value !== 'string') return false;
@@ -70,10 +66,12 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
     return presented.length === expectedToken.length && timingSafeEqual(presented, expectedToken);
   };
   const store = new WorkspaceStore(dataDir);
-  let workflows;
-  try { workflows = createWorkflowService({ store }); }
-  catch (error) { store.close(); throw error; }
   const shells = new PtyCoordinator(store);
+  let workflows, engine;
+  try {
+    workflows = createWorkflowService({ store });
+    engine = new AgentEngine({ store, shells, codexPath, hookUrl: () => `http://127.0.0.1:${server.address().port}/api/agent-events`, ...engineOptions });
+  } catch (error) { store.close(); throw error; }
   const terminalOutput = new TerminalOutputBuffer();
   const arsenal = arsenalService || new ArsenalService({ dataDir: store.dataDir, repoRoot: path.resolve(repoRoot) });
   const arsenalApi = createArsenalApi({ store, service: arsenal, observeHosts: observeArsenalHosts });
@@ -109,6 +107,7 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
   });
   shells.on('closed', () => broadcast('state', state()));
   shells.on('state', () => broadcast('state', state()));
+  engine.on('agent', event => broadcast('agent', event));
 
   const server = http.createServer(async (request, response) => {
     const url = new URL(request.url || '/', 'http://127.0.0.1');
@@ -141,6 +140,10 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
       if (request.method === 'GET' && Object.hasOwn(vendorFiles, url.pathname)) {
         const [file, type] = vendorFiles[url.pathname];
         return send(response, 200, fs.readFileSync(path.join(HERE, 'node_modules', file), 'utf8'), type);
+      }
+      // Agent hooks hold only their own run's secret, never the launch token; this is the one route that takes it.
+      if (request.method === 'POST' && url.pathname === '/api/agent-events') {
+        return send(response, 200, engine.event(await body(request, 16 * 1024), request.headers['x-omniforge-run-token']));
       }
       // EventSource cannot send headers, so only the event stream accepts the token in its URL.
       const presented = request.headers['x-omniforge-token'] ?? (request.method === 'GET' && url.pathname === '/api/events' ? url.searchParams.get('token') : null);
@@ -214,6 +217,7 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
         const row = extensions.version(extensions.list(project.id), Number(url.searchParams.get('version')));
         return send(response, 200, { version: row.version, sha256: row.sha256, manifest: row.manifest, source: fs.readFileSync(row.path, 'utf8').slice(0, 64 * 1024) });
       }
+      if (request.method === 'GET' && url.pathname === '/api/agents') return send(response, 200, { runs: engine.list(url.searchParams.get('projectId')) });
       if (request.method === 'GET' && url.pathname === '/api/keys') return send(response, 200, { keys: keys.list() });
       if (request.method === 'GET' && url.pathname === '/api/usage') return send(response, 200, { figures: usageFigures({ codexQuota }), codexFound: Boolean(codexPath) });
       if (request.method === 'GET' && url.pathname === '/api/events') {
@@ -275,9 +279,11 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
         const recovery = url.pathname.match(/^\/api\/sessions\/([^/]+)\/acknowledge$/);
         const taskStatus = url.pathname.match(/^\/api\/tasks\/([^/]+)\/status$/);
         const taskOwner = url.pathname.match(/^\/api\/tasks\/([^/]+)\/(assign|handoff)$/);
+        const taskRun = url.pathname.match(/^\/api\/tasks\/([^/]+)\/run$/);
         const memoryUpdate = url.pathname.match(/^\/api\/memory\/([^/]+)\/(update|archive|forget)$/);
-        if (command) { output = shells.command(command[1], input.command); changed = false; }
-        else if (write) { output = shells.write(write[1], input.data); changed = false; }
+        if (command) { output = shells.command(command[1], input.command); engine.input(command[1], '\r'); changed = false; }
+        else if (write) { output = shells.write(write[1], input.data); engine.input(write[1], input.data); changed = false; }
+        else if (taskRun) output = engine.run(taskRun[1], input);
         else if (resize) { output = shells.resize(resize[1], input.cols, input.rows); changed = false; }
         else if (stop) { output = shells.stop(stop[1]); changed = false; }
         else if (recovery) output = store.acknowledgeInterruptedSession(recovery[1], input.verification);
@@ -296,6 +302,7 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
   return {
     store,
     shells,
+    engine,
     server,
     token,
     async listen(port = 0) {
