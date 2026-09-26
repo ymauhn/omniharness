@@ -3,6 +3,7 @@ import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { execFile } from 'node:child_process';
 import pty from 'node-pty';
+import { withoutGitLocation } from './lib/git-env.mjs';
 
 const MAX_COMMAND = 4096;
 const MAX_WRITE = 65536;
@@ -97,7 +98,8 @@ export class PtyCoordinator extends EventEmitter {
   }
 
   /** `launch` ({cwd, file, args, env}) runs a program other than the shell, e.g. an agent in its worktree;
-   * `file` must be absolute and `env` is added to the Lab environment. Without it the shell launch is unchanged. */
+   * `file` must be absolute and `env` is added to the Lab environment minus git location variables. Without it the
+   * shell launch is unchanged. */
   start(sessionId, launch = undefined) {
     if (this.sealed) fail('Coordenador encerrado', 409);
     if (this.processes.has(sessionId)) fail('Sessão já iniciada');
@@ -118,7 +120,8 @@ export class PtyCoordinator extends EventEmitter {
         cols: this.cols,
         rows: this.rows,
         name: 'xterm-256color',
-        env: { ...this.env, ...launch?.env, OMNIFORGE_PROJECT_ID: project.id, OMNIFORGE_SESSION_ID: session.id },
+        // A launched agent works in its own worktree: git location variables the Lab inherited would redirect its git.
+        env: { ...(launch ? withoutGitLocation(this.env) : this.env), ...launch?.env, OMNIFORGE_PROJECT_ID: project.id, OMNIFORGE_SESSION_ID: session.id },
       });
     } catch (error) {
       this.store.setSessionStatus(sessionId, 'interrupted');

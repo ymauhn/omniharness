@@ -109,12 +109,35 @@ test('a PTY launch override replaces the program, arguments and folder but keeps
   const session = store.addSession({ projectId: project.id, name: 'Agente' });
   let spawned;
   const child = { pid: 4321, onData() {}, onExit() {}, kill() {} };
-  const coordinator = new PtyCoordinator(store, { env: { PATH: 'x', KEEP: '1' }, spawnPty: (file, args, options) => { spawned = { file, args, options }; return child; } });
+  // Git location variables (as inside a git hook that launched the Lab) would point the agent's git at another repository.
+  const env = { PATH: 'x', KEEP: '1', GIT_DIR: path.join(temp, 'hook', '.git'), git_work_tree: temp, GIT_INDEX_FILE: 'index' };
+  const coordinator = new PtyCoordinator(store, { env, spawnPty: (file, args, options) => { spawned = { file, args, options }; return child; } });
   coordinator.start(session.id, { cwd: path.join(temp, 'data'), file: process.execPath, args: ['--flag', 'a "b"'], env: { EXTRA: '2' } });
   assert.equal(spawned.file, fs.realpathSync.native(process.execPath));
   assert.deepEqual(spawned.args, ['--flag', 'a "b"']);
   assert.equal(spawned.options.cwd, path.join(temp, 'data'));
   assert.deepEqual(spawned.options.env, { PATH: 'x', KEEP: '1', EXTRA: '2', OMNIFORGE_PROJECT_ID: project.id, OMNIFORGE_SESSION_ID: session.id });
+});
+
+test('the engine\'s git ignores git location variables the Lab inherited (as inside a git hook)', t => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-engine-'));
+  const store = new WorkspaceStore(path.join(temp, 'data'));
+  t.after(() => { store.close(); fs.rmSync(temp, { recursive: true, force: true, maxRetries: 5 }); });
+  const shells = Object.assign(new EventEmitter(), { start() {} });
+  const engine = new AgentEngine({ store, shells, hookUrl: () => 'http://127.0.0.1:9/api/agent-events', homeDir: path.join(temp, 'home'), hosts: { claude: { file: process.execPath, args: [] } } });
+  const decoy = repo(path.join(temp, 'decoy'));
+  const project = store.addProject({ name: 'Repo', root: repo(path.join(temp, 'repo')) });
+  const task = store.addTask({ projectId: project.id, title: 'Hook' });
+  const hook = { GIT_DIR: path.join(decoy, '.git'), GIT_WORK_TREE: decoy, GIT_INDEX_FILE: path.join(decoy, '.git', 'index') };
+  const saved = Object.fromEntries(Object.keys(hook).map(key => [key, process.env[key]]));
+  Object.assign(process.env, hook);
+  let run;
+  try { run = engine.run(task.id, { host: 'claude', expectedRevision: task.revision }); }
+  finally { for (const [key, value] of Object.entries(saved)) if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+  assert.equal(run.baseSha, git(project.root, 'rev-parse', 'HEAD'));
+  assert.equal(git(run.worktree, 'rev-parse', '--abbrev-ref', 'HEAD'), run.branch);
+  assert.notEqual(git(project.root, 'branch', '--list', run.branch), '');
+  assert.equal(git(decoy, 'branch', '--list', 'omniforge/*'), '', 'the decoy repository is untouched');
 });
 
 test('the hook relay always exits 0 and never writes to stdout, even with the Lab gone or garbage input', () => {

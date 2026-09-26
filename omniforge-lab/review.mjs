@@ -8,6 +8,7 @@ import path from 'node:path';
 import { spawn, execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { writeFileAtomic } from './lib/fsutil.mjs';
+import { gitEnv } from './lib/git-env.mjs';
 
 const MAX_PATCH = 256 * 1024;
 const MAX_LISTING = 16 * 1024 * 1024;
@@ -23,8 +24,6 @@ const FINISHED = new Set(['idle', 'done', 'failed']);
 const PRESETS = new Set(['rapido', 'padrao']);
 const SEVERITIES = [['high', 'ALTA'], ['medium', 'M[ÉE]DIA'], ['low', 'BAIXA'], ['unverified', 'SEM VERIFICA[ÇC][ÃA]O']];
 const SYSTEM32 = path.join(process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows', 'System32');
-// Variables that point git at another repository or index, as inside a git hook.
-const GIT_LOCATION = /^GIT_(DIR|WORK_TREE|INDEX_FILE|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|COMMON_DIR|PREFIX)$/i;
 const STRICT_IDENTITY = ['-c', 'user.useConfigOnly=true'];
 
 function fail(message, status = 400) {
@@ -34,11 +33,6 @@ function fail(message, status = 400) {
 // A refusal is a gate that said no: it is recorded as an evidence attempt, unlike a bad request.
 function refuse(reason) {
   throw Object.assign(new Error(reason), { status: 409, refused: true });
-}
-
-export function gitEnv(extra = {}) {
-  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !GIT_LOCATION.test(key)));
-  return { ...env, GIT_TERMINAL_PROMPT: '0', ...extra };
 }
 
 function git(dir, args, { env = gitEnv(), limit = MAX_LISTING } = {}) {

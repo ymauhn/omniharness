@@ -9,6 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { writeFileAtomic } from './lib/fsutil.mjs';
+import { gitEnv } from './lib/git-env.mjs';
 
 const HOOK = path.join(path.dirname(fileURLToPath(import.meta.url)), 'agent-hook.mjs');
 const ACTIVE = new Set(['starting', 'working', 'blocked', 'idle']);
@@ -52,7 +53,7 @@ export function findCodex(env = process.env) {
 }
 
 // argv only, never a shell: branch names and paths do not pass through a command interpreter.
-const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+const git = (cwd, ...args) => execFileSync('git', args, { cwd, env: gitEnv(), encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const tryGit = (cwd, ...args) => { try { return git(cwd, ...args); } catch { return null; } };
 
 const unknownUsage = reason => ({ status: 'unknown', inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheCreationTokens: null, source: null, reason });

@@ -6,7 +6,8 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createOmniForgeServer } from '../server.mjs';
-import { createReview, gauntletSummary, gitEnv, runTestCommand } from '../review.mjs';
+import { createReview, gauntletSummary, runTestCommand } from '../review.mjs';
+import { gitEnv } from '../lib/git-env.mjs';
 
 const TOKEN = 'review-token-5f0c9a1e7b3d';
 const BRANCH = 'omniforge/task';
