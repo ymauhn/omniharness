@@ -204,6 +204,31 @@ test('merge takes only the reviewed content: a missing or stale reviewed tree is
   assert.equal(git(f.root, 'rev-parse', `${attempt.headSha}^{tree}`), reviewed, 'the merged commit is the reviewed tree');
 });
 
+test('no repository hook runs in the Lab\'s commit or merge: the merged commit is the reviewed tree', async t => {
+  const f = await fixture(t);
+  f.setRun();
+  const log = path.join(f.dir, 'hooks.log').replaceAll('\\', '/');
+  // A husky-style hooks folder the repository ignores: what the agent writes there never shows in the reviewed diff.
+  fs.appendFileSync(path.join(f.root, '.git', 'info', 'exclude'), '.hooks/\n');
+  git(f.root, 'config', 'core.hooksPath', '.hooks');
+  const hook = (dir, name, body = '') => {
+    fs.mkdirSync(path.join(dir, '.hooks'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.hooks', name), `#!/bin/sh\necho ${name} >> "${log}"\n${body}\n`, { mode: 0o755 });
+  };
+  hook(f.worktree, 'pre-commit', 'echo unreviewed >> README.md && git add README.md');
+  hook(f.worktree, 'post-commit', '[ -e late.txt ] || { echo late > late.txt && git add late.txt && git commit -q -m late; }');
+  for (const name of ['post-index-change', 'reference-transaction', 'pre-merge-commit', 'post-merge']) { hook(f.worktree, name); hook(f.root, name); }
+  write(f.worktree, 'README.md', 'base\nreviewed\n');
+  const reviewed = await f.reviewedTree();
+  const response = await f.merge({ reviewedTree: reviewed });
+  const { attempt, error } = await response.json();
+  assert.equal(response.status, 200, error);
+  assert.equal(git(f.root, 'rev-parse', `${attempt.headSha}^{tree}`), reviewed, 'the merged commit is the reviewed tree');
+  assert.equal(fs.readFileSync(path.join(f.root, 'README.md'), 'utf8'), 'base\nreviewed\n');
+  assert.equal(fs.existsSync(path.join(f.root, 'late.txt')), false);
+  assert.equal(fs.existsSync(log), false, fs.existsSync(log) ? `hooks ran: ${fs.readFileSync(log, 'utf8')}` : '');
+});
+
 test('merge refusals leave the root untouched and are recorded as evidence', async t => {
   const f = await fixture(t);
   const head = () => git(f.root, 'rev-parse', 'HEAD');

@@ -1,12 +1,13 @@
 // Review and merge of a task run: the worktree's full diff, a gated merge into the owner's root, the Gauntlet on
 // the owner's request and an evidence bundle per task. This runs git in the owner's real repository, so: argv only
-// (never a shell), no reset, no force, no branch or worktree deletion, and the root's working tree is touched only by
-// `git merge` and `git merge --abort`. The task's worktree gets only the Gauntlet's self-ignoring report folder.
+// (never a shell), no repository hooks, no reset, no force, no branch or worktree deletion, and the root's working tree is
+// touched only by `git merge` and `git merge --abort`. The task's worktree gets only the Gauntlet's self-ignoring report folder.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn, execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { writeFileAtomic } from './lib/fsutil.mjs';
 import { gitEnv } from './lib/git-env.mjs';
 
@@ -25,6 +26,11 @@ const PRESETS = new Set(['rapido', 'padrao']);
 const SEVERITIES = [['high', 'ALTA'], ['medium', 'M[ÉE]DIA'], ['low', 'BAIXA'], ['unverified', 'SEM VERIFICA[ÇC][ÃA]O']];
 const SYSTEM32 = path.join(process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows', 'System32');
 const STRICT_IDENTITY = ['-c', 'user.useConfigOnly=true'];
+// No repository hook runs in any git call here: a pre-commit hook (lint-staged, or one the agent wrote in an ignored
+// husky folder) could stage content the owner never reviewed, a post-commit hook add commits, and post-index-change or
+// reference-transaction run on every add and merge. The hooks folder is this very file: a file holds no hooks, and
+// whatever could turn it into a folder could already rewrite the Lab. The command line's -c outranks every config file.
+const NO_HOOKS = ['-c', `core.hooksPath=${fileURLToPath(import.meta.url)}`];
 
 function fail(message, status = 400) {
   throw Object.assign(new Error(message), { status });
@@ -37,7 +43,7 @@ function refuse(reason) {
 
 function git(dir, args, { env = gitEnv(), limit = MAX_LISTING } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn('git', ['--no-optional-locks', '-C', dir, ...args], { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn('git', ['--no-optional-locks', ...NO_HOOKS, '-C', dir, ...args], { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     const chunks = [];
     let size = 0, err = '';
     child.stdout.on('data', chunk => { if (size < limit) chunks.push(chunk); size += chunk.length; });
@@ -274,10 +280,12 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     if ((await gitOk(run.worktree, ['write-tree'])).trim() !== reviewedTree) refuse('O conteúdo da worktree mudou desde a revisão; abra o diff de novo');
     if (token && (await git(run.worktree, ['grep', '--cached', '-q', '-F', '-e', token])).code === 0) refuse('O conteúdo da tarefa contém o token local do Lab; remova-o antes do merge');
     if ((await git(run.worktree, ['diff', '--cached', '--quiet'])).code !== 0) {
-      const commit = await git(run.worktree, [...STRICT_IDENTITY, 'commit', '-q', '-m', `omniforge: ${task.title}`]);
+      const commit = await git(run.worktree, [...STRICT_IDENTITY, 'commit', '-q', '--no-verify', '-m', `omniforge: ${task.title}`]);
       if (commit.code !== 0) refuse(`O commit na branch da tarefa falhou: ${firstLine(commit.err)}`);
     }
     attempt.headSha = (await gitOk(run.worktree, ['rev-parse', 'HEAD'])).trim();
+    // Whatever else wrote in the worktree meanwhile, the commit tested and merged is the tree the owner reviewed.
+    if ((await gitOk(run.worktree, ['rev-parse', `${attempt.headSha}^{tree}`])).trim() !== reviewedTree) refuse('O commit da tarefa não tem o conteúdo revisado; abra o diff de novo');
     attempt.diffStat = summarize(await gitOk(run.worktree, ['diff', '--numstat', '-z', '--no-renames', run.baseSha, attempt.headSha, '--'])).stat;
     if ((await git(run.root, ['merge-base', '--is-ancestor', attempt.headSha, 'HEAD'])).code === 0) refuse('Nada para integrar: a branch da tarefa já está na raiz');
     if (testCommand) {
@@ -300,7 +308,7 @@ export function createReview({ store, getRun = () => null, startRun, runTest = r
     if (inTheWay.length) refuse(`A raiz tem arquivos não rastreados ou ignorados onde o merge escreveria: ${inTheWay.slice(0, 20).join(', ')}; mova-os antes do merge`);
     taskCurrent(task.id, expectedRevision);
     // The tested commit, not the branch name: the branch may have moved while the test ran.
-    const merged = await git(run.root, [...STRICT_IDENTITY, 'merge', '--no-ff', '--no-edit', '-m', `Merge branch '${run.branch}'`, attempt.headSha]);
+    const merged = await git(run.root, [...STRICT_IDENTITY, 'merge', '--no-ff', '--no-edit', '--no-verify', '-m', `Merge branch '${run.branch}'`, attempt.headSha]);
     if (merged.code !== 0) {
       // Not gitOk: nothing may skip the abort below.
       const conflicts = (await git(run.root, ['diff', '--name-only', '--diff-filter=U', '-z'])).out.split('\0').filter(Boolean);
