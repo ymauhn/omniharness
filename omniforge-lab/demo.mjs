@@ -55,14 +55,14 @@ export function seedDemo(app, { repoRoot, dataDir }) {
 }
 
 /** Create a new fixture on every invocation; never reuse the normal Lab state. */
-// `engineOptions` lets the browser tests replace Claude/Codex with a fake agent; the demo itself passes none.
-export async function startDemo({ repoRoot = REPO_ROOT, tempRoot = process.platform === 'win32' ? process.env.TEMP || os.tmpdir() : os.tmpdir(), createServer = createOmniForgeServer, engineOptions } = {}) {
+// `serverOptions` is the browser tests' seam (a fake agent, observed hosts on a runner without CLIs); the demo passes none.
+export async function startDemo({ repoRoot = REPO_ROOT, tempRoot = process.platform === 'win32' ? process.env.TEMP || os.tmpdir() : os.tmpdir(), createServer = createOmniForgeServer, serverOptions = {} } = {}) {
   if (Number(process.versions.node.split('.')[0]) < 22) throw new Error('Node.js 22 ou mais recente é necessário');
   const { repo, temp } = checkedRoots(repoRoot, tempRoot);
   const dataDir = fs.mkdtempSync(path.join(temp, DEMO_PREFIX));
   let app;
   try {
-    app = createServer({ dataDir, repoRoot: repo, ...(engineOptions && { engineOptions }) });
+    app = createServer({ dataDir, repoRoot: repo, ...serverOptions });
     const fixture = seedDemo(app, { repoRoot: repo, dataDir });
     for (const session of fixture.sessions) app.shells.start(session.id);
     const url = await app.listen();

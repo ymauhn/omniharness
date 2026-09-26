@@ -24,7 +24,9 @@ const fake = path.join(process.argv[1], 'omniforge-lab', 'test', 'engine-fake-ag
 const home = path.join(process.env.OMNIFORGE_E2E_TEMP, 'agent-home');
 fs.mkdirSync(home, { recursive: true });
 const host = { file: process.execPath, args: [fake, home] };
-const demo = await startDemo({ tempRoot: process.env.OMNIFORGE_E2E_TEMP, engineOptions: { homeDir: home, hosts: { claude: host, codex: host } } });
+// Both hosts count as observed, as on a machine with the CLIs installed; an Arsenal pin is metadata and never runs.
+const demo = await startDemo({ tempRoot: process.env.OMNIFORGE_E2E_TEMP, serverOptions: {
+  engineOptions: { homeDir: home, hosts: { claude: host, codex: host } }, observeArsenalHosts: async () => ['codex', 'claude'] } });
 const { main, isolated, tasks, sessions } = demo.fixture;
 console.log(JSON.stringify({ url: demo.url, token: demo.app.token, main: main.id, isolated: isolated.id, isolatedRoot: isolated.root,
   tasks: tasks.map(t => t.id), sessions: sessions.map(s => s.id) }));
