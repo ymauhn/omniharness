@@ -381,6 +381,18 @@ test('an agent killed by a signal (POSIX Lab stop or shutdown reports code 0) en
   assert.deepEqual([stopped.state, stopped.detail, stopped.exitCode], ['failed', 'interrompido', null]);
 });
 
+test('an agent the Lab stops ends failed/interrompido with no exit code, also on Windows where taskkill exits it with 1', async t => {
+  const lab_ = await lab(t);
+  const { root, post } = lab_;
+  const project = await (await post('/api/projects', { name: 'Repo', root })).json();
+  const task = await (await post('/api/tasks', { projectId: project.id, title: 'Parar pelo Lab' })).json();
+  const run = await (await post(`/api/tasks/${task.id}/run`, { host: 'codex', expectedRevision: 1 })).json();
+  await waitFor(() => fs.existsSync(path.join(run.worktree, 'agent-call.json')) && lab_.app.store.session(run.sessionId).status === 'running', 'fake Codex running');
+  assert.equal((await post(`/api/sessions/${run.sessionId}/stop`, {})).status, 200);
+  const stopped = await lab_.until(project.id, run.id, 'failed');
+  assert.deepEqual([stopped.detail, stopped.exitCode], ['interrompido', null]);
+});
+
 test('a run moves an open task to running and leaves a blocked or done task as it was', t => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-engine-'));
   const store = new WorkspaceStore(path.join(temp, 'data'));
