@@ -351,8 +351,11 @@ export function update({ from, prefix = defaultPrefix(), exec = run, env = proce
   if (id === current.version) { out(`OmniForge ${id} is already current.`); return 0; }
   const state = path.join(prefix, 'data', 'state.json');
   if (fs.existsSync(state)) {
-    const backup = `${state}.pre-${id}`;
-    if (!fs.existsSync(backup)) fs.copyFileSync(state, backup);
+    // Never overwrite a backup: after a rollback the next update keeps both the old and the newer state.
+    const digest = hashFile(state);
+    let backup = `${state}.pre-${id}`;
+    for (let n = 1; fs.existsSync(backup) && hashFile(backup) !== digest; n++) backup = `${state}.pre-${id}.${n}`;
+    if (!fs.existsSync(backup)) fs.copyFileSync(state, backup, fs.constants.COPYFILE_EXCL);
     out(`State backup: ${backup}`);
   }
   const record = loadRecord(prefix);

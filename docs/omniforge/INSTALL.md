@@ -79,11 +79,11 @@ Open the exact printed URL. Opening `index.html` as a file does not work. `OMNIF
 & "$env:LOCALAPPDATA\OmniForge\omniforge.cmd" rollback
 ```
 
-`update` refuses while a running Lab holds `data\state.lock`. It uses the Lab's own lock semantics read-only: a live pid, an unreadable lock or a `state.recovery.lock` all count as running. It copies `data\state.json` to `state.json.pre-<new version>`, installs the new version next to the old one, switches `current.json` and the launcher, runs doctor and prints the rollback command. `rollback` switches back to the previous version and points to that backup. It never overwrites data by itself.
+`update` refuses while a running Lab holds `data\state.lock`. It uses the Lab's own lock semantics read-only: a live pid, an unreadable lock or a `state.recovery.lock` all count as running. It copies `data\state.json` to `state.json.pre-<new version>` and never overwrites a backup: an update after a rollback that finds different content writes `state.json.pre-<new version>.1`, `.2` and so on. It then installs the new version next to the old one, switches `current.json` and the launcher, runs doctor and prints the rollback command. `rollback` switches back to the previous version and points to that backup. It never overwrites data by itself.
 
 ## Repair
 
-`repair` hashes every file of the active version against the build manifest. If any file differs or is missing, it re-verifies the recorded zip under `releases\` and restores only those files. It then lists stale lock files for triage: a `state.lock` whose pid is gone, preserved `state.lock.stale-*` files and a leftover `state.recovery.lock`. It never deletes them.
+`repair` hashes every file of the active version against the build manifest. If any file differs or is missing, it re-verifies the recorded zip under `releases\` and restores only those files. Files outside the manifest are ignored, for example the `harness\__pycache__` that Python writes when the catalog runs; uninstall removes them with the app folder. It then lists stale lock files for triage: a `state.lock` whose pid is gone, preserved `state.lock.stale-*` files and a leftover `state.recovery.lock`. It never deletes them.
 
 ## Uninstall
 

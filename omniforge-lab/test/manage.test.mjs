@@ -193,6 +193,12 @@ test('update refuses a live instance, backs up state, switches and rolls back', 
   const back = JSON.parse(fs.readFileSync(path.join(prefix, 'current.json'), 'utf8'));
   assert.deepEqual([back.version, back.previous], [first.id, second.id]);
   assert.match(fs.readFileSync(path.join(prefix, 'omniforge.cmd'), 'utf8'), new RegExp(first.id.replaceAll('.', '\\.')));
+
+  // Work done after the rollback gets its own backup on the next update; the first one is kept.
+  fs.writeFileSync(path.join(data, 'state.json'), '{"schema":1,"after":"rollback"}');
+  assert.equal(update({ from: second.zip, prefix, exec: fakeExec(), out: () => {} }), 0);
+  const backups = fs.readdirSync(data).filter(name => name.startsWith(`state.json.pre-${second.id}`)).sort();
+  assert.deepEqual(backups.map(name => fs.readFileSync(path.join(data, name), 'utf8')).sort(), ['{"schema":1,"after":"rollback"}', '{"schema":1}']);
 });
 
 test('repair restores changed files from the recorded zip and lists stale locks without deleting them', t => {
