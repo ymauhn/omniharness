@@ -38,6 +38,10 @@ Owner-approved direction, 2026-09-26. Start from branch `claude/v1-audit-2026-09
 
 `ponytail` (always on) and `ponytail-review` before merge; `superpowers:test-driven-development`, `superpowers:systematic-debugging`, `superpowers:verification-before-completion`; `mattpocock-skills:codebase-design` for W1; `/code-review` and `/security-review` once at the end. DevOps (W7 CI): candidate [akin-ozer/cc-devops-skills](https://github.com/akin-ozer/cc-devops-skills) (GitHub Actions/Dockerfile/Bash generator+validator pairs); install only after the repository's intake scan (`_intake/`, read every file) and the owner's OK.
 
+## Before Wave 0
+
+Read the result of the coordinator-commit review launched at pause (workflow run `wf_1ca123a7-e29`, security/correctness/UX/simplicity lenses with adversarial verification). Fold its confirmed findings into W0/W1 instead of a separate fix round; if it did not finish, rerun it once over the same commits.
+
 ## Work packages (disjoint file scopes; one worktree each)
 
 **Wave 0 (serial, first — everything builds on it)**
@@ -54,7 +58,7 @@ Owner-approved direction, 2026-09-26. Start from branch `claude/v1-audit-2026-09
 **Wave 2 (parallel after W2/W3)**
 
 - **W5 Gauntlet on demand.** Button on a task that runs the existing Gauntlet skill against the task diff in a native session and stores its findings in the evidence bundle. *Accept:* disabled until a diff exists; cost shown as observed/unknown.
-- **W6 System-1 router (optional).** Use the existing Laya worker / JEV adapter (same protocol) to *suggest* host and skill for a new task; abstain falls back to lexical; show latency. *Accept:* offline tests only; never auto-dispatches.
+- **W6 System-1 agent router (owner-approved 2026-09-26).** Jev and Laya share one wire protocol (choice / score / yes-no with probabilities); Jev ships official routing integrations (Vercel AI Gateway `typesafe-ai/jev`, AI SDK `experimental_evaluate`, LangChain `TypeSafeClassifier`; LangChain4j example by Kevin Dubois). Reuse our existing Laya worker and JEV adapter behind one `route(task)` seam that *suggests* host (Claude/Codex), skill and effort tier for a new task: Laya local by default (free, ~33 ms), Jev only when a key is stored in the Windows vault (remote, uses credits, opt-in per call). Abstain falls back to lexical; show latency, probability and source; never auto-dispatch. *Accept:* offline tests with both providers faked, one real local Laya decision on this host, a Jev live call only after the owner connects an account.
 - **W7 Docs + CI.** README (what it does, install, run), ARCHITECTURE (one page), STATUS (what works/what is closed); move journals to `docs/archive/`; a GitHub Actions workflow running the Lab + Python suites on Windows. *Accept:* README quick start works on this host.
 - **W8 Honest mini-benchmark (day 2).** 10 small real tasks from this repo, with and without Gauntlet, reporting pass rate, wall time and observed tokens, including failures.
 
