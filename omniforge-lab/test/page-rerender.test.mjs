@@ -101,3 +101,27 @@ test('the coordination log appends only new entries instead of re-announcing the
   assert.equal(log.childElementCount, 30, 'the page keeps a bounded window of 30 entries');
   assert.match(log.lastElementChild.textContent, /item 39/);
 });
+
+test('a handoff kept across a mid-request re-render cannot be submitted twice', async () => {
+  const { ctx, $ } = environment();
+  const calls = [];
+  let release;
+  ctx.action = (path, body, success) => { calls.push(path); return new Promise(resolve => { release = () => { success?.(); resolve({ ok: true }); }; }); };
+  ctx.renderTasks();
+  const find = key => $('#task-list').descendants().find(node => node.dataset.focusKey === `task:t:${key}`);
+  const note = find('handoff-note');
+  note.value = 'Teste vermelho pronto'; await note.fire('input');
+  const submit = () => note.parent.parent.fire('submit');
+  void submit();
+  // The server broadcasts state before it answers; the rebuilt form keeps the draft.
+  ctx.renderTasks();
+  const rebuilt = find('handoff-note');
+  assert.notEqual(rebuilt, note);
+  assert.equal(rebuilt.value, 'Teste vermelho pronto');
+  void rebuilt.parent.parent.fire('submit');
+  assert.deepEqual(calls, ['/api/tasks/t/handoff'], 'a second submit while the first is in flight is ignored');
+  assert.equal(find('handoff-send').disabled, true);
+  release(); await new Promise(resolve => setImmediate(resolve));
+  ctx.renderTasks();
+  assert.equal(find('handoff-note').value, '', 'the draft is dropped after the confirmed write');
+});

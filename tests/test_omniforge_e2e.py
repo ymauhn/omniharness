@@ -6,6 +6,7 @@ they are not a visual verdict. Set OMNIFORGE_E2E_EVIDENCE=<dir> to keep viewport
 Missing Playwright/Chromium or Node dependencies are errors, never skipped coverage.
 """
 import json
+import sys
 import os
 import shutil
 import subprocess
@@ -332,6 +333,13 @@ class LabE2E(unittest.TestCase):
                     self.assertEqual(unnamed, [], f"{theme}/{name}@{width}: controls without an accessible name")
                 if width == 1440:
                     evidence(page, f"theme-{theme}")
+            if width == 390:
+                # A long project root (the isolated demo lives deep in %TEMP%) must wrap, not widen the page.
+                self.select_project(page, "Projeto isolado")
+                page.locator("[data-view=assets]").click()
+                page.wait_for_timeout(250)
+                overflow = page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")
+                self.assertLessEqual(overflow, 1, f"assets@390 with a long root: horizontal overflow {overflow}px")
             nav = page.get_by_role("button", name="Tarefas")
             nav.focus()
             page.keyboard.press("Enter")
@@ -433,10 +441,15 @@ class LabE2E(unittest.TestCase):
             page.get_by_text("Nenhuma chave guardada.").wait_for(timeout=20000)
         finally:
             # The demo writes to the real Windows vault: never leave the dummy credential behind if the UI path fails.
-            for key in self.api(page, "/api/keys").get("keys", []):
-                if key["suffix"] == "7Q2Z":
-                    self.api(page, "/api/keys/remove", {"ref": key["ref"]})
-            context.close()
+            # Cleanup errors must not hide the original failure, and the context always closes.
+            try:
+                for key in self.api(page, "/api/keys").get("keys", []):
+                    if key["suffix"] == "7Q2Z":
+                        self.api(page, "/api/keys/remove", {"ref": key["ref"]})
+            except Exception as cleanup:  # noqa: BLE001 - reported, not raised
+                print(f"vault cleanup failed: {cleanup}", file=sys.stderr)
+            finally:
+                context.close()
 
     def test_tasks_show_the_owner_session_replan_after_a_blocked_prerequisite_and_record_a_handoff(self):
         context, page = self.open()
@@ -464,8 +477,14 @@ class LabE2E(unittest.TestCase):
         self.assertEqual(item.locator(".task-handoff-form input").input_value(), note)
         self.assertEqual(item.locator(".task-handoff-form select").input_value(), "claude")
         self.assertEqual(page.evaluate("document.activeElement.dataset.focusKey"), f"task:{build}:handoff-note")
+        handoffs = lambda: len(next(t for t in self.api(page, "/api/state")["tasks"] if t["id"] == build).get("handoffs", []))
+        before = handoffs()
+        # A quick double Enter must record one handoff: the kept draft must not re-arm a rebuilt form mid-request.
+        page.keyboard.press("Enter")
         page.keyboard.press("Enter")
         item.get_by_text("Último handoff → claude").wait_for()
+        page.wait_for_timeout(400)
+        self.assertEqual(handoffs(), before + 1)
         page.wait_for_function("k => document.activeElement?.dataset.focusKey === k", arg=f"task:{build}:handoff")
         page.locator(f"select[aria-label='Estado de {titles[define]}']").select_option("open")
         page.wait_for_function("t => ![...document.querySelectorAll('#task-list .list-item')].some(i => i.textContent.includes(t) && i.textContent.includes('Bloqueada automaticamente'))", arg=titles[review])

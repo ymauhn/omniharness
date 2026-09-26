@@ -192,3 +192,24 @@ test('usage: Remover asks for a second explicit confirmation click before deleti
   assert.match(root.textContent, /Nenhuma chave guardada/);
   assert.ok(root.contains(doc.activeElement), 'focus stays in the panel after the row is gone');
 });
+
+test('mini-tools: a project switch while an action is in flight never shows the old project result in the new one', async () => {
+  const { root } = dom();
+  let projectId = 'alpha', release;
+  const registries = { alpha: { revision: 1, enabled: { version: 1 }, versions: [version(1)] }, beta: { revision: 0, enabled: null, versions: [] } };
+  const api = async (route, options) => {
+    if (!options) return registries[new URL(route, 'http://local').searchParams.get('projectId')];
+    await new Promise(resolve => { release = resolve; });
+    return { ok: true, version: 1, truncated: false, skipped: 0, result: { checked: 1, references: 1, missing: [{ file: 'README.md', line: 1, ref: 'img/alpha-missing.png' }] } };
+  };
+  const panel = mountExtensionsPanel({ root, api, getProjectId: () => projectId });
+  await panel.load();
+  const running = button(root, 'Verificar links agora').fire('click');
+  await tick();
+  projectId = 'beta';
+  await panel.sync();
+  release();
+  await running; await tick();
+  assert.match(root.textContent, /Nenhuma versão ativa/);
+  assert.doesNotMatch(root.textContent, /alpha-missing/);
+});

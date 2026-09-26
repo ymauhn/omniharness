@@ -29,12 +29,14 @@ export function mountExtensionsPanel({ root, api, getProjectId, toast = () => {}
 
   async function mutate(route, body, done) {
     if (busy || !projectId) return;
+    const owner = projectId;
     busy = true; render();
     try {
-      const result = await api(route, { method: 'POST', body: { projectId, ...body } });
-      if (done) done(result);
+      const result = await api(route, { method: 'POST', body: { projectId: owner, ...body } });
+      // The owner may have switched projects while the request ran; its result belongs to the old project only.
+      if (done && owner === getProjectId()) done(result);
       await load();
-    } catch (error) { status.textContent = error.message; toast(error.message); }
+    } catch (error) { if (owner === getProjectId()) { status.textContent = error.message; toast(error.message); } }
     finally { busy = false; render(); }
   }
 
