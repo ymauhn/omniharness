@@ -218,7 +218,7 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
         else if (resize) { output = shells.resize(resize[1], input.cols, input.rows); changed = false; }
         else if (stop) { output = shells.stop(stop[1]); changed = false; }
         else if (recovery) output = store.acknowledgeInterruptedSession(recovery[1], input.verification);
-        else if (taskStatus) output = store.setTaskStatus(taskStatus[1], input.status);
+        else if (taskStatus) output = store.setTaskStatus(taskStatus[1], input.status, input.expectedRevision);
         else if (memoryUpdate) output = memoryUpdate[2] === 'update' ? store.updateNote(memoryUpdate[1], input) : store.archiveNote(memoryUpdate[1], input);
         else return send(response, 404, { error: 'Rota não encontrada' });
       }
