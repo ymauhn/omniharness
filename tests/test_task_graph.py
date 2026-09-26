@@ -2,6 +2,7 @@
 import unittest
 from dataclasses import replace
 from fractions import Fraction
+from pathlib import Path
 
 from evals.task_graph import (Attempt, Node, Policy, ReferenceGraph, RefuterCase,
                               score_task_graph)
@@ -128,6 +129,13 @@ class TaskGraphTests(unittest.TestCase):
         self.assertEqual(result["no_progress_repeat_excess"], 4)
         self.assertEqual(result["loop_penalty"], "2/5")
         self.assertEqual(result["provisional_quality"], "3/5")
+
+    def test_contract_doc_states_the_implemented_credit_and_loop_rules(self):
+        doc = (Path(__file__).resolve().parents[1] / "docs/evals/E2-TASK-GRAPH.md").read_text(
+            encoding="utf-8")
+        self.assertFalse("same `(node, loop_key)`" in doc, "stale per-loop-key penalty rule")
+        for rule in ("counted per node", "started at or after", "reused by another node"):
+            self.assertTrue(rule in doc, rule)
 
     def test_refuter_fields_unknown_until_all_human_labels_exist(self):
         unknown = score(deliveries(), refuters=(RefuterCase("finding-1", True),))
