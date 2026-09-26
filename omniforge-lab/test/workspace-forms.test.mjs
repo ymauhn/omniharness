@@ -63,7 +63,7 @@ function environment() {
   const catalog = { search() {}, sync() {}, load() {} };
   const memoryPanel = { load() {}, sync() {} };
   const workspace = createWorkspace({ renderAll: () => calls.push('render'), loadMemory: () => calls.push('memory'), clearContext() {}, showView, copilot, storage: { getItem: () => null, setItem() {} } });
-  const tasks = createTasks({ showView, arsenal: { focusTask() {} } });
+  const tasks = createTasks({ showView, runControls() {} });
   const graphs = createGraphs({ assignPane: workspace.assignPane, renderWorkspace: workspace.renderWorkspace, catalog, memoryPanel, showView });
   const assets = createAssets();
   return Object.assign(env, { workspace, tasks, graphs, assets });

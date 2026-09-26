@@ -12,7 +12,7 @@ import { createNavigation } from './navigation.mjs';
 import { mountCopilot, mountCatalog } from '../copilot.mjs';
 import { mountMemoryPanel } from '../memory-panel.mjs';
 import { mountWorkflows } from '../workflow-panel.mjs';
-import { mountArsenalPanel } from '../arsenal-panel.mjs';
+import { createFleet } from './fleet.mjs';
 import { mountExtensionsPanel } from '../extensions-panel.mjs';
 import { mountUsagePanel } from '../usage-panel.mjs';
 
@@ -26,16 +26,23 @@ const onMemoryChanged = () => { void refresh().catch(error => toast(error.messag
 const memoryPanel = mountMemoryPanel({ root: $('#memory-list'), api, getProjectId, getSessions: () => local.state.sessions, onChanged: onMemoryChanged });
 const onTasksCreated = async run => { log('Workflow', `Snapshot ${run.id}: tarefas criadas sem iniciar modelos.`); await refresh(); };
 const workflows = mountWorkflows({ root: $('#workflow-panel'), api, getProjectId, draft: $('#coord-text'), onInsert: () => nav.showView('workspace'), onTasksCreated });
-const arsenal = mountArsenalPanel({ root: $('#arsenal-panel'), api, getProjectId, getSessions: () => local.state.sessions, getTasks: () => local.state.tasks, onChanged: () => tasks.renderTasks() });
 const extensionsPanel = mountExtensionsPanel({ root: $('#extensions-panel'), api, getProjectId, toast });
 const usagePanel = mountUsagePanel({ root: $('#usage-panel'), api, toast });
 
 const showView = view => nav.showView(view);
 const workspace = createWorkspace({ renderAll: () => nav.renderAll(), loadMemory: () => graphs.loadMemory(), clearContext: () => graphs.clearContext(), showView, copilot });
-const tasks = createTasks({ showView, arsenal });
+// "Abrir terminal" on a run: its Lab session goes to the focused pane, like a session picked in the rail.
+const openSession = id => {
+  const index = workspace.layout.value.focus;
+  if (!workspace.assignPane(index, id)) return;
+  workspace.renderWorkspace(); showView('workspace');
+  $('#terminal-grid').children[index]?.querySelector('.pane-select')?.focus();
+};
+const fleet = createFleet({ openSession, onChange: () => tasks.renderTasks() });
+const tasks = createTasks({ showView, runControls: fleet.taskControls });
 const graphs = createGraphs({ assignPane: workspace.assignPane, renderWorkspace: workspace.renderWorkspace, catalog, memoryPanel, showView });
 const assets = createAssets();
-nav = createNavigation({ workspace, tasks, graphs, assets, catalog, copilot, workflows, arsenal, extensionsPanel, usagePanel, memoryPanel });
+nav = createNavigation({ workspace, tasks, graphs, assets, catalog, copilot, workflows, fleet, extensionsPanel, usagePanel, memoryPanel });
 
 async function refresh() { nav.applyState(await api('/api/state')); }
 bindRefresher(refresh);
@@ -61,8 +68,9 @@ log('Sistema', 'OmniForge Lab pronto para conectar ao serviço local.', 'PTY int
 try { await refresh(); }
 catch (error) { if (!local.tokenInvalid) { $('#connection').dataset.state = 'error'; $('#connection').textContent = 'Reconectando'; toast(error.message); } nav.renderAll(); }
 if (!local.tokenInvalid) connect({
-  onOpen: () => { for (const id of local.paneSessions) if (id) workspace.replayTerminal(id); },
+  // A reconnect may have missed agent events: the runs are read again.
+  onOpen: () => { for (const id of local.paneSessions) if (id) workspace.replayTerminal(id); void fleet.load(); },
   onTerminal: payload => workspace.acceptTerminal(payload),
   onState: state => nav.applyState(state),
-  onArsenal: update => { if (update.projectId === local.projectId && local.view === 'arsenal') void arsenal.load(); },
+  onAgent: event => fleet.accept(event),
 });

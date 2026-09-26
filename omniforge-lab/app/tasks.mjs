@@ -2,7 +2,7 @@
 import { $, make, one, keepFocus, fillSelect, asArray } from './dom.mjs';
 import { local, api, action, toast, refreshState, sessionById, taskById, statusLabel, time, currentProjectSessions } from './state.mjs';
 
-export function createTasks({ showView, arsenal }) {
+export function createTasks({ showView, runControls }) {
   // Unsent handoff forms (open state, host, note) by task id, so a state re-render never discards what is being typed.
   const handoffDrafts = new Map();
 
@@ -89,8 +89,7 @@ export function createTasks({ showView, arsenal }) {
         });
       }
       renderTaskOwner(item, task);
-      const agent = one(item, 'button', 'secondary', 'Vincular agente'); agent.type = 'button'; agent.dataset.focusKey = `task:${task.id}:agent`;
-      agent.addEventListener('click', () => { showView('arsenal'); arsenal.focusTask(task.id); });
+      runControls(item, task);
       list.append(item);
     }
     restore();
