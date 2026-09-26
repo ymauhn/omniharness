@@ -140,7 +140,7 @@ test('asset inventory applies only the latest request for the current project an
   const b = env.assets.loadInventory();
   second.resolve({ files: ['b.png'], unreadableDirectories: 2 });
   await b;
-  first.resolve({ files: ['a-stale.png'] });
+  first.reject(Error('Falha do projeto anterior'));
   await a;
   assert.equal(local.inventoryProjectId, 'q');
   assert.deepEqual([...local.inventory.files], ['b.png']);

@@ -73,7 +73,7 @@ function environment(fetchImpl = async () => { throw Error('Unavailable'); }) {
     renderAll() {}, loadMemory() {}, clearContext() {}, showView() {}, copilot: { revision: () => 1, sync() {} },
     storage: { getItem: () => null, setItem() {} },
   });
-  return { workspace, layout: workspace.layout, grid, doc, local, $, requests, messages, timers, render: () => workspace.renderWorkspace() };
+  return { workspace, layout: workspace.layout, streams: workspace.streams, grid, doc, local, $, requests, messages, timers, render: () => workspace.renderWorkspace() };
 }
 
 test('actual grid renders N panes, reorders drafts/focus and closes only the view', async () => {
@@ -87,6 +87,7 @@ test('actual grid renders N panes, reorders drafts/focus and closes only the vie
   assert.equal(env.grid.children.length, 3); assert.ok(env.local.state.sessions.some(s => s.id === 'a'));
   assert.ok(!env.requests.some(r => String(r.path).includes('/stop')));
   env.local.projectId = 'q'; env.render(); assert.deepEqual(env.grid.children.map(p => p.dataset.sessionId), ['foreign', '']);
+  assert.equal(env.streams.size, 1, 'panes left behind by the project switch prune their terminal streams');
   env.local.projectId = 'p'; env.local.state.sessions = env.local.state.sessions.filter(s => s.id !== 'b'); env.render();
   assert.ok(!env.local.paneSessions.includes('b')); assert.ok(!env.local.paneSessions.includes('foreign'));
 });
@@ -174,7 +175,7 @@ test('two invalidated replay replies schedule one bounded catch-up even if the s
   env.workspace.acceptTerminal({ sessionId: 'a', projectId: 'p', epoch: 'latest', sequence: 1, text: 'latest', stream: 'stdout' }); pending.shift()(response('middle', 1)); await replaying;
   assert.equal(env.timers.size, 1, 'a quiet stream still needs exactly one queued catch-up'); phase = 'latest';
   const [timer, run] = env.timers.entries().next().value; env.timers.delete(timer); run(); await new Promise(resolve => setImmediate(resolve));
-  assert.equal(env.local.buffers.get('a'), 'latest'); assert.equal(env.timers.size, 0);
+  assert.equal(env.local.buffers.get('a'), 'latest'); assert.equal(env.streams.get('a').transcript.pendingEpoch, null); assert.equal(env.timers.size, 0);
 });
 
 test('confirmed epoch reset stays visible across catch-up, live output, refresh and local truncation', async () => {

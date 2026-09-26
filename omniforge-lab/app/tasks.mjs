@@ -14,7 +14,7 @@ export function createTasks({ showView, arsenal }) {
     fillSelect(select, currentProjectSessions().map(s => ({ value: s.id, label: `${s.name} · ${statusLabel(s.status)}` })), task.sessionId, 'Sem sessão responsável');
     select.addEventListener('change', async () => {
       const body = { sessionId: select.value || null, worktree: task.worktree ?? null, expectedRevision: task.revision };
-      const result = await action(`/api/tasks/${encodeURIComponent(task.id)}/assign`, body, `Responsável por "${task.title}" atualizado.`);
+      const result = await action(`/api/tasks/${encodeURIComponent(task.id)}/assign`, body, `Responsável por “${task.title}” atualizado.`);
       if (!result) select.value = task.sessionId || '';
     });
     one(item, 'div', 'meta', `${owner ? `Em ${owner.name}: ${statusLabel(owner.status)} (evento do shell)` : 'Nenhuma sessão responsável'}${task.worktree ? ` · worktree ${task.worktree}` : ''}`);
@@ -44,7 +44,7 @@ export function createTasks({ showView, arsenal }) {
       let result;
       try {
         const body = { toHost: host.value, summary: note.value.trim(), expectedRevision: task.revision };
-        const successMessage = () => { handoffDrafts.delete(task.id); return `Handoff de "${task.title}" registrado para ${host.value}.`; };
+        const successMessage = () => { handoffDrafts.delete(task.id); return `Handoff de “${task.title}” registrado para ${host.value}.`; };
         result = await action(`/api/tasks/${encodeURIComponent(task.id)}/handoff`, body, successMessage);
       } finally {
         const kept = handoffDrafts.get(task.id); if (kept) kept.sending = false;
@@ -72,12 +72,12 @@ export function createTasks({ showView, arsenal }) {
       select.value = task.status || 'open';
       select.addEventListener('change', async () => {
         const value = select.value, body = { status: value, expectedRevision: task.revision };
-        const result = await action(`/api/tasks/${encodeURIComponent(task.id)}/status`, body, `Tarefa "${task.title}" alterada para ${value}.`);
+        const result = await action(`/api/tasks/${encodeURIComponent(task.id)}/status`, body, `Tarefa “${task.title}” alterada para ${value}.`);
         if (!result) { select.value = task.status || 'open'; void refreshState().catch(() => {}); }
       });
       const dependencies = asArray(task.dependsOn).map(id => taskById(id)?.title || id);
       one(item, 'div', 'meta', dependencies.length ? `Depende de: ${dependencies.join(' · ')}` : 'Sem dependências');
-      if (task.blockedBy) one(item, 'div', 'meta task-replan', `Bloqueada automaticamente: o pré-requisito "${taskById(task.blockedBy)?.title || task.blockedBy}" está bloqueado.`);
+      if (task.blockedBy) one(item, 'div', 'meta task-replan', `Bloqueada automaticamente: o pré-requisito “${taskById(task.blockedBy)?.title || task.blockedBy}” está bloqueado.`);
       if (task.hasDetails) {
         const more = one(item, 'details'); one(more, 'summary', '', 'Detalhes').dataset.focusKey = `task:${task.id}:details`;
         const text = one(more, 'p', 'meta', 'Carregando…'); text.style.whiteSpace = 'pre-wrap';
@@ -109,7 +109,7 @@ export function createTasks({ showView, arsenal }) {
     const dependsOn = [...$('#task-depends').selectedOptions].map(option => option.value);
     form.busy = submit.disabled = true;
     try {
-      const result = await action('/api/tasks', { projectId: local.projectId, title, dependsOn }, `Tarefa "${title}" registrada.`);
+      const result = await action('/api/tasks', { projectId: local.projectId, title, dependsOn }, `Tarefa “${title}” registrada.`);
       if (result) { form.reset(); renderTasks(); }
     } finally { form.busy = submit.disabled = false; }
   });

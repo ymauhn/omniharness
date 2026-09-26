@@ -137,7 +137,7 @@ export function createGraphs({ assignPane, renderWorkspace, catalog, memoryPanel
     }));
     const edges = [...shownSessions.map(s => ['project', s.id]), ...shownNotes.map(note => [note.scope === 'global' ? 'global' : 'project', note.id])];
     const intro = `${shownNotes.length} de ${notes.length} notas e ${shownSessions.length} de ${sessions.length} sessões exibidas (as mais recentes). ` +
-      'Notas de sessão não aparecem neste grafo; consulte-as em "Contexto de uma sessão". Arestas mostram somente vínculos de escopo explícitos.';
+      'Notas de sessão não aparecem neste grafo; consulte-as em “Contexto de uma sessão”. Arestas mostram somente vínculos de escopo explícitos.';
     return { title: 'Conhecimento do projeto', intro, nodes, edges };
   }
 
@@ -165,7 +165,7 @@ export function createGraphs({ assignPane, renderWorkspace, catalog, memoryPanel
       : '';
     usage.hidden = node.kind !== 'skill';
     $('#graph-help-docs').textContent = node.kind === 'skill'
-      ? `Ajuda: ${graphText(node.source, 105)} · ${graphText(node.scope, 65)}. Selecione o nó e use "Abrir item" para ver metadados e exemplos.`
+      ? `Ajuda: ${graphText(node.source, 105)} · ${graphText(node.scope, 65)}. Selecione o nó e use “Abrir item” para ver metadados e exemplos.`
       : `Fonte: ${graphText(node.source, 105)} · Escopo: ${graphText(node.scope, 65)}.`;
   }
   function clearGraphHelp() { for (const id of ['title', 'summary', 'usage', 'docs']) $(`#graph-help-${id}`).textContent = ''; }

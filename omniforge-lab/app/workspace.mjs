@@ -391,7 +391,7 @@ export function createWorkspace({ renderAll, loadMemory, clearContext, showView,
   }
   $('#project-form').addEventListener('submit', async event => {
     event.preventDefault(); const form = event.currentTarget;
-    const result = await action('/api/projects', { name: form.elements.name.value, root: form.elements.root.value }, project => `Projeto "${project.name}" selecionado.`);
+    const result = await action('/api/projects', { name: form.elements.name.value, root: form.elements.root.value }, project => `Projeto “${project.name}” selecionado.`);
     if (result) { selectProject(result.id); form.reset(); form.hidden = true; $('#toggle-project').setAttribute('aria-expanded', 'false'); }
   });
   $('#session-form').addEventListener('submit', async event => {
@@ -402,7 +402,7 @@ export function createWorkspace({ renderAll, loadMemory, clearContext, showView,
     const targetLayout = terminalLayout.value, index = terminalLayout.value.focus, previous = local.paneSessions[index];
     submit.disabled = true;
     try {
-      const result = await action('/api/sessions', { projectId, name }, `Sessão "${name}" aberta.`), id = result?.id || result?.session?.id;
+      const result = await action('/api/sessions', { projectId, name }, `Sessão “${name}” aberta.`), id = result?.id || result?.session?.id;
       if (result && local.projectId === projectId && terminalLayout.value === targetLayout && (local.paneSessions[index] === previous || local.paneSessions[index] === id)) {
         if (id && sessionById(id)?.projectId === projectId) assignPane(index, id);
         if (form.elements.name.value === name) { form.reset(); form.hidden = true; $('#toggle-session').setAttribute('aria-expanded', 'false'); }
@@ -427,7 +427,7 @@ export function createWorkspace({ renderAll, loadMemory, clearContext, showView,
         return;
       }
       const result = kind === 'task'
-        ? await action('/api/tasks', { projectId: local.projectId, title, details: text === title ? undefined : text }, `Tarefa "${title}" registrada.`)
+        ? await action('/api/tasks', { projectId: local.projectId, title, details: text === title ? undefined : text }, `Tarefa “${title}” registrada.`)
         : await action('/api/memory', { scope: 'project', projectId: local.projectId, source: 'Coordenação manual', text }, 'Decisão guardada na memória do projeto.');
       if (result) { if (copilot.revision() === submittedRevision) { form.reset(); copilot.sync(); } if (kind === 'memory') loadMemory(); }
     } finally { form.busy = submit.disabled = false; }
@@ -435,7 +435,7 @@ export function createWorkspace({ renderAll, loadMemory, clearContext, showView,
   window.addEventListener('focus', () => { for (const view of local.ptyViews.values()) view.lastSize = null; fitTerminals(); });
 
   return {
-    layout: terminalLayout, seededProjectId, reconcilePanes, assignPane, renderSidebar, renderWorkspace,
+    layout: terminalLayout, streams: terminalStreams, seededProjectId, reconcilePanes, assignPane, renderSidebar, renderWorkspace,
     fitTerminals, applyTheme, setPtyModules, acceptTerminal, replayTerminal, appendOutput, displayTranscript, fitPty, sendPtyInput,
   };
 }
