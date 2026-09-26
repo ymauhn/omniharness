@@ -151,6 +151,21 @@ class AgentsE2E(LabCase):
             expect(item.get_by_role("button", name=f"Rodar com {name}")).to_be_enabled()
         self.assertEqual(self.api(page, f"/api/agents?projectId={self.project['id']}")["runs"], [], "a suggestion never starts a run")
         evidence(page, "route-suggestion")
+
+        # A Laya-shaped answer (the only fake) lands while the owner types a title: focus stays there, so no keystroke runs Codex.
+        held = []
+        page.route("**/api/tasks/*/route", lambda route: held.append(route))
+        item.get_by_role("button", name="Sugerir host e skill").click()
+        page.locator("#task-title").click()
+        page.keyboard.type("Corrigir")
+        self.assertEqual(len(held), 1)
+        pick = {"value": "codex", "source": "laya", "probability": 0.82, "reason": "selected"}
+        held[0].fulfill(json={"taskId": self.tasks[title], "provider": "laya", "runnable": False, "latencyMs": 1300, "jevAvailable": False,
+                              "host": pick, "effort": {**pick, "value": "médio"}, "skill": {**pick, "value": None, "source": "lexical", "reason": None}})
+        expect(suggestion).to_contain_text("Host: Codex · Laya")
+        page.keyboard.type(" o bug")
+        expect(page.locator("#task-title")).to_have_value("Corrigir o bug")
+        self.assertEqual(self.api(page, f"/api/agents?projectId={self.project['id']}")["runs"], [], "a late suggestion never starts a run")
         context.close()
 
     def test_the_agents_view_fits_a_phone_in_every_theme(self):

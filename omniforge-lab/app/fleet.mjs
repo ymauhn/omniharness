@@ -192,7 +192,8 @@ export function createFleet({ openSession, onChange = () => {} }) {
     if (lines.length) { const box = one(item, 'div', 'route-suggestion'); box.id = `route-${task.id}`; for (const line of lines) one(box, 'p', 'meta', line); }
   }
 
-  // A second click while one is in flight is ignored. Focus then waits on the suggested host's run button.
+  // A second click while one is in flight is ignored. Focus never moves: the answer can arrive seconds later, and a
+  // keystroke meant for another control must not land on a run button. The styling and aria-describedby mark the host.
   async function suggest(task) {
     const entry = suggestions.get(task.id) ?? {};
     if (entry.pending) return;
@@ -203,7 +204,6 @@ export function createFleet({ openSession, onChange = () => {} }) {
     catch (failure) { error = `Sugestão indisponível: ${failure.message}`; }
     suggestions.set(task.id, { result, error, jev: false, jevAvailable: result ? result.jevAvailable : entry.jevAvailable });
     onChange();
-    if (result?.host.value) focusTask(`task:${task.id}:run-${result.host.value}`);
   }
 
   // Not disabled while in flight (focus would drop to the page); a second click is ignored instead.

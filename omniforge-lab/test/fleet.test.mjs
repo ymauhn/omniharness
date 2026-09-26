@@ -208,8 +208,10 @@ test('"Sugerir host e skill" shows source, probability and latency, marks the su
   const base = server.respond;
   server.respond = async (path, options) => {
     if (!path.endsWith('/route')) return base(path, options);
+    await server.hold;
     return reply.error ? { ok: false, status: 409, json: async () => reply } : { ok: true, status: 200, json: async () => reply };
   };
+  find(card(), 'Sugerir host e skill').focus();
   await find(card(), 'Sugerir host e skill').fire('click');
   assert.deepEqual(routes(), [{ path: '/api/tasks/u/route', body: { jev: false } }]);
   const text = card().textContent;
@@ -220,9 +222,16 @@ test('"Sugerir host e skill" shows source, probability and latency, marks the su
   assert.equal(find(card(), 'Rodar com Codex').className, 'button', 'the suggested host is preselected');
   assert.equal(find(card(), 'Rodar com Claude').className, 'secondary');
   assert.equal(find(card(), 'Rodar com Codex').getAttribute('aria-describedby'), 'route-u');
-  assert.equal(doc.activeElement, find(card(), 'Rodar com Codex'), 'focus waits on the suggested run; the owner still clicks it');
+  assert.equal(doc.activeElement?.dataset.focusKey, 'task:u:route', 'focus stays on Sugerir; a keystroke never reaches a run button');
   assert.equal(env.requests.some(request => request.path.endsWith('/run')), false, 'a suggestion never dispatches');
   assert.equal(jevBox(), undefined, 'no Jev control without a vault key');
+
+  // The owner moves on while the answer is in flight: focus stays where they went.
+  const held = deferred(), title = $('#task-title');
+  server.hold = held.promise;
+  const click = find(card(), 'Sugerir host e skill').fire('click');
+  title.focus(); held.resolve(); await click; server.hold = null;
+  assert.equal(doc.activeElement, title, 'a late answer never pulls focus onto a run button');
 
   // With a vault key, Jev is one opt-in per request, cleared after it.
   reply = suggestion({ jevAvailable: true });
@@ -232,7 +241,7 @@ test('"Sugerir host e skill" shows source, probability and latency, marks the su
   box.checked = true; await box.fire('change');
   reply = suggestion({ jevAvailable: true, provider: 'jev', host: { value: 'claude', source: 'jev', probability: 0.9, reason: 'selected' } });
   await find(card(), 'Sugerir host e skill').fire('click');
-  assert.deepEqual(routes().map(request => request.body), [{ jev: false }, { jev: false }, { jev: true }]);
+  assert.deepEqual(routes().map(request => request.body), [{ jev: false }, { jev: false }, { jev: false }, { jev: true }]);
   assert.match(card().textContent, /Host: Claude · Jev · p 0,90/);
   assert.equal(find(card(), 'Rodar com Claude').className, 'button');
   assert.equal(jevBox().checked, false, 'the opt-in covered that one request');
