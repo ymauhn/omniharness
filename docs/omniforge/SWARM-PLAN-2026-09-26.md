@@ -31,7 +31,7 @@ Owner-approved direction, 2026-09-26. Start from branch `claude/v1-audit-2026-09
 ## Token policy
 
 - The OS itself adds **no model calls**: status from hooks/process events, usage read from the CLIs' own session files, marked observed or unknown.
-- Gauntlet and any review runs **only when the user clicks it**.
+- Gauntlet and any review runs **only when the user approves it**. An agent may *suggest* a Gauntlet run when it judges it useful (for example a security-sensitive change, a large or risky diff, failing or flaky tests, or before a merge to master), but it must ask the owner first and justify the suggestion in one or two lines with the expected benefit and an honest cost note (observed or unknown). No answer means no run.
 - Building this plan: implementers on a mid-tier model for mechanical packages; **one** independent review per package at the end (not two per slice, no reconciliation loop unless the review finds a real defect). Deterministic tests are the main gate.
 
 ## Skills to load when coding
@@ -57,7 +57,7 @@ Read the result of the coordinator-commit review launched at pause (workflow run
 
 **Wave 2 (parallel after W2/W3)**
 
-- **W5 Gauntlet on demand.** Button on a task that runs the existing Gauntlet skill against the task diff in a native session and stores its findings in the evidence bundle. *Accept:* disabled until a diff exists; cost shown as observed/unknown.
+- **W5 Gauntlet on demand.** Suggestion + confirmation per the token policy (the agent proposes with a justification; the owner decides). Button on a task that runs the existing Gauntlet skill against the task diff in a native session and stores its findings in the evidence bundle. *Accept:* disabled until a diff exists; cost shown as observed/unknown.
 - **W6 System-1 agent router (owner-approved 2026-09-26).** Jev and Laya share one wire protocol (choice / score / yes-no with probabilities); Jev ships official routing integrations (Vercel AI Gateway `typesafe-ai/jev`, AI SDK `experimental_evaluate`, LangChain `TypeSafeClassifier`; LangChain4j example by Kevin Dubois). Reuse our existing Laya worker and JEV adapter behind one `route(task)` seam that *suggests* host (Claude/Codex), skill and effort tier for a new task: Laya local by default (free, ~33 ms), Jev only when a key is stored in the Windows vault (remote, uses credits, opt-in per call). Abstain falls back to lexical; show latency, probability and source; never auto-dispatch. *Accept:* offline tests with both providers faked, one real local Laya decision on this host, a Jev live call only after the owner connects an account.
 - **W7 Docs + CI.** README (what it does, install, run), ARCHITECTURE (one page), STATUS (what works/what is closed); move journals to `docs/archive/`; a GitHub Actions workflow running the Lab + Python suites on Windows. *Accept:* README quick start works on this host.
 - **W8 Honest mini-benchmark (day 2).** 10 small real tasks from this repo, with and without Gauntlet, reporting pass rate, wall time and observed tokens, including failures.
