@@ -43,15 +43,25 @@ const tryGit = (cwd, ...args) => { try { return git(cwd, ...args); } catch { ret
 const unknownUsage = reason => ({ status: 'unknown', inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheCreationTokens: null, source: null, reason });
 const samePath = (a, b) => process.platform === 'win32' ? path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase() : path.resolve(a) === path.resolve(b);
 const jsonLines = file => fs.readFileSync(file, 'utf8').split('\n').flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } });
+// The first line only (Codex session_meta, ~25 KB): another session's rollout can pass 1 GB, over V8's string limit.
+function firstLine(file) {
+  const fd = fs.openSync(file, 'r');
+  try {
+    const buffer = Buffer.alloc(1 << 20);
+    const size = fs.readSync(fd, buffer, 0, buffer.length, 0);
+    const end = buffer.subarray(0, size).indexOf(10);
+    return JSON.parse(buffer.toString('utf8', 0, end < 0 ? size : end));
+  } catch { return null; } finally { fs.closeSync(fd); }
+}
 
 // Claude: <home>/.claude/projects/<any>/<session>.jsonl, found by file name (the folder encodes the cwd), plus its
-// subagent transcripts. One API message spans several lines repeating the same usage, so each message.id counts once.
+// subagent transcripts (workflow subagents nest in subagents/workflows/wf_*/). One API message spans several lines repeating the same usage, so each message.id counts once.
 function claudeUsage(homeDir, sessionId) {
   const projects = path.join(homeDir, '.claude', 'projects');
   const file = (fs.existsSync(projects) ? fs.readdirSync(projects) : []).map(dir => path.join(projects, dir, `${sessionId}.jsonl`)).find(candidate => fs.existsSync(candidate));
   if (!file) return { usage: unknownUsage('Transcrição da sessão Claude não encontrada') };
   const subagents = path.join(path.dirname(file), sessionId, 'subagents');
-  const files = [file, ...(fs.existsSync(subagents) ? fs.readdirSync(subagents).filter(name => name.endsWith('.jsonl')).map(name => path.join(subagents, name)) : [])];
+  const files = [file, ...(fs.existsSync(subagents) ? fs.readdirSync(subagents, { recursive: true }).filter(name => name.endsWith('.jsonl')).map(name => path.join(subagents, name)) : [])];
   const messages = new Map();
   for (const row of files.flatMap(jsonLines)) if (row?.type === 'assistant' && row.message?.id && row.message.usage) messages.set(row.message.id, row.message.usage);
   if (!messages.size) return { usage: unknownUsage('A transcrição Claude não registra uso de mensagens') };
@@ -69,13 +79,14 @@ function codexUsage(homeDir, run) {
   for (const name of fs.existsSync(root) ? fs.readdirSync(root, { recursive: true }) : []) {
     const file = path.join(root, name);
     if (!/^rollout-.*\.jsonl$/.test(path.basename(name)) || fs.statSync(file).mtimeMs < started) continue;
-    const rows = jsonLines(file);
-    const meta = rows[0]?.type === 'session_meta' ? rows[0].payload : null;
+    const head = firstLine(file);
+    const meta = head?.type === 'session_meta' ? head.payload : null;
     const at = Date.parse(meta?.timestamp);
-    if (typeof meta?.cwd === 'string' && samePath(meta.cwd, run.worktree) && at >= started && (!best || at > best.at)) best = { file, rows, at, id: meta.id };
+    if (typeof meta?.cwd === 'string' && samePath(meta.cwd, run.worktree) && at >= started && (!best || at > best.at)) best = { file, at, id: meta.id };
   }
   if (!best) return { usage: unknownUsage('Sessão do Codex desta worktree não encontrada') };
-  const total = best.rows.findLast(row => row?.payload?.type === 'token_count' && row.payload.info?.total_token_usage)?.payload.info.total_token_usage;
+  // ponytail: the run's own rollout is read whole, so one over ~512 MiB reports unknown; read it from the end if that happens.
+  const total = jsonLines(best.file).findLast(row => row?.payload?.type === 'token_count' && row.payload.info?.total_token_usage)?.payload.info.total_token_usage;
   if (!total) return { usage: unknownUsage('A sessão do Codex não registrou contagem de tokens'), hostSessionId: best.id };
   return { usage: { status: 'observed', inputTokens: total.input_tokens ?? null, outputTokens: total.output_tokens ?? null, cacheReadTokens: total.cached_input_tokens ?? null,
     cacheCreationTokens: total.cache_write_input_tokens ?? null, source: best.file, reason: null }, hostSessionId: best.id };
@@ -98,11 +109,13 @@ export class AgentEngine extends EventEmitter {
     const orphans = this.runs.filter(run => ACTIVE.has(run.state));
     for (const run of orphans) this.finish(run, { state: 'failed', detail: 'interrompido', exitCode: null });
     if (orphans.length) this.save();
-    // Exit code 0 is done; any other code, or none, is failed.
-    shells.on('closed', ({ sessionId, code }) => {
+    // Exit code 0 is done; any other code is failed. No code, or a signal, is an interruption: on POSIX node-pty
+    // reports a process killed by the Lab's stop or shutdown as code 0 plus the signal.
+    shells.on('closed', ({ sessionId, code, signal }) => {
       const run = this.runs.find(item => item.sessionId === sessionId && ACTIVE.has(item.state));
       if (!run) return;
-      this.finish(run, code === 0 ? { state: 'done', detail: '', exitCode: 0 } : { state: 'failed', detail: code === null ? 'interrompido' : `saiu com código ${code}`, exitCode: code });
+      this.finish(run, code === null || signal ? { state: 'failed', detail: 'interrompido', exitCode: null }
+        : code === 0 ? { state: 'done', detail: '', exitCode: 0 } : { state: 'failed', detail: `saiu com código ${code}`, exitCode: code });
       // This runs inside node-pty's exit callback: a failed write must not take the Lab down.
       try { this.publish(run); }
       catch (error) { console.error(`OmniForge: fim da execução ${run.id} não foi salvo: ${error.message}`); }

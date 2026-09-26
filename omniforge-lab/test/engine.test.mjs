@@ -4,11 +4,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
+import { EventEmitter } from 'node:events';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createOmniForgeServer } from '../server.mjs';
 import { WorkspaceStore } from '../core.mjs';
 import { PtyCoordinator } from '../pty.mjs';
+import { AgentEngine } from '../engine.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FAKE = path.join(HERE, 'engine-fake-agent.mjs');
@@ -177,7 +179,7 @@ test('a Claude task runs in its own worktree and branch, reports hook states and
   const done = await lab_.until(project.id, run.id, 'done');
   assert.equal(done.exitCode, 0);
   assert.ok(Date.parse(done.endedAt) >= Date.parse(done.startedAt));
-  assert.deepEqual(done.usage, { status: 'observed', inputTokens: 1011, outputTokens: 1007, cacheReadTokens: 103, cacheCreationTokens: 24,
+  assert.deepEqual(done.usage, { status: 'observed', inputTokens: 6011, outputTokens: 6007, cacheReadTokens: 103, cacheCreationTokens: 24,
     source: path.join(lab_.home, '.claude', 'projects', 'C--qualquer-pasta', `${run.hostSessionId}.jsonl`), reason: null });
   assert.equal(git(root, 'status', '--porcelain'), '');
   await waitFor(() => events.some(event => event.runId === run.id && event.state === 'done'), 'SSE agent done');
@@ -244,6 +246,11 @@ test('a Codex task gets notify as TOML and reads its own rollout; hook secrets a
   const count = JSON.stringify({ type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { input_tokens: 5, cached_input_tokens: 0, output_tokens: 5 } } } });
   fs.writeFileSync(path.join(sessions, 'rollout-old.jsonl'), `${meta(codex.worktree, '2020-01-01T00:00:00.000Z')}\n${count}`);
   fs.writeFileSync(path.join(sessions, 'rollout-other.jsonl'), `${meta(root, '2999-01-01T00:00:00.000Z')}\n${count}`);
+  // A concurrent session elsewhere past V8's string limit (~512 MiB; this host has a 1.5 GB rollout): only its first
+  // line may be read. Extending the file writes no data.
+  const huge = path.join(sessions, 'rollout-huge.jsonl');
+  fs.writeFileSync(huge, `${meta(root, new Date().toISOString())}\n`);
+  fs.truncateSync(huge, 600 * 2 ** 20);
 
   assert.equal((await post(`/api/sessions/${codex.sessionId}/write`, { data: 'continue\r' })).status, 200);
   const codexDone = await lab_.until(project.id, codex.id, 'done');
@@ -314,6 +321,20 @@ test('a launch that fails after the worktree exists ends failed, never stuck sta
   const retry = await (await post(`/api/tasks/${task.id}/run`, { host: 'codex', expectedRevision: 1 })).json();
   assert.equal(retry.state, 'working');
   await waitFor(() => fs.existsSync(path.join(retry.worktree, 'agent-call.json')), 'fake Codex started');
+});
+
+test('an agent killed by a signal (POSIX Lab stop or shutdown reports code 0) ends failed/interrompido, never done', t => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-engine-'));
+  const store = new WorkspaceStore(path.join(temp, 'data'));
+  t.after(() => { store.close(); fs.rmSync(temp, { recursive: true, force: true, maxRetries: 5 }); });
+  const shells = Object.assign(new EventEmitter(), { start() {} });
+  const engine = new AgentEngine({ store, shells, hookUrl: () => 'http://127.0.0.1:9/api/agent-events', homeDir: path.join(temp, 'home'), hosts: { claude: { file: process.execPath, args: [] } } });
+  const project = store.addProject({ name: 'Repo', root: repo(path.join(temp, 'repo')) });
+  const task = store.addTask({ projectId: project.id, title: 'Parar' });
+  const run = engine.run(task.id, { host: 'claude', expectedRevision: task.revision });
+  shells.emit('closed', { sessionId: run.sessionId, code: 0, signal: 9 });
+  const stopped = engine.runForTask(task.id);
+  assert.deepEqual([stopped.state, stopped.detail, stopped.exitCode], ['failed', 'interrompido', null]);
 });
 
 test('a Lab restart turns an unfinished run into failed/interrompido, never done', async t => {

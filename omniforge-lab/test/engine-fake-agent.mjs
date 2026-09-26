@@ -25,7 +25,8 @@ if (args.includes('--session-id')) {
   hook({ hook_event_name: 'Stop' });
   const dir = path.join(home, '.claude', 'projects', 'C--qualquer-pasta');
   const session = after('--session-id');
-  fs.mkdirSync(path.join(dir, session, 'subagents'), { recursive: true });
+  // Workflow-spawned subagents sit one level deeper, in subagents/workflows/wf_*/.
+  fs.mkdirSync(path.join(dir, session, 'subagents', 'workflows', 'wf_1'), { recursive: true });
   const assistant = (id, usage) => JSON.stringify({ type: 'assistant', message: { id, usage } });
   fs.writeFileSync(path.join(dir, `${session}.jsonl`), [
     JSON.stringify({ type: 'user', message: { content: 'oi' } }),
@@ -35,6 +36,7 @@ if (args.includes('--session-id')) {
     'linha truncada {',
   ].join('\n'));
   fs.writeFileSync(path.join(dir, session, 'subagents', 'agent-1.jsonl'), assistant('m3', { input_tokens: 1000, output_tokens: 1000 }));
+  fs.writeFileSync(path.join(dir, session, 'subagents', 'workflows', 'wf_1', 'agent-2.jsonl'), assistant('m5', { input_tokens: 5000, output_tokens: 5000 }));
   fs.writeFileSync(path.join(dir, 'outra-sessao.jsonl'), assistant('m4', { input_tokens: 99999, output_tokens: 99999 }));
 } else {
   await line();
