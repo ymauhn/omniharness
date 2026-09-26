@@ -213,10 +213,12 @@ def prepare_claude_worker_attempt(*, container_worker, process_evidence_root,
     started = False
     verified_identity = None
     try:
-        state = container_worker.start(attempt_id)
-        # Only a returned start owns this attempt's durable state; a colliding or failed
-        # start records its own uncertainty and must never stop another attempt's container.
         started = True
+        try:
+            state = container_worker.start(attempt_id)
+        except FileExistsError:
+            started = False  # start's exclusive mkdir: another attempt owns this ID and its container
+            raise
         if (not isinstance(state, dict) or state.get("phase") != "running"
                 or state.get("attempt_id") != attempt_id
                 or not isinstance(state.get("cid"), str) or not CID.fullmatch(state["cid"])

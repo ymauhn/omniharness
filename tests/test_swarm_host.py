@@ -321,6 +321,18 @@ class SwarmHostTests(unittest.TestCase):
         self.assertNotIn("stop", self.actions(fake))
         self.assertEqual(cancel_prepared_claude_worker_attempt(first)["phase"], "cancelled")
 
+    def test_t13_failed_own_start_is_stopped_before_its_lease_is_released(self):
+        # The D1 fix must still stop a container this attempt created and ran itself.
+        lease = self.reserve("implement:a:0")
+        path = str(self.fx.worktrees.workers / RUN / docker_attempt_id(RUN, "implement:a:0", lease))
+        fake = self.fx.dockers[path] = fx.FakeDocker(Path(path))
+        fake.mutate_profile = lambda info: info["HostConfig"].update(Privileged=info["State"]["Running"])
+        self.assertIsNone(self.host.preflight(self.context("implement:a:0", lease)))
+        self.assertEqual(self.actions(fake)[-3:], ["stop", "rm", "inspect"])
+        self.assertEqual((fake.running, fake.removed), (False, True))
+        self.host.cancel(lease)
+        self.assertEqual((self.state(lease), self.fx.launches), ("cancelled", []))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -29,6 +29,7 @@ The JSON-lines test first hung in `git rev-parse`. A faulthandler dump showed Gi
 - **Not run.** The Lab/mascot npm suites and the full `scripts/check.ps1`.
 - **Probe.** The model-free MCP→Docker reprobe on this source passed **26/26** in 12.2 s: `model_invoked=false`, `task_pass=null`, container removed, no fixture preserved, no labelled container left. Report: [claude-broker-2026-09-26.json](../experiments/claude-broker-2026-09-26.json). The 2026-09-25 report is unchanged.
 - **Limits.** Offline fixtures only: fake Docker CLI and a fake model turn. This establishes no live isolation, provider cap, billed usage or managed admission.
+- **Review repair.** The first D1 fix also dropped the exact-ID stop of an attempt's own failed start. With post-start profile drift, the container kept running and the driver then released its unbound lease. Now prepare skips cleanup only when `start` raises `FileExistsError` from its exclusive attempt directory. The new test `test_t13_failed_own_start_is_stopped_before_its_lease_is_released` was red first: the actions ended at `inspect, start, inspect`. Revalidated: `python -m unittest discover tests` **323 OK, zero skipped**, 271.3 s; `test_swarm_driver.js` 11/11; `test_swarm_host.js` 5/5. The MCP→Docker reprobe was not rerun.
 
 ## 2026-09-25 — prepared Claude worker and attempt-labeled reservations
 

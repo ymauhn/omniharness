@@ -101,7 +101,8 @@ class SwarmHost:
             with self._lock:  # concurrent `git worktree add` on one source is not safe
                 record = self.worktrees.create(self.run, docker_id, attempt["baseCommit"], attempt["scope"])
             worker = self.make_worker(record)
-            # ponytail: a failed start stays 'unknown' in worker evidence for exact-ID triage, no auto-stop
+            # ponytail: prepare stops its own failed start by exact ID; an unconfirmed stop stays
+            # 'unknown' in worker evidence for triage, and this unbound lease can still be released
             prepared = prepare_claude_worker_attempt(
                 container_worker=worker, process_evidence_root=self.process_root, attempt_id=docker_id,
                 role=role, timeout=self.timeout, cancel_event=self.cancel_event,
