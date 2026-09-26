@@ -49,7 +49,8 @@ if prompt == 'exit7':
 
 class CodexExecTests(unittest.TestCase):
     def setUp(self):
-        temp = tempfile.TemporaryDirectory()
+        # Canonical: the harness works on resolved paths, and TEMP may be an 8.3 or junction spelling of one.
+        temp = tempfile.TemporaryDirectory(dir=Path(tempfile.gettempdir()).resolve())
         self.addCleanup(temp.cleanup)
         self.base = Path(temp.name)
         self.worker = self.base / "worker"

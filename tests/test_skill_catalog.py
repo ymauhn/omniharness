@@ -19,7 +19,8 @@ def write_skill(path, name='graphify', body='Variant A.', description='Build a c
 
 class CatalogTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix='omni-catalog-')
+        # Canonical: the harness works on resolved paths, and TEMP may be an 8.3 or junction spelling of one.
+        self.temp = tempfile.TemporaryDirectory(prefix='omni-catalog-', dir=Path(tempfile.gettempdir()).resolve())
         self.base = Path(self.temp.name)
         self.home = self.base / 'home'
         self.root = self.base / 'root'

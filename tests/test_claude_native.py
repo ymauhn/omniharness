@@ -35,7 +35,8 @@ if prompt == 'failed':
 
 class ClaudeNativeTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
+        # Canonical: the harness works on resolved paths, and TEMP may be an 8.3 or junction spelling of one.
+        self.temp = tempfile.TemporaryDirectory(dir=Path(tempfile.gettempdir()).resolve())
         self.addCleanup(self.temp.cleanup)
         self.base = Path(self.temp.name)
         self.worker = self.base / "worker"
