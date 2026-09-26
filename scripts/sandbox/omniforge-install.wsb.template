@@ -1,0 +1,20 @@
+<!-- Rendered by prepare-release.ps1: it replaces __RELEASE_DIR__ and __OUTPUT_DIR__ with absolute host paths. -->
+<!-- No network: the release zip bundles node_modules and the portable Node zip sits in the release folder. -->
+<Configuration>
+  <Networking>Disable</Networking>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>__RELEASE_DIR__</HostFolder>
+      <SandboxFolder>C:\OmniForge\release</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+    <MappedFolder>
+      <HostFolder>__OUTPUT_DIR__</HostFolder>
+      <SandboxFolder>C:\OmniForge\output</SandboxFolder>
+      <ReadOnly>false</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+  <LogonCommand>
+    <Command>powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\OmniForge\release\run-in-sandbox.ps1 -Release C:\OmniForge\release -Output C:\OmniForge\output</Command>
+  </LogonCommand>
+</Configuration>
