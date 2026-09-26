@@ -1,6 +1,6 @@
 # Resume here: full OmniForge MVP
 
-**2026-09-26: PAUSED for a direction change.** Read [HANDOFF-PAUSE-2026-09-26](HANDOFF-PAUSE-2026-09-26.md) first; the text below is the earlier plan.
+**2026-09-26: PAUSED for a direction change.** Read [HANDOFF-PAUSE-2026-09-26](HANDOFF-PAUSE-2026-09-26.md), then execute [SWARM-PLAN-2026-09-26](SWARM-PLAN-2026-09-26.md); the text below is the earlier plan.
 
 **Owner-paused on September 26 because the weekly Codex allowance was low.** Claude Opus 5.5 should resume from the [complete cross-session handoff](HANDOFF-CLAUDE-OPUS-2026-09-26.md). This pause does not narrow the release contract.
 
