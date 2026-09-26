@@ -121,7 +121,7 @@ export async function action(path, body, success) {
   return result;
 }
 
-export function connect({ onOpen, onTerminal, onState, onArsenal } = {}) {
+export function connect({ onOpen, onTerminal, onState, onAgent } = {}) {
   const source = new EventSource(`/api/events?token=${encodeURIComponent(authToken || '')}`);
   local.source = source;
   source.onopen = () => {
@@ -148,9 +148,9 @@ export function connect({ onOpen, onTerminal, onState, onArsenal } = {}) {
     try { onState?.(JSON.parse(event.data)); }
     catch { toast('Atualização de estado inválida.'); }
   });
-  source.addEventListener('arsenal', event => {
-    try { onArsenal?.(JSON.parse(event.data)); }
-    catch { /* A later explicit refresh remains available. */ }
+  source.addEventListener('agent', event => {
+    try { onAgent?.(JSON.parse(event.data)); }
+    catch { /* malformed event: the next agent event or reconnect reloads the runs */ }
   });
   return source;
 }

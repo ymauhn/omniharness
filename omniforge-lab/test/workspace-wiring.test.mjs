@@ -25,11 +25,11 @@ function environment() {
   const catalog = { sync() {}, load() {}, search() {} };
   const copilot = { sync() {}, deactivate() {} };
   const workflows = { sync() {}, load: () => calls.push('workflows') };
-  const arsenal = { sync() {}, load() {} };
+  const fleet = { sync() {}, load: () => calls.push('fleet') };
   const extensionsPanel = { sync() {}, load() {} };
   const usagePanel = { load() {} };
   const memoryPanel = { load: () => calls.push('memory-panel') };
-  const nav = createNavigation({ workspace, tasks, graphs, assets, catalog, copilot, workflows, arsenal, extensionsPanel, usagePanel, memoryPanel });
+  const nav = createNavigation({ workspace, tasks, graphs, assets, catalog, copilot, workflows, fleet, extensionsPanel, usagePanel, memoryPanel });
   return { nav, local, calls };
 }
 
@@ -51,5 +51,7 @@ test('navigation opens saved workflows and refreshes scoped memory controls', ()
   nav.showView('workflows'); assert.equal(local.view, 'workflows');
   assert.ok(calls.includes('workflows'));
   nav.showView('graphs'); assert.ok(calls.includes('memory-panel'));
-  nav.showView('unknown'); assert.equal(local.view, 'graphs');
+  nav.showView('fleet'); assert.ok(calls.includes('fleet'), 'entering Agentes reloads the runs');
+  nav.showView('arsenal'); assert.equal(local.view, 'fleet', 'the Arsenal view is cut from the page');
+  nav.showView('unknown'); assert.equal(local.view, 'fleet');
 });

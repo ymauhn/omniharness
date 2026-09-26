@@ -255,7 +255,9 @@ export class AgentEngine extends EventEmitter {
       this.publish(run);
       throw error;
     }
-    this.store.assignTask(taskId, { sessionId: session.id, worktree, expectedRevision });
+    const assigned = this.store.assignTask(taskId, { sessionId: session.id, worktree, expectedRevision });
+    // Only an open task starts running; a blocked or done one keeps the status its owner gave it.
+    if (assigned.status === 'open') this.store.setTaskStatus(taskId, 'running', assigned.revision);
     this.set(run, { state: 'working', detail: '' });
     return structuredClone(run);
   }

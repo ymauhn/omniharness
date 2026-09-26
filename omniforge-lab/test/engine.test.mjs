@@ -154,8 +154,8 @@ test('a Claude task runs in its own worktree and branch, reports hook states and
   assert.equal(git(run.worktree, 'rev-parse', '--abbrev-ref', 'HEAD'), run.branch);
   assert.equal(git(root, 'rev-parse', '--abbrev-ref', 'HEAD'), 'main');
   const bound = (await (await get('/api/state')).json()).tasks.find(item => item.id === task.id);
-  assert.deepEqual([bound.sessionId, bound.worktree, bound.revision], [run.sessionId, run.worktree, 2]);
-  const again = await post(`/api/tasks/${task.id}/run`, { host: 'codex', expectedRevision: 2 });
+  assert.deepEqual([bound.sessionId, bound.worktree, bound.status, bound.revision], [run.sessionId, run.worktree, 'running', 3]);
+  const again = await post(`/api/tasks/${task.id}/run`, { host: 'codex', expectedRevision: 3 });
   assert.equal(again.status, 409);
   assert.match((await again.json()).error, /já tem um agente/);
 
@@ -199,7 +199,7 @@ test('a Claude task runs in its own worktree and branch, reports hook states and
   assert.deepEqual([diff.branch, diff.files.map(file => file.path)], [run.branch, ['agent-call.json']]);
   // The agent exited on its own, so its session stays uncertain, but only for its own worktree: the next run starts.
   assert.equal((await (await get('/api/state')).json()).sessions.find(item => item.id === run.sessionId).status, 'interrupted');
-  const next = await post(`/api/tasks/${task.id}/run`, { host: 'claude', expectedRevision: 2 });
+  const next = await post(`/api/tasks/${task.id}/run`, { host: 'claude', expectedRevision: 3 });
   assert.equal(next.status, 200, await next.clone().text());
   const second = await next.json();
   assert.equal(second.branch, `omniforge/${task.id.slice(0, 8)}-2`);
@@ -349,6 +349,25 @@ test('an agent killed by a signal (POSIX Lab stop or shutdown reports code 0) en
   shells.emit('closed', { sessionId: run.sessionId, code: 0, signal: 9 });
   const stopped = engine.runForTask(task.id);
   assert.deepEqual([stopped.state, stopped.detail, stopped.exitCode], ['failed', 'interrompido', null]);
+});
+
+test('a run moves an open task to running and leaves a blocked or done task as it was', t => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-engine-'));
+  const store = new WorkspaceStore(path.join(temp, 'data'));
+  t.after(() => { store.close(); fs.rmSync(temp, { recursive: true, force: true, maxRetries: 5 }); });
+  const shells = Object.assign(new EventEmitter(), { start() {} });
+  const engine = new AgentEngine({ store, shells, hookUrl: () => 'http://127.0.0.1:9/api/agent-events', homeDir: path.join(temp, 'home'), hosts: { claude: { file: process.execPath, args: [] } } });
+  const project = store.addProject({ name: 'Repo', root: repo(path.join(temp, 'repo')) });
+  const open = store.addTask({ projectId: project.id, title: 'Aberta' });
+  const run = engine.run(open.id, { host: 'claude', expectedRevision: open.revision });
+  const moved = store.task(open.id);
+  assert.deepEqual([moved.status, moved.sessionId, moved.worktree, moved.revision], ['running', run.sessionId, run.worktree, 3]);
+  for (const status of ['blocked', 'done']) {
+    const task = store.addTask({ projectId: project.id, title: status });
+    store.setTaskStatus(task.id, status, task.revision);
+    engine.run(task.id, { host: 'claude', expectedRevision: task.revision });
+    assert.equal(store.task(task.id).status, status);
+  }
 });
 
 test('a Lab restart turns an unfinished run into failed/interrompido, never done', async t => {

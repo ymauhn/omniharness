@@ -4,8 +4,9 @@ import './support/browser-globals.mjs';
 import { local, renderLog } from '../app/state.mjs';
 import { createWorkspace } from '../app/workspace.mjs';
 import { createTasks } from '../app/tasks.mjs';
+import { createFleet } from '../app/fleet.mjs';
 
-// Runs the page's real sidebar, task list and coordination log renderers (workspace.mjs, tasks.mjs,
+// Runs the page's real sidebar, task list and coordination log renderers (workspace.mjs, tasks.mjs, fleet.mjs,
 // state.mjs) against a minimal DOM seam: an SSE state event re-renders them, and the user's choice,
 // keyboard focus and log nodes must survive. `local` is the one real shared module singleton, so each
 // environment() resets every field a test touches instead of relying on a fresh module instance.
@@ -51,7 +52,7 @@ function environment() {
 
   const storage = { getItem: () => null, setItem() {} };
   const workspace = createWorkspace({ renderAll() {}, loadMemory() {}, clearContext() {}, showView() {}, copilot: { revision: () => 1, sync() {} }, storage });
-  const tasks = createTasks({ showView() {}, arsenal: { focusTask() {} } });
+  const tasks = createTasks({ showView() {}, runControls: createFleet({ openSession() {} }).taskControls });
   return { workspace, tasks, doc, local, $ };
 }
 
@@ -78,7 +79,7 @@ test('re-rendering the sidebar and task list restores keyboard focus by stable k
     ['#project-list', node => node.textContent === 'Beta'],
     ['#session-list', node => node.textContent.startsWith('Build')],
     ['#task-list', node => node.tag === 'select'],
-    ['#task-list', node => node.textContent === 'Vincular agente'],
+    ['#task-list', node => node.textContent === 'Rodar com Claude'],
   ];
   for (const [list, match] of targets) {
     const before = $(list).descendants().find(match);

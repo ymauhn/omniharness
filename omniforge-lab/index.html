@@ -197,6 +197,37 @@
     .task-replan { color:var(--warn); }
     .task-handoff-form { display:grid; grid-template-columns:minmax(120px,160px) minmax(0,1fr) auto; gap:8px; align-items:end; margin-top:8px; }
     @media (max-width:690px) { .task-handoff-form { grid-template-columns:1fr; } }
+    /* Agent runs: the state is always written out; the colour only repeats it. */
+    :is(.fleet-run,.run-badge)[data-state] { --run:var(--muted); }
+    :is(.fleet-run,.run-badge):is([data-state="starting"],[data-state="working"]) { --run:var(--accent); }
+    :is(.fleet-run,.run-badge)[data-state="blocked"] { --run:var(--warn); }
+    :is(.fleet-run,.run-badge)[data-state="done"] { --run:var(--ok); }
+    :is(.fleet-run,.run-badge)[data-state="failed"] { --run:var(--danger); }
+    .run-badge { display:inline-flex; align-items:center; gap:6px; max-width:100%; border:1px solid var(--run); border-radius:12px; padding:3px 9px; color:var(--run); font-size:11px; font-weight:700; overflow-wrap:anywhere; }
+    .run-badge::before { content:""; flex:none; width:7px; height:7px; border-radius:50%; background:currentColor; }
+    @media (prefers-reduced-motion:no-preference) { .run-badge:is([data-state="starting"],[data-state="working"])::before { animation:run-pulse 1.4s ease-in-out infinite; } }
+    @keyframes run-pulse { 50% { opacity:.3; } }
+    .task-run { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    .fleet-notify { display:grid; gap:5px; justify-items:end; max-width:320px; }
+    .fleet-notify small { color:var(--muted); font-size:11px; line-height:1.4; text-align:right; }
+    .fleet-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:10px; padding:15px; }
+    .fleet-grid > .empty { grid-column:1/-1; padding:5px 0; }
+    .fleet-run { display:grid; gap:7px; align-content:start; min-width:0; padding:12px 13px; border:1px solid var(--line); border-left:4px solid var(--run); border-radius:var(--radius); background:var(--surface2); }
+    .fleet-run-head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:6px; }
+    .fleet-host { font-size:13px; }
+    .fleet-run p { margin:0; overflow-wrap:anywhere; }
+    .fleet-task { font-size:13px; font-weight:650; line-height:1.4; }
+    .fleet-run .meta { color:var(--muted); font:11px/1.5 Consolas,monospace; }
+    .fleet-run button { justify-self:start; }
+    .fleet-board-card { margin-top:12px; }
+    .kanban { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; padding:15px; }
+    .kanban-column { display:grid; align-content:start; gap:8px; min-width:0; padding:10px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface2); }
+    .kanban-column h3 { color:var(--muted); font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
+    .kanban-list { display:grid; gap:7px; margin:0; padding:0; list-style:none; }
+    .kanban-card { display:grid; gap:6px; justify-items:start; padding:9px 10px; border:1px solid var(--line); border-radius:6px; background:var(--surface); font-size:12px; line-height:1.4; overflow-wrap:anywhere; }
+    .kanban-empty { color:var(--muted); font-size:12px; }
+    @media (max-width:1100px) { .kanban { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media (max-width:690px) { .kanban { grid-template-columns:1fr; } .fleet-grid { grid-template-columns:1fr; } .fleet-notify { justify-items:start; } .fleet-notify small { text-align:left; } }
     @media (max-width:1250px) { .workspace { grid-template-columns:1fr; } .coord { min-height:350px; max-height:none; } .coord-log { max-height:250px; } }
     @media (max-width:920px) { .shell { grid-template-columns:185px minmax(0,1fr); } main { padding:17px; } .graph-layout, .two-col { grid-template-columns:1fr; } .top-context { display:none; } }
     @media (max-width:690px) { .shell { display:block; } .rail { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; padding:9px; border-right:0; border-bottom:1px solid var(--line); } .rail-section { display:block; } .rail-list { max-height:98px; } .nav { display:flex; grid-column:1/-1; overflow:auto; } .nav button { white-space:nowrap; width:auto; } .rail-foot { display:none; } .terminal-grid { grid-template-columns:1fr; } .terminal-pane { min-height:400px; } .terminal-output { min-height:260px; max-height:320px; } .terminal-xterm { height:320px; } .graph-node { max-width:124px; } .split-toolbar { display:none; } .topbar { flex-wrap:wrap; padding:9px 12px; } .brand, .top-actions { width:100%; } .top-actions { justify-content:space-between; gap:5px; } .status { display:inline-flex; } .theme-select { max-width:160px; font-size:11px; } }
@@ -205,7 +236,6 @@
   <link rel="stylesheet" href="/copilot.css">
   <link rel="stylesheet" href="/memory-panel.css">
   <link rel="stylesheet" href="/workflow-panel.css">
-  <link rel="stylesheet" href="/arsenal-panel.css">
   <link rel="stylesheet" href="/terminal-grid.css">
 </head>
 <body data-theme="operations">
@@ -244,7 +274,7 @@
           <button type="button" data-view="workspace" aria-current="page"><span class="icon">▣</span>Área de trabalho</button>
           <button type="button" data-view="tasks"><span class="icon">◇</span>Tarefas</button>
           <button type="button" data-view="workflows"><span class="icon">↗</span>Workflows</button>
-          <button type="button" data-view="arsenal"><span class="icon">✧</span>Agentes</button>
+          <button type="button" data-view="fleet"><span class="icon">✧</span>Agentes</button>
           <button type="button" data-view="graphs"><span class="icon">⌘</span>Memória e grafos</button>
           <button type="button" data-view="skills"><span class="icon">✦</span>Skills</button>
           <button type="button" data-view="assets"><span class="icon">▤</span>Assets</button>
@@ -284,9 +314,10 @@
           <div class="heading"><div><span class="eyebrow">Fluxos do projeto</span><h1 id="workflows-title">Workflows</h1><p class="lede">Revise, salve e reutilize prompts com dependências. Crie tarefas por etapa, com a versão escolhida preservada.</p></div></div>
           <div id="workflow-panel"></div>
         </section>
-        <section id="view-arsenal" class="view" aria-labelledby="arsenal-title" hidden>
-          <div class="heading"><div><span class="eyebrow">Perfis por projeto</span><h1 id="arsenal-title">Arsenal de agentes</h1><p class="lede">Importe modelos, derive de decisões escolhidas, revise regras e vincule uma versão a uma tarefa. O vínculo não inicia modelos.</p></div></div>
-          <div id="arsenal-panel"></div>
+        <section id="view-fleet" class="view" aria-labelledby="fleet-title" hidden>
+          <div class="heading"><div><span class="eyebrow">Frota do projeto</span><h1 id="fleet-title">Agentes</h1><p class="lede">Execuções de Claude e Codex deste projeto, cada uma na própria worktree. O estado vem dos hooks dos próprios CLIs; esta tela não chama modelos.</p></div><div class="fleet-notify"><button id="fleet-notify" type="button" class="secondary">Ativar notificações</button><small id="fleet-notify-help"></small></div></div>
+          <section class="card" aria-labelledby="fleet-runs-title"><div class="card-head"><h2 id="fleet-runs-title">Execuções</h2><small id="fleet-count">0 execuções</small></div><div id="fleet-runs" class="fleet-grid"></div></section>
+          <section class="card fleet-board-card" aria-labelledby="fleet-board-title"><div class="card-head"><h2 id="fleet-board-title">Quadro de tarefas</h2><small>Colunas pelo estado da tarefa</small></div><div id="fleet-board" class="kanban"></div></section>
         </section>
         <section id="view-graphs" class="view" aria-labelledby="graphs-title" hidden>
           <div class="heading"><div><span class="eyebrow">03 / Relações com origem</span><h1 id="graphs-title">Memória e grafos</h1><p class="lede">Conhecimento, capacidades e tarefas são vistas distintas conectadas ao mesmo escopo.</p></div></div>
@@ -317,6 +348,7 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <div id="fleet-live" class="visually-hidden" role="status" aria-live="polite"></div>
   <script type="module" src="/app/main.mjs"></script>
 </body>
 </html>

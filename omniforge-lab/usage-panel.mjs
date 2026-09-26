@@ -3,7 +3,7 @@
 const make = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = String(text); return node; };
 const add = (parent, tag, className, text) => { const node = make(tag, className, text); parent.append(node); return node; };
 const TITLES = { 'subscription-quota': 'Quota da assinatura', 'measured-tokens': 'Tokens medidos por execução', 'estimated-cost': 'Custo estimado', 'confirmed-billing': 'Cobrança confirmada' };
-const PROVIDERS = [['jev', 'TypeSafe JEV'], ['anthropic', 'Anthropic API'], ['openai', 'OpenAI API']];
+const PROVIDERS = [['anthropic', 'Anthropic API'], ['openai', 'OpenAI API']];
 
 const keyed = (node, key) => { node.dataset.focusKey = key; return node; };
 const UNAVAILABLE = 'Uso indisponível: ';
