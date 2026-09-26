@@ -92,6 +92,9 @@ test('an attempt is described with its result, test, diff stat, usage, note and 
   assert.match(refused.details.join('\n'), /desconhecido: Transcrição não encontrada/);
   assert.equal(refused.output, null, 'an empty tail shows no output block');
   assert.equal(describeAttempt({ at: 'x', refused: null, mergeSha: null }).kind, 'refused', 'an attempt without a merge SHA never reads as merged');
+  // test is recorded only once the command ran: a refusal before it must not say the reviewer gave none.
+  assert.ok(describeAttempt({ at: 'x', refused: { reason: 'Nada para integrar' }, mergeSha: null }).details.includes('Teste não executado'));
+  assert.ok(describeAttempt({ at: 'x', refused: null, mergeSha: 'a'.repeat(40) }).details.includes('Sem comando de teste'));
 });
 
 test('unknown usage never reads as zero tokens', () => {
@@ -239,4 +242,20 @@ test('live refresh: an evidence event for its task and a new task revision reloa
   env.tasks.delete('t');
   env.panel.sync();
   assert.equal(env.root.hidden, true, 'a removed task closes the panel');
+});
+
+test('a merge running for one task never shows as running on another task', async () => {
+  const env = environment();
+  env.tasks.set('u', { id: 'u', projectId: 'a', title: 'Outra', revision: 1, worktree: 'C:\wt2' });
+  env.panel.open('t');
+  await env.answer('/api/tasks/t/diff', diff());
+  await env.answer('/api/tasks/t/evidence', { taskId: 't', attempts: [] });
+  void env.form().fire('submit');
+  env.panel.open('u');
+  await env.answer('/api/tasks/u/diff', diff());
+  await env.answer('/api/tasks/u/evidence', { taskId: 'u', attempts: [] });
+  assert.equal(env.form().attributes['aria-busy'], 'false');
+  assert.doesNotMatch(env.find('merge').textContent, /Executando/);
+  assert.equal(env.find('merge').disabled, true, 'one merge at a time in this page');
+  assert.match(env.find('merge').textContent, /Aguardando outro merge/);
 });
