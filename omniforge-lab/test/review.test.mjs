@@ -414,7 +414,7 @@ test('merge refuses while a session in the task worktree is stopping, interrupte
     store.setSessionStatus(session.id, status);
     const response = await f.merge({});
     assert.equal(response.status, 409);
-    assert.match((await response.json()).error, /sessão "Claude · agente" na worktree da tarefa/);
+    assert.match((await response.json()).error, /sessão “Claude · agente” na worktree da tarefa/);
   }
   store.flagUncertainSession(session.id);
   store.session(session.id).status = 'stopped';
