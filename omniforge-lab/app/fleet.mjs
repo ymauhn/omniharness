@@ -190,7 +190,7 @@ export function createFleet({ openSession, onChange = () => {} }) {
       const label = one(row, 'label'), box = one(label, 'input');
       box.type = 'checkbox'; box.checked = Boolean(entry.jev); box.dataset.focusKey = `task:${task.id}:route-jev`;
       box.addEventListener('change', () => { entry.jev = box.checked; });
-      one(label, 'span', '', ' Usar Jev nesta sugestão (usa créditos da sua conta Jev; até 3 chamadas)');
+      one(label, 'span', '', ' Usar Jev nesta sugestão (envia o texto da tarefa à Jev e usa créditos da sua conta Jev; até 3 chamadas)');
     }
     const lines = entry.pending ? ['Sugerindo host e skill…'] : entry.error ? [entry.error] : entry.result ? suggestionLines(entry.result) : [];
     if (lines.length) { const box = one(item, 'div', 'route-suggestion'); box.id = `route-${task.id}`; for (const line of lines) one(box, 'p', 'meta', line); }

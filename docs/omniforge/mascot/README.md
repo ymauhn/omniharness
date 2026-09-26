@@ -40,7 +40,7 @@ The Operations, Atelier and Bridge palettes follow the Lab's violet/dark, teal/l
 
 ## Verification record
 
-Base commit: `fa620d61f72c4566c00b802e792b4a04556e809c`. Isolated writer branch: `codex/mvp-mascot`. Approved reference: `../MASCOT-DESIGN-HANDOFF-2026-09-25.md`, SHA-256 `37eceaaa7cc026b34cf6703be20f938269fa5a6b6e8972a46e5ebd0a87be5860`.
+Base commit: `fa620d61f72c4566c00b802e792b4a04556e809c`. Isolated writer branch: `codex/mvp-mascot`. Approved reference: `../../archive/MASCOT-DESIGN-HANDOFF-2026-09-25.md`, SHA-256 `37eceaaa7cc026b34cf6703be20f938269fa5a6b6e8972a46e5ebd0a87be5860`.
 
 The initial implementation deliberately had the ordinary unsafe selected-offset behavior: concatenate `currentDraft.slice(0, start) + replacement + currentDraft.slice(end)` without validating the captured draft. The first runnable requirement was recorded **before the fix**:
 
