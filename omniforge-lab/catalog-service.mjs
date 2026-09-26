@@ -38,10 +38,15 @@ export function runCatalog(python, args, { cwd, input, timeout = 20000 }) {
   });
 }
 
+// The harness Python: OMNIHARNESS_PYTHON, else the Codex app's bundled runtime, else `python` on PATH.
+export function harnessPython() {
+  const bundled = path.join(os.homedir(), '.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe');
+  return process.env.OMNIHARNESS_PYTHON || (fs.existsSync(bundled) ? bundled : 'python');
+}
+
 export class CatalogService {
   constructor({ repoRoot, dataDir, runner = runCatalog, python } = {}) {
-    const bundled = path.join(os.homedir(), '.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe');
-    this.python = python || process.env.OMNIHARNESS_PYTHON || (fs.existsSync(bundled) ? bundled : 'python');
+    this.python = python || harnessPython();
     this.root = repoRoot;
     this.snapshot = path.join(dataDir, 'skill-catalog.json');
     this.runner = runner;
