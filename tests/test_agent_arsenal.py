@@ -211,7 +211,7 @@ class ArsenalTests(unittest.TestCase):
         self.draft()
         before = self.path.read_bytes()
         with patch.object(arsenal, 'MAX_STORE_BYTES', len(before)):
-            with self.assertRaises(arsenal.ValidationError):
+            with self.assertRaises(arsenal.CapacityError):
                 self.review()
         self.assertEqual(self.path.read_bytes(), before)
         sources = self.sources()[:1] + [dict(id=f'quote-{i}', session_id='session', kind='quoted',

@@ -5,14 +5,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createOmniForgeServer } from '../server.mjs';
-import { createArsenalApi } from '../arsenal-http.mjs';
+import { createArsenalApi, observeHostExecutables } from '../arsenal-http.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 test('arsenal HTTP binds explicit session decisions, review and immutable task pins to one project', async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omni-arsenal-http-'));
   const app = createOmniForgeServer({ dataDir: path.join(root, 'data'), repoRoot, token: 'arsenal-test',
-    observeArsenalHosts: () => ['codex', 'claude'] });
+    observeArsenalHosts: async () => ['codex', 'claude'] });
   const base = new URL(await app.listen()).origin;
   t.after(async () => {
     await app.close();
@@ -124,4 +124,27 @@ test('arsenal summary never combines registry and pins from different revisions'
   }, observeHosts: () => [] });
   await assert.rejects(racing({ method: 'GET', url }), error => error.status === 409);
   assert.equal(mutation, 3);
+});
+
+test('real host probe never blocks the event loop and one result is shared briefly', async () => {
+  const started = performance.now();
+  const first = observeHostExecutables();
+  const blockedMs = performance.now() - started;
+  assert.equal(typeof first?.then, 'function', 'probe returned synchronously: spawnSync stalls every PTY and SSE stream');
+  assert.ok(blockedMs < 250, `probe held the event loop for ${Math.round(blockedMs)} ms`);
+  assert.equal(observeHostExecutables(), first, 'a read inside the cache window must not spawn another probe');
+  const hosts = await first;
+  assert.ok(Array.isArray(hosts) && hosts.every(host => ['codex', 'claude', 'hermes'].includes(host)));
+});
+
+test('session sources report how many notes the newest-64 window left out', async () => {
+  const projectId = 'project-a', sessionId = 'session-a';
+  const notes = Array.from({ length: 65 }, (_, index) => ({ id: `note-${String(index).padStart(2, '0')}`, scope: 'session',
+    projectId, sessionId, revision: 1, text: 'x', source: 'owner', updatedAt: `t${String(index).padStart(3, '0')}` }));
+  const handle = createArsenalApi({ store: { project: id => ({ id }), session: id => ({ id, projectId }), notesFor: () => notes },
+    service: {}, observeHosts: () => [] });
+  const result = await handle({ method: 'GET', url: new URL(`http://local/api/arsenal/sources?projectId=${projectId}&sessionId=${sessionId}`) });
+  assert.equal(result.body.notes.length, 64);
+  assert.equal(result.body.total, 65);
+  assert.equal(result.body.notes.some(note => note.id === 'note-00'), false, 'the oldest note is the one left out');
 });
