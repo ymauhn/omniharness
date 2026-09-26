@@ -29,7 +29,8 @@ function environment() {
   const extensionsPanel = { sync() {}, load() {} };
   const usagePanel = { load() {} };
   const memoryPanel = { load: () => calls.push('memory-panel') };
-  const nav = createNavigation({ workspace, tasks, graphs, assets, catalog, copilot, workflows, fleet, extensionsPanel, usagePanel, memoryPanel });
+  const reviewPanel = { sync() {} };
+  const nav = createNavigation({ workspace, tasks, graphs, assets, catalog, copilot, workflows, fleet, extensionsPanel, usagePanel, memoryPanel, reviewPanel });
   return { nav, local, calls };
 }
 

@@ -2,7 +2,7 @@
 import { $, make, one, keepFocus, fillSelect, asArray } from './dom.mjs';
 import { local, api, action, toast, refreshState, sessionById, taskById, statusLabel, time, currentProjectSessions } from './state.mjs';
 
-export function createTasks({ showView, runControls }) {
+export function createTasks({ showView, runControls, reviewPanel }) {
   // Unsent handoff forms (open state, host, note) by task id, so a state re-render never discards what is being typed.
   const handoffDrafts = new Map();
 
@@ -90,6 +90,10 @@ export function createTasks({ showView, runControls }) {
       }
       renderTaskOwner(item, task);
       runControls(item, task);
+      if (task.worktree) {
+        const review = one(item, 'button', 'secondary', 'Revisar'); review.type = 'button'; review.dataset.focusKey = `task:${task.id}:review`;
+        review.setAttribute('aria-label', `Revisar ${task.title}`); review.addEventListener('click', () => reviewPanel.open(task.id));
+      }
       list.append(item);
     }
     restore();

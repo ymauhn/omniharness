@@ -3,12 +3,13 @@
 // This is the only module that talks to the network and the real EventSource; every other
 // app/*.mjs file exports a plain factory a test can import and drive on its own.
 import { $ } from './dom.mjs';
-import { local, api, toast, log, safeTheme, bindRefresher, connect } from './state.mjs';
+import { local, api, toast, log, safeTheme, bindRefresher, connect, taskById } from './state.mjs';
 import { createWorkspace } from './workspace.mjs';
 import { createTasks } from './tasks.mjs';
 import { createGraphs } from './graphs.mjs';
 import { createAssets } from './assets.mjs';
 import { createNavigation } from './navigation.mjs';
+import { createReviewPanel } from './review-panel.mjs';
 import { mountCopilot, mountCatalog } from '../copilot.mjs';
 import { mountMemoryPanel } from '../memory-panel.mjs';
 import { mountWorkflows } from '../workflow-panel.mjs';
@@ -39,10 +40,11 @@ const openSession = id => {
   $('#terminal-grid').children[index]?.querySelector('.pane-select')?.focus();
 };
 const fleet = createFleet({ openSession, onChange: () => tasks.renderTasks() });
-const tasks = createTasks({ showView, runControls: fleet.taskControls });
+const reviewPanel = createReviewPanel({ root: $('#review-panel'), api, getProjectId, getTask: taskById, toast });
+const tasks = createTasks({ showView, runControls: fleet.taskControls, reviewPanel });
 const graphs = createGraphs({ assignPane: workspace.assignPane, renderWorkspace: workspace.renderWorkspace, catalog, memoryPanel, showView });
 const assets = createAssets();
-nav = createNavigation({ workspace, tasks, graphs, assets, catalog, copilot, workflows, fleet, extensionsPanel, usagePanel, memoryPanel });
+nav = createNavigation({ workspace, tasks, graphs, assets, catalog, copilot, workflows, fleet, extensionsPanel, usagePanel, memoryPanel, reviewPanel });
 
 async function refresh() { nav.applyState(await api('/api/state')); }
 bindRefresher(refresh);
@@ -73,4 +75,5 @@ if (!local.tokenInvalid) connect({
   onTerminal: payload => workspace.acceptTerminal(payload),
   onState: state => nav.applyState(state),
   onAgent: event => fleet.accept(event),
+  onEvidence: event => reviewPanel.onEvidence(event),
 });

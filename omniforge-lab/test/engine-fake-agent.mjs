@@ -9,7 +9,9 @@ import { spawnSync } from 'node:child_process';
 const [home, ...args] = process.argv.slice(2);
 const prompt = args.at(-1);
 const after = flag => args[args.indexOf(flag) + 1];
-fs.writeFileSync(path.join(process.cwd(), 'agent-call.json'), JSON.stringify({ args, env: process.env }));
+// Only the Lab's own variables: the rest of the environment can hold credentials, and this file is diffed, shown and merged.
+const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => key.startsWith('OMNIFORGE_')));
+fs.writeFileSync(path.join(process.cwd(), 'agent-call.json'), JSON.stringify({ args, env }));
 const line = () => new Promise(resolve => process.stdin.once('data', resolve));
 
 if (args.includes('--session-id')) {
