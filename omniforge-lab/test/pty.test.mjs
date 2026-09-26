@@ -113,7 +113,7 @@ test('adapter preserves input and Unicode output, bounds chunks, and reports the
   assert.equal(store.session(session.id).status, 'stopping');
   assert.deepEqual(killPids, [12345]);
   confirmKill(true);
-  assert.deepEqual((await closed)[0], { sessionId: session.id, code: 7, signal: null });
+  assert.deepEqual((await closed)[0], { sessionId: session.id, code: 7, signal: null, stopRequested: true });
   assert.equal(store.session(session.id).status, 'stopped');
   assert.equal(coordinator.processes.size, 0);
   await coordinator.closeAll();
@@ -211,17 +211,18 @@ test('failed tree termination stays interrupted even when PTY exit is observed',
   const { store, session } = fixture(t);
   const { child } = fakePty();
   const coordinator = new PtyCoordinator(store, { shell: process.execPath, spawnPty: () => child, killTree: async pid => { assert.equal(pid, child.pid); return false; } });
-  let closed = false;
-  coordinator.on('closed', () => { closed = true; });
+  let closed = null;
+  coordinator.on('closed', event => { closed = event; });
   coordinator.start(session.id);
   const closing = coordinator.closeAll();
   await coordinator.records.get(session.id).killPromise;
   assert.equal(store.session(session.id).status, 'interrupted');
   assert.throws(() => coordinator.write(session.id, 'x'), /encerrado|não está ativa/);
-  assert.equal(closed, false);
+  assert.equal(closed, null);
   child.exit({ exitCode: 1 });
   await assert.rejects(closing, /não confirmado/);
-  assert.equal(closed, true);
+  // The Lab asked for this exit: an unconfirmed stop is still no exit code of the agent's own.
+  assert.deepEqual(closed, { sessionId: session.id, code: 1, signal: null, stopRequested: true });
   assert.equal(store.session(session.id).status, 'interrupted');
 });
 

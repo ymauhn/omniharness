@@ -132,14 +132,13 @@ export class AgentEngine extends EventEmitter {
     const orphans = this.runs.filter(run => ACTIVE.has(run.state));
     for (const run of orphans) this.finish(run, { state: 'failed', detail: 'interrompido', exitCode: null });
     if (orphans.length) this.save();
-    // Exit code 0 is done; any other code is failed. No code, a signal, or a session the Lab stopped is an interruption:
+    // Exit code 0 is done; any other code is failed. No code, a signal, or a stop the Lab requested is an interruption:
     // on POSIX node-pty reports a process killed by the Lab's stop or shutdown as code 0 plus the signal; on Windows
-    // taskkill ends it with code 1 and no signal, and the PTY layer has marked the session stopped before this event.
-    shells.on('closed', ({ sessionId, code, signal }) => {
+    // taskkill ends it with code 1 and no signal, confirmed or not (an unconfirmed stop leaves the session interrupted).
+    shells.on('closed', ({ sessionId, code, signal, stopRequested }) => {
       const run = this.runs.find(item => item.sessionId === sessionId && ACTIVE.has(item.state));
       if (!run) return;
-      const stoppedByLab = ['stopping', 'stopped'].includes(this.store.session(sessionId).status);
-      this.finish(run, code === null || signal || stoppedByLab ? { state: 'failed', detail: 'interrompido', exitCode: null }
+      this.finish(run, code === null || signal || stopRequested ? { state: 'failed', detail: 'interrompido', exitCode: null }
         : code === 0 ? { state: 'done', detail: '', exitCode: 0 } : { state: 'failed', detail: `saiu com código ${code}`, exitCode: code });
       // This runs inside node-pty's exit callback: a failed write must not take the Lab down.
       try { this.publish(run); }

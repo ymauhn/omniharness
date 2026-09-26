@@ -249,7 +249,8 @@ export class PtyCoordinator extends EventEmitter {
     this.processes.delete(sessionId);
     const outcome = { confirmed: confirmed && !record.persistenceError, persistenceError: record.persistenceError, killError: record.killError };
     record.resolveDone(outcome);
-    this.emit('closed', { sessionId, code: record.code, signal: record.signal });
+    // stopRequested: the Lab ended it, even when taskkill could not confirm the tree and the session stays interrupted.
+    this.emit('closed', { sessionId, code: record.code, signal: record.signal, stopRequested: record.stopRequested });
   }
 
   beginStop(sessionId, record) {

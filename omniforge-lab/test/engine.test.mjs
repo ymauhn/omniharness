@@ -368,7 +368,7 @@ test('a launch that fails after the worktree exists ends failed, never stuck sta
   await waitFor(() => fs.existsSync(path.join(retry.worktree, 'agent-call.json')), 'fake Codex started');
 });
 
-test('an agent killed by a signal (POSIX Lab stop or shutdown reports code 0) ends failed/interrompido, never done', t => {
+test('an agent killed by a signal, or stopped by the Lab without confirmation, ends failed/interrompido, never done or with an exit code', t => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'omniforge-engine-'));
   const store = new WorkspaceStore(path.join(temp, 'data'));
   t.after(() => { store.close(); fs.rmSync(temp, { recursive: true, force: true, maxRetries: 5 }); });
@@ -377,9 +377,17 @@ test('an agent killed by a signal (POSIX Lab stop or shutdown reports code 0) en
   const project = store.addProject({ name: 'Repo', root: repo(path.join(temp, 'repo')) });
   const task = store.addTask({ projectId: project.id, title: 'Parar' });
   const run = engine.run(task.id, { host: 'claude', expectedRevision: task.revision });
+  // POSIX: a Lab stop or shutdown reports code 0 plus the signal.
   shells.emit('closed', { sessionId: run.sessionId, code: 0, signal: 9 });
   const stopped = engine.runForTask(task.id);
   assert.deepEqual([stopped.state, stopped.detail, stopped.exitCode], ['failed', 'interrompido', null]);
+  // Windows: taskkill ended it with code 1 but could not confirm the tree, so the session is interrupted, not stopped.
+  const other = store.addTask({ projectId: project.id, title: 'Parar sem confirmação' });
+  const unconfirmed = engine.run(other.id, { host: 'claude', expectedRevision: other.revision });
+  store.setSessionStatus(unconfirmed.sessionId, 'interrupted');
+  shells.emit('closed', { sessionId: unconfirmed.sessionId, code: 1, signal: null, stopRequested: true });
+  const ended = engine.runForTask(other.id);
+  assert.deepEqual([ended.state, ended.detail, ended.exitCode], ['failed', 'interrompido', null]);
 });
 
 test('an agent the Lab stops ends failed/interrompido with no exit code, also on Windows where taskkill exits it with 1', async t => {
