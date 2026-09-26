@@ -14,6 +14,7 @@ import { mountCopilot, mountCatalog } from '../copilot.mjs';
 import { mountMemoryPanel } from '../memory-panel.mjs';
 import { mountWorkflows } from '../workflow-panel.mjs';
 import { createFleet } from './fleet.mjs';
+import { mountArsenalPanel } from '../arsenal-panel.mjs';
 import { mountExtensionsPanel } from '../extensions-panel.mjs';
 import { mountUsagePanel } from '../usage-panel.mjs';
 
@@ -41,10 +42,11 @@ const openSession = id => {
 };
 const fleet = createFleet({ openSession, onChange: () => { tasks.renderTasks(); reviewPanel.onRuns(); } });
 const reviewPanel = createReviewPanel({ root: $('#review-panel'), api, getProjectId, getTask: taskById, toast, getGauntlet: fleet.gauntletRun });
-const tasks = createTasks({ showView, runControls: fleet.taskControls, reviewPanel });
+const arsenal = mountArsenalPanel({ root: $('#arsenal-panel'), api, getProjectId, getSessions: () => local.state.sessions, getTasks: () => local.state.tasks, onChanged: () => tasks.renderTasks() });
+const tasks = createTasks({ showView, runControls: fleet.taskControls, reviewPanel, arsenal });
 const graphs = createGraphs({ assignPane: workspace.assignPane, renderWorkspace: workspace.renderWorkspace, catalog, memoryPanel, showView });
 const assets = createAssets();
-nav = createNavigation({ workspace, tasks, graphs, assets, catalog, copilot, workflows, fleet, extensionsPanel, usagePanel, memoryPanel, reviewPanel });
+nav = createNavigation({ workspace, tasks, graphs, assets, catalog, copilot, workflows, fleet, arsenal, extensionsPanel, usagePanel, memoryPanel, reviewPanel });
 
 async function refresh() { nav.applyState(await api('/api/state')); }
 bindRefresher(refresh);
@@ -76,4 +78,5 @@ if (!local.tokenInvalid) connect({
   onState: state => nav.applyState(state),
   onAgent: event => fleet.accept(event),
   onEvidence: event => reviewPanel.onEvidence(event),
+  onArsenal: update => { if (update.projectId === local.projectId && local.view === 'arsenal') void arsenal.load(); },
 });

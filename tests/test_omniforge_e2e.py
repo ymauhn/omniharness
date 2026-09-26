@@ -343,7 +343,7 @@ class LabE2E(LabCase):
             self.select_project(page, "OmniHarness")
             for theme in ("operations", "atelier", "bridge"):
                 page.locator("#theme").select_option(theme)
-                for name in ("workspace", "tasks", "workflows", "fleet", "graphs", "assets", "usage"):
+                for name in ("workspace", "tasks", "workflows", "fleet", "arsenal", "graphs", "assets", "usage"):
                     page.locator(f"[data-view={name}]").click()
                     page.wait_for_timeout(250)
                     boxes = page.evaluate("() => [...document.querySelectorAll('input[type=checkbox]')].filter(b => b.offsetParent !== null).map(b => b.getBoundingClientRect().width)")
@@ -513,6 +513,32 @@ class LabE2E(LabCase):
         page.locator(f"select[aria-label='Estado de {titles[define]}']").select_option("open")
         page.wait_for_function("t => ![...document.querySelectorAll('#task-list .list-item')].some(i => i.textContent.includes(t) && i.textContent.includes('Bloqueada automaticamente'))", arg=titles[review])
         evidence(page, "tasks-owner-handoff")
+        context.close()
+
+    def test_agent_template_needs_rule_review_before_activation_and_its_pin_never_executes(self):
+        context, page = self.open()
+        self.select_project(page, "OmniHarness")
+        self.view(page, "arsenal")
+        page.get_by_role("button", name="Importar rascunho").first.click()
+        page.get_by_role("button", name="Registrar revisão desta versão").wait_for()
+        activate = page.get_by_role("button", name="Ativar esta versão")
+        self.assertTrue(activate.count() == 0 or activate.is_disabled(), "a draft must not be activatable before its rules are reviewed")
+        boxes = page.locator(".ars-review input[type=checkbox]")
+        widths = page.evaluate("() => [...document.querySelectorAll('.ars-review input[type=checkbox]')].map(b => b.getBoundingClientRect().width)")
+        self.assertTrue(widths and max(widths) <= 24, f"review checkboxes must keep their intrinsic size: {widths}")
+        evidence(page, "arsenal-review")
+        for box in boxes.all():
+            box.check()
+        page.get_by_role("button", name="Registrar revisão desta versão").click()
+        page.wait_for_function("() => { const b = [...document.querySelectorAll('button')].find(x => x.textContent === 'Ativar esta versão'); return b && !b.disabled; }")
+        activate.click()
+        page.locator(".ars-pin label", has_text="Tarefa deste projeto").locator("select").select_option(index=1)
+        page.get_by_role("button", name="Vincular à tarefa").click()
+        page.get_by_text("sem execução").first.wait_for()
+        evidence(page, "arsenal-pin")
+        self.select_project(page, "Projeto isolado")
+        page.wait_for_timeout(500)
+        self.assertEqual(page.locator("button.ars-profile").count(), 0)
         context.close()
 
 

@@ -121,7 +121,7 @@ export async function action(path, body, success) {
   return result;
 }
 
-export function connect({ onOpen, onTerminal, onState, onAgent, onEvidence } = {}) {
+export function connect({ onOpen, onTerminal, onState, onAgent, onEvidence, onArsenal } = {}) {
   const source = new EventSource(`/api/events?token=${encodeURIComponent(authToken || '')}`);
   local.source = source;
   source.onopen = () => {
@@ -155,6 +155,10 @@ export function connect({ onOpen, onTerminal, onState, onAgent, onEvidence } = {
   source.addEventListener('evidence', event => {
     try { onEvidence?.(JSON.parse(event.data)); }
     catch { /* The panel's refresh button remains available. */ }
+  });
+  source.addEventListener('arsenal', event => {
+    try { onArsenal?.(JSON.parse(event.data)); }
+    catch { /* A later explicit refresh remains available. */ }
   });
   return source;
 }

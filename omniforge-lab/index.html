@@ -269,6 +269,7 @@
   <link rel="stylesheet" href="/copilot.css">
   <link rel="stylesheet" href="/memory-panel.css">
   <link rel="stylesheet" href="/workflow-panel.css">
+  <link rel="stylesheet" href="/arsenal-panel.css">
   <link rel="stylesheet" href="/terminal-grid.css">
 </head>
 <body data-theme="operations">
@@ -308,6 +309,7 @@
           <button type="button" data-view="tasks"><span class="icon">◇</span>Tarefas</button>
           <button type="button" data-view="workflows"><span class="icon">↗</span>Workflows</button>
           <button type="button" data-view="fleet"><span class="icon">✧</span>Agentes</button>
+          <button type="button" data-view="arsenal"><span class="icon">❖</span>Arsenal</button>
           <button type="button" data-view="graphs"><span class="icon">⌘</span>Memória e grafos</button>
           <button type="button" data-view="skills"><span class="icon">✦</span>Skills</button>
           <button type="button" data-view="assets"><span class="icon">▤</span>Assets</button>
@@ -352,6 +354,10 @@
           <div class="heading"><div><span class="eyebrow">Frota do projeto</span><h1 id="fleet-title">Agentes</h1><p class="lede">Execuções de Claude e Codex deste projeto, cada uma na própria worktree. O estado vem dos hooks dos próprios CLIs; esta tela não chama modelos.</p></div><div class="fleet-notify"><button id="fleet-notify" type="button" class="secondary">Ativar notificações</button><small id="fleet-notify-help"></small></div></div>
           <section class="card" aria-labelledby="fleet-runs-title"><div class="card-head"><h2 id="fleet-runs-title">Execuções</h2><small id="fleet-count">0 execuções</small></div><div id="fleet-runs" class="fleet-grid"></div></section>
           <section class="card fleet-board-card" aria-labelledby="fleet-board-title"><div class="card-head"><h2 id="fleet-board-title">Quadro de tarefas</h2><small>Colunas pelo estado da tarefa</small></div><div id="fleet-board" class="kanban"></div></section>
+        </section>
+        <section id="view-arsenal" class="view" aria-labelledby="arsenal-title" hidden>
+          <div class="heading"><div><span class="eyebrow">Perfis por projeto</span><h1 id="arsenal-title">Arsenal de agentes</h1><p class="lede">Importe modelos, derive de decisões escolhidas, revise regras e vincule uma versão a uma tarefa. O vínculo não inicia modelos.</p></div></div>
+          <div id="arsenal-panel"></div>
         </section>
         <section id="view-graphs" class="view" aria-labelledby="graphs-title" hidden>
           <div class="heading"><div><span class="eyebrow">03 / Relações com origem</span><h1 id="graphs-title">Memória e grafos</h1><p class="lede">Conhecimento, capacidades e tarefas são vistas distintas conectadas ao mesmo escopo.</p></div></div>
