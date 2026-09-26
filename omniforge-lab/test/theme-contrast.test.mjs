@@ -28,7 +28,7 @@ test('every theme keeps text tokens at 4.5:1 and form-field borders at 3:1 on th
       assert.ok(value >= 3, `${name}: --field against --${surface} is ${value.toFixed(2)}:1`);
     }
   }
-  assert.match(html, /input, textarea, select \{[^}]*border:1px solid var\(--field\)/);
+  assert.match(html, /input:not\(\[type=checkbox\]\):not\(\[type=radio\]\), textarea, select \{[^}]*border:1px solid var\(--field\)/);
   assert.match(html, /\.theme-select \{[^}]*border:1px solid var\(--field\)/);
   assert.match(html, /input::placeholder, textarea::placeholder \{ color:var\(--muted\); opacity:1; \}/, 'placeholders are not faded below the muted ratio');
 });

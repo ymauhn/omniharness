@@ -44,6 +44,7 @@ function environment() {
     local, $, make, one: (parent, ...args) => { const node = make(...args); parent.append(node); return node; }, keepFocus: () => () => {},
     asArray: value => Array.isArray(value) ? value : [], encodeURIComponent,
     projectById: id => local.state.projects.find(project => project.id === id), taskById: id => local.state.tasks.find(task => task.id === id),
+    sessionById: () => undefined, currentProjectSessions: () => [], fillSelect(select, options, value) { select.value = value || ''; }, statusLabel: status => status || '', time: () => '10:00',
     action: (path, body) => { requests.push({ path, body }); return env.respond(path, body); },
     api: path => { apiCalls.push(path); return env.apiQueue.shift(); },
     refresh: async () => { calls.push('refresh'); }, toast: message => messages.push(message),

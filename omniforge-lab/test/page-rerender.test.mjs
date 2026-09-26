@@ -43,6 +43,7 @@ function environment() {
   const ctx = vm.createContext({ document: doc, local, $,
     asArray: value => Array.isArray(value) ? value : [], encodeURIComponent, time: () => '10:00', statusLabel: status => status || '',
     projectById: id => local.state.projects.find(project => project.id === id), taskById: id => local.state.tasks.find(task => task.id === id),
+    sessionById: id => local.state.sessions.find(session => session.id === id), currentProjectSessions: () => local.state.sessions.filter(session => session.projectId === local.projectId),
     terminalLayout: { value: { focus: 0 } }, selectProject() {}, assignPane() {}, renderWorkspace() {}, showView() {}, action: async () => null, api: async () => ({}), refresh: async () => {}, arsenal: { focusTask() {} } });
   vm.runInContext(block('    const make = ', '    const asArray') + block('    function fillSelect(', '    const isPtySession') + block('    function renderLog()', '    async function loadMemory()')
     + html.split('\n').find(line => line.startsWith("    for(const name of ['project','session'])")), ctx);

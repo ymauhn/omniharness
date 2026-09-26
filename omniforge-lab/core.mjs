@@ -268,8 +268,51 @@ export class WorkspaceStore {
     if (task.status === 'done' && status !== 'done' && this.data.tasks.some(dependent => dependent.status === 'done' && dependent.dependsOn.includes(id))) fail('Tarefa concluída tem dependentes concluídos', 409);
     if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1) fail('Revisão esperada inválida');
     if (expectedRevision !== task.revision) fail('Tarefa alterada em outra janela; confira o estado atual antes de mudar', 409);
+    const leavingBlocked = task.status === 'blocked' && status !== 'blocked';
     task.status = status;
     task.revision++;
+    delete task.blockedBy;
+    // Deterministic replan: a blocked prerequisite blocks every open/running dependent, and unblocking it
+    // restores only the dependents it blocked. Tasks blocked by hand keep their state.
+    const dependents = root => this.data.tasks.filter(item => item.dependsOn.includes(root));
+    if (status === 'blocked') {
+      for (const pending = dependents(id); pending.length;) {
+        const next = pending.shift();
+        if (!['open', 'running'].includes(next.status)) continue;
+        Object.assign(next, { status: 'blocked', blockedBy: id, revision: next.revision + 1 });
+        pending.push(...dependents(next.id));
+      }
+    } else if (leavingBlocked) {
+      for (const next of this.data.tasks.filter(item => item.blockedBy === id)) {
+        Object.assign(next, { status: 'open', revision: next.revision + 1 });
+        delete next.blockedBy;
+      }
+    }
+    this.save();
+    return task;
+  }
+
+  assignTask(id, { sessionId = null, worktree = null, expectedRevision } = {}) {
+    const task = this.task(id);
+    if (sessionId !== null && this.session(sessionId).projectId !== task.projectId) fail('A sessão pertence a outro projeto');
+    if (worktree !== null) {
+      worktree = requiredText(worktree, 'Worktree', 1024);
+      if (!path.isAbsolute(worktree)) fail('A worktree deve ser um caminho absoluto');
+    }
+    if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== task.revision) fail('Tarefa alterada em outra janela; confira o estado atual antes de mudar', 409);
+    Object.assign(task, { sessionId, worktree, revision: task.revision + 1 });
+    this.save();
+    return task;
+  }
+
+  handoffTask(id, { toHost, summary, expectedRevision } = {}) {
+    const task = this.task(id);
+    if (!['claude', 'codex'].includes(toHost)) fail('Host de destino inválido');
+    summary = requiredText(summary, 'Resumo do handoff', 500);
+    if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== task.revision) fail('Tarefa alterada em outra janela; confira o estado atual antes de mudar', 409);
+    // ponytail: the last 10 handoffs ride in state events; keep full transcripts in session notes.
+    const entry = { to: toHost, summary, fromSession: task.sessionId ?? null, worktree: task.worktree ?? null, at: new Date().toISOString() };
+    Object.assign(task, { handoffs: [...(task.handoffs ?? []), entry].slice(-10), revision: task.revision + 1 });
     this.save();
     return task;
   }

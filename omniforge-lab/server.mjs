@@ -12,6 +12,9 @@ import { TerminalOutputBuffer } from './terminal-output.mjs';
 import { createWorkflowService } from './workflows.mjs';
 import { ArsenalService } from './arsenal-service.mjs';
 import { createArsenalApi } from './arsenal-http.mjs';
+import { ExtensionService } from './extensions.mjs';
+import { KeyVault } from './key-vault.mjs';
+import { readCodexRateLimits, usageFigures } from './usage.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..');
@@ -46,7 +49,16 @@ async function body(request) {
   catch { const error = new Error('JSON inválido'); error.status = 400; throw error; }
 }
 
-export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omniforge-lab'), repoRoot = REPO_ROOT, token = randomBytes(24).toString('hex'), catalog = new CatalogService({ repoRoot, dataDir }), classifier = new ClassifierService({ repoRoot }), arsenalService = null, observeArsenalHosts } = {}) {
+// The installed Codex CLI, for the explicit quota read only: PATH first, then the Codex app's own copy.
+function findCodex() {
+  const names = process.platform === 'win32' ? ['codex.exe'] : ['codex'];
+  const dirs = String(process.env.PATH || '').split(path.delimiter).filter(dir => path.isAbsolute(dir));
+  if (process.env.USERPROFILE) dirs.push(path.join(process.env.USERPROFILE, '.codex', '.sandbox-bin'));
+  for (const dir of dirs) for (const name of names) { const file = path.join(dir, name); try { if (fs.statSync(file).isFile()) return file; } catch { /* next */ } }
+  return null;
+}
+
+export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omniforge-lab'), repoRoot = REPO_ROOT, token = randomBytes(24).toString('hex'), catalog = new CatalogService({ repoRoot, dataDir }), classifier = new ClassifierService({ repoRoot }), arsenalService = null, observeArsenalHosts, keyVault = null, readQuota = readCodexRateLimits, codexPath = findCodex() } = {}) {
   const expectedToken = Buffer.from(token);
   const sameToken = value => {
     if (typeof value !== 'string') return false;
@@ -61,6 +73,9 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
   const terminalOutput = new TerminalOutputBuffer();
   const arsenal = arsenalService || new ArsenalService({ dataDir: store.dataDir, repoRoot: path.resolve(repoRoot) });
   const arsenalApi = createArsenalApi({ store, service: arsenal, observeHosts: observeArsenalHosts });
+  const extensions = new ExtensionService({ dataDir: store.dataDir });
+  const keys = keyVault || new KeyVault({ dataDir: store.dataDir });
+  let codexQuota = null;
   const clients = new Set();
   const skills = listSkills(repoRoot);
   const state = () => {
@@ -105,7 +120,7 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
       if (request.method === 'GET' && url.pathname === '/pane-scope.mjs') {
         return send(response, 200, fs.readFileSync(path.join(HERE, 'pane-scope.mjs'), 'utf8'), 'text/javascript; charset=utf-8');
       }
-      if (request.method === 'GET' && ['/copilot.mjs', '/copilot.css', '/copilot-provider.mjs', '/memory-panel.mjs', '/memory-panel.css', '/workflow-panel.mjs', '/workflow-panel.css', '/terminal-grid.mjs', '/terminal-grid.css', '/arsenal-panel.mjs', '/arsenal-panel.css'].includes(url.pathname)) {
+      if (request.method === 'GET' && ['/copilot.mjs', '/copilot.css', '/copilot-provider.mjs', '/memory-panel.mjs', '/memory-panel.css', '/workflow-panel.mjs', '/workflow-panel.css', '/terminal-grid.mjs', '/terminal-grid.css', '/arsenal-panel.mjs', '/arsenal-panel.css', '/extensions-panel.mjs', '/usage-panel.mjs'].includes(url.pathname)) {
         return send(response, 200, fs.readFileSync(path.join(HERE, url.pathname.slice(1)), 'utf8'), url.pathname.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8');
       }
       const vendorFiles = {
@@ -180,6 +195,17 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
         const project = store.project(url.searchParams.get('projectId'));
         return send(response, 200, { projectId: project.id, ...await inventoryAssets(project.root) });
       }
+      if (request.method === 'GET' && url.pathname === '/api/extensions') {
+        const project = store.project(url.searchParams.get('projectId'));
+        return send(response, 200, { projectId: project.id, ...extensions.list(project.id) });
+      }
+      if (request.method === 'GET' && url.pathname === '/api/extensions/source') {
+        const project = store.project(url.searchParams.get('projectId'));
+        const row = extensions.version(extensions.list(project.id), Number(url.searchParams.get('version')));
+        return send(response, 200, { version: row.version, sha256: row.sha256, manifest: row.manifest, source: fs.readFileSync(row.path, 'utf8').slice(0, 64 * 1024) });
+      }
+      if (request.method === 'GET' && url.pathname === '/api/keys') return send(response, 200, { keys: keys.list() });
+      if (request.method === 'GET' && url.pathname === '/api/usage') return send(response, 200, { figures: usageFigures({ codexQuota }), codexFound: Boolean(codexPath) });
       if (request.method === 'GET' && url.pathname === '/api/events') {
         response.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', 'connection': 'keep-alive', 'x-content-type-options': 'nosniff' });
         response.write(`event: state\ndata: ${JSON.stringify(state())}\n\n`);
@@ -217,6 +243,20 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
       } else if (url.pathname === '/api/tasks') output = store.addTask(input);
       else if (url.pathname === '/api/memory') output = store.addNote(input);
       else if (url.pathname === '/api/layout') output = store.setLayout(input.split);
+      else if (url.pathname.startsWith('/api/extensions/')) {
+        const project = store.project(input.projectId), action = url.pathname.slice('/api/extensions/'.length);
+        changed = false;
+        if (action === 'generate') output = await extensions.generate(project.id, input.request);
+        else if (action === 'preview') output = await extensions.preview(project.id, input.version, { expectedRevision: input.expectedRevision });
+        else if (action === 'enable') output = await extensions.enable(project.id, input.version, { reviewed: input.reviewed, expectedRevision: input.expectedRevision });
+        else if (action === 'disable') output = await extensions.disable(project.id, { expectedRevision: input.expectedRevision });
+        else if (action === 'rollback') output = await extensions.rollback(project.id, { expectedRevision: input.expectedRevision });
+        else if (action === 'run') output = await extensions.run(project.id, project.root);
+        else return send(response, 404, { error: 'Rota não encontrada' });
+      }
+      else if (url.pathname === '/api/keys') { output = await keys.store({ provider: input.provider, secret: input.secret }); changed = false; }
+      else if (url.pathname === '/api/keys/remove') { await keys.remove(input.ref); output = { removed: true }; changed = false; }
+      else if (url.pathname === '/api/usage/codex-quota') { codexQuota = await readQuota({ codexPath }); output = { figures: usageFigures({ codexQuota }) }; changed = false; }
       else {
         const command = url.pathname.match(/^\/api\/sessions\/([^/]+)\/command$/);
         const write = url.pathname.match(/^\/api\/sessions\/([^/]+)\/write$/);
@@ -224,6 +264,7 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
         const stop = url.pathname.match(/^\/api\/sessions\/([^/]+)\/stop$/);
         const recovery = url.pathname.match(/^\/api\/sessions\/([^/]+)\/acknowledge$/);
         const taskStatus = url.pathname.match(/^\/api\/tasks\/([^/]+)\/status$/);
+        const taskOwner = url.pathname.match(/^\/api\/tasks\/([^/]+)\/(assign|handoff)$/);
         const memoryUpdate = url.pathname.match(/^\/api\/memory\/([^/]+)\/(update|archive|forget)$/);
         if (command) { output = shells.command(command[1], input.command); changed = false; }
         else if (write) { output = shells.write(write[1], input.data); changed = false; }
@@ -231,6 +272,7 @@ export function createOmniForgeServer({ dataDir = path.join(REPO_ROOT, '.omnifor
         else if (stop) { output = shells.stop(stop[1]); changed = false; }
         else if (recovery) output = store.acknowledgeInterruptedSession(recovery[1], input.verification);
         else if (taskStatus) output = store.setTaskStatus(taskStatus[1], input.status, input.expectedRevision);
+        else if (taskOwner) output = taskOwner[2] === 'assign' ? store.assignTask(taskOwner[1], input) : store.handoffTask(taskOwner[1], input);
         else if (memoryUpdate) output = memoryUpdate[2] === 'update' ? store.updateNote(memoryUpdate[1], input) : store.archiveNote(memoryUpdate[1], input);
         else return send(response, 404, { error: 'Rota não encontrada' });
       }

@@ -483,3 +483,43 @@ test('PowerShell 7 preserves a non-ASCII project path in terminal output', async
     await shells.closeAll();
   }
 });
+
+test('blocking a prerequisite deterministically blocks its open dependents and unblocking restores only those', t => {
+  const { projectRoot, store } = fixture(t);
+  const project = store.addProject({ name: 'Replan', root: projectRoot });
+  const a = store.addTask({ projectId: project.id, title: 'A' });
+  const b = store.addTask({ projectId: project.id, title: 'B', dependsOn: [a.id] });
+  const c = store.addTask({ projectId: project.id, title: 'C', dependsOn: [b.id] });
+  const manual = store.addTask({ projectId: project.id, title: 'Manual', dependsOn: [a.id] });
+  const done = store.addTask({ projectId: project.id, title: 'Independent' });
+  store.setTaskStatus(manual.id, 'blocked', 1);
+  store.setTaskStatus(a.id, 'blocked', 1);
+  assert.deepEqual([b, c].map(task => [store.task(task.id).status, store.task(task.id).blockedBy]), [['blocked', a.id], ['blocked', a.id]]);
+  assert.equal(store.task(b.id).revision, 2);
+  assert.equal(store.task(manual.id).blockedBy, undefined);
+  assert.equal(store.task(done.id).status, 'open');
+  store.setTaskStatus(a.id, 'open', 2);
+  assert.deepEqual([b, c].map(task => [store.task(task.id).status, store.task(task.id).blockedBy]), [['open', undefined], ['open', undefined]]);
+  assert.equal(store.task(manual.id).status, 'blocked');
+});
+
+test('a task owner is a session of the same project, and handoffs are recorded on the task with revision checks', t => {
+  const { root, projectRoot, store } = fixture(t);
+  const project = store.addProject({ name: 'Own', root: projectRoot });
+  const otherRoot = path.join(root, 'other');
+  fs.mkdirSync(otherRoot);
+  const other = store.addProject({ name: 'Other', root: otherRoot });
+  const task = store.addTask({ projectId: project.id, title: 'Owned' });
+  const session = store.addSession({ projectId: project.id, name: 'Build' });
+  const foreign = store.addSession({ projectId: other.id, name: 'Foreign' });
+  assert.throws(() => store.assignTask(task.id, { sessionId: foreign.id, expectedRevision: 1 }), /outro projeto/);
+  assert.throws(() => store.assignTask(task.id, { sessionId: session.id, worktree: 'relative/path', expectedRevision: 1 }), /absoluto/);
+  const assigned = store.assignTask(task.id, { sessionId: session.id, worktree: projectRoot, expectedRevision: 1 });
+  assert.deepEqual([assigned.sessionId, assigned.worktree, assigned.revision], [session.id, projectRoot, 2]);
+  assert.throws(() => store.assignTask(task.id, { sessionId: null, expectedRevision: 1 }), error => error.status === 409);
+  assert.throws(() => store.handoffTask(task.id, { toHost: 'gemini', summary: 'x', expectedRevision: 2 }), /Host/);
+  const handed = store.handoffTask(task.id, { toHost: 'codex', summary: 'Teste vermelho escrito; falta a correção em harness/.', expectedRevision: 2 });
+  assert.equal(handed.revision, 3);
+  assert.deepEqual(handed.handoffs.map(item => [item.to, item.fromSession, item.worktree]), [['codex', session.id, projectRoot]]);
+  assert.match(handed.handoffs[0].at, /^\d{4}-/);
+});
