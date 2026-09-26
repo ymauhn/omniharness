@@ -422,7 +422,39 @@ test('a recorded path that is inside the prefix only as text, through a junction
   assert.equal(fs.readFileSync(path.join(victim, 'keep.txt'), 'utf8'), 'not ours');
   for (const gone of [...installed, 'data']) assert.ok(!fs.existsSync(path.join(prefix, gone)), `${gone}\n${lines.join('\n')}`);
   assert.deepEqual(fs.readdirSync(prefix), ['escape'], lines.join('\n'));
-  assert.equal(lines.filter(line => line.includes(`. ${victim}`) && /: outside .+; ignored, never removed$/.test(line)).length, 2, lines.join('\n'));
+  assert.ok(lines.some(line => line.includes(`. ${path.join(victim, 'keep.txt')}: outside `) && /; ignored, never removed$/.test(line)), lines.join('\n'));
+  assert.ok(lines.some(line => line.includes(`. ${path.join(prefix, 'escape')}: a link, not what install created; left in place`)), lines.join('\n'));
+});
+
+test('a recorded folder replaced by a link inside the prefix is left in place, and so is what it points to', t => {
+  for (const removeData of [false, true]) {
+    const dir = tmp(t, `link-${removeData}`);
+    const prefix = path.join(dir, 'OmniForge');
+    // data\ existed before install, so it is not recorded; notes\ is the user's own folder.
+    const data = path.join(prefix, 'data');
+    const notes = path.join(prefix, 'notes');
+    fs.mkdirSync(data, { recursive: true });
+    fs.writeFileSync(path.join(data, 'state.json'), '{"schema":1}');
+    install({ from: tinyZip(dir, '0.1.0', 'ab'.repeat(20)).zip, prefix, exec: fakeExec(), out: () => {} });
+    fs.mkdirSync(notes);
+    fs.writeFileSync(path.join(notes, 'mine.txt'), 'mine');
+    const app = path.join(prefix, 'app', JSON.parse(fs.readFileSync(path.join(prefix, 'current.json'), 'utf8')).version);
+    const links = [[app, data], [path.join(prefix, 'run'), notes]];
+    for (const [link, target] of links) {
+      fs.rmSync(link, { recursive: true, force: true });
+      fs.symlinkSync(target, link, 'junction');
+    }
+    const lines = [];
+    assert.equal(uninstall({ prefix, apply: true, removeData, tempDir: dir, out: line => lines.push(line) }), 0);
+    const log = `--remove-data ${removeData}\n${lines.join('\n')}`;
+    assert.equal(fs.readFileSync(path.join(data, 'state.json'), 'utf8'), '{"schema":1}', log);
+    assert.equal(fs.readFileSync(path.join(notes, 'mine.txt'), 'utf8'), 'mine', log);
+    for (const [link] of links) {
+      assert.ok(fs.lstatSync(link).isSymbolicLink(), log);
+      assert.ok(lines.some(line => line.includes(`. ${link}: a link, not what install created; left in place`)), log);
+    }
+    assert.ok(!fs.existsSync(path.join(prefix, 'releases')), log);
+  }
 });
 
 test('reinstalling the current build keeps the backup that rollback names', t => {

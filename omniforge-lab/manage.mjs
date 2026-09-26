@@ -515,10 +515,14 @@ export function uninstall({ prefix = defaultPrefix(), apply = false, removeData 
   const record = loadRecord(prefix);
   const data = path.join(prefix, 'data');
   // A recorded path not really inside the prefix is never removed, whatever install.json says or however
-  // it is spelled; everything below compares and removes these canonical forms only.
-  const created = record.created.map(item => ({ ...item, path: canonical(item.path) }));
+  // it is spelled; everything below compares and removes these canonical forms only. Install never creates
+  // a link, so a recorded path that is now one keeps its own name (resolving it would aim at the target)
+  // and is left in place with whatever it points to. lstat, not a spelling test: an 8.3 leaf also resolves.
+  const created = record.created.map(item => fs.lstatSync(item.path, { throwIfNoEntry: false })?.isSymbolicLink()
+    ? { ...item, link: true, path: path.join(canonical(path.dirname(item.path)), path.basename(item.path)) }
+    : { ...item, path: canonical(item.path) });
   const ours = created.filter(item => same(item.path, prefix) || contains(prefix, item.path));
-  const lines = ours.map(item => `${item.path}: ${describe(item, prefix)}`);
+  const lines = ours.map(item => `${item.path}: ${item.link ? 'a link, not what install created; left in place with its target' : describe(item, prefix)}`);
   for (const item of created.filter(entry => !ours.includes(entry))) lines.push(`${item.path}: outside ${prefix}; ignored, never removed`);
   out(lines.length ? `Recorded by install in ${prefix}:` : `No install record in ${prefix}.`);
   lines.forEach((line, index) => out(`${index + 1}. ${line}`));
@@ -531,7 +535,7 @@ export function uninstall({ prefix = defaultPrefix(), apply = false, removeData 
   const installFile = path.join(prefix, 'install.json');
   // Containment, not string equality: nothing inside data\ goes on its own, data\ only with --remove-data,
   // and a folder above data\ (the prefix, whatever its recorded kind) is removed only when empty.
-  const removable = ours.filter(item => !contains(data, item.path) && (removeData || !same(item.path, data)));
+  const removable = ours.filter(item => !item.link && !contains(data, item.path) && (removeData || !same(item.path, data)));
   const asDir = item => item.kind === 'dir' || contains(item.path, data);
   for (const item of removable.filter(entry => !asDir(entry) && !same(entry.path, installFile))) {
     fs.rmSync(item.path, { recursive: item.kind === 'tree', force: true });
